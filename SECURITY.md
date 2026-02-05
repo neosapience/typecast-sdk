@@ -1,21 +1,28 @@
 # Security Policy
 
-## Supported Versions
-
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
-
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+If you discover a security vulnerability, please report it via email to:
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+📧 **help@typecast.ai**
+
+Please do NOT report security vulnerabilities through public GitHub issues.
+
+### What to Include
+
+Please include the following information in your report:
+
+- Type of vulnerability (e.g., injection, authentication bypass, etc.)
+- Affected SDK(s) and version(s)
+- Step-by-step instructions to reproduce the issue
+- Proof-of-concept or exploit code (if possible)
+- Potential impact of the vulnerability
+
+## Security Best Practices
+
+When using Typecast SDKs:
+
+- **Never commit API keys** to version control
+- **Use environment variables** for sensitive configuration
+- **Keep SDKs updated** to the latest version
+- **Review dependencies** regularly for known vulnerabilities
