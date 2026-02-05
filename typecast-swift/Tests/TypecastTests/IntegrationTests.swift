@@ -2,15 +2,16 @@ import XCTest
 @testable import Typecast
 
 /// Integration tests that require a valid API key
-/// Set the TYPECAST_API_KEY environment variable or use the provided test key
+/// Set the TYPECAST_API_KEY environment variable before running tests
 final class IntegrationTests: XCTestCase {
     
     var client: TypecastClient!
     
     override func setUp() async throws {
-        // Use environment variable or provided test key
-        let apiKey = ProcessInfo.processInfo.environment["TYPECAST_API_KEY"]
-            ?? "***REDACTED***"
+        // Use environment variable for API key
+        guard let apiKey = ProcessInfo.processInfo.environment["TYPECAST_API_KEY"] else {
+            throw XCTSkip("TYPECAST_API_KEY environment variable is required for integration tests")
+        }
         
         client = TypecastClient(apiKey: apiKey)
     }

@@ -7,17 +7,25 @@ import (
 	"time"
 )
 
-const testAPIKey = "***REDACTED***"
+func skipIfNoAPIKey(t *testing.T) string {
+	t.Helper()
+	apiKey := os.Getenv("TYPECAST_API_KEY")
+	if apiKey == "" {
+		t.Skip("TYPECAST_API_KEY environment variable is required for integration tests")
+	}
+	return apiKey
+}
 
-func getTestClient() *Client {
+func getTestClient(t *testing.T) *Client {
+	apiKey := skipIfNoAPIKey(t)
 	return NewClient(&ClientConfig{
-		APIKey:  testAPIKey,
+		APIKey:  apiKey,
 		Timeout: 60 * time.Second,
 	})
 }
 
 func TestGetVoicesV2(t *testing.T) {
-	client := getTestClient()
+	client := getTestClient(t)
 	ctx := context.Background()
 
 	voices, err := client.GetVoicesV2(ctx, nil)
@@ -46,7 +54,7 @@ func TestGetVoicesV2(t *testing.T) {
 }
 
 func TestGetVoicesV2WithFilter(t *testing.T) {
-	client := getTestClient()
+	client := getTestClient(t)
 	ctx := context.Background()
 
 	// Filter by model
@@ -81,7 +89,7 @@ func TestGetVoicesV2WithFilter(t *testing.T) {
 }
 
 func TestGetVoiceV2(t *testing.T) {
-	client := getTestClient()
+	client := getTestClient(t)
 	ctx := context.Background()
 
 	// First, get a voice ID from the list
@@ -111,7 +119,7 @@ func TestGetVoiceV2(t *testing.T) {
 }
 
 func TestTextToSpeech(t *testing.T) {
-	client := getTestClient()
+	client := getTestClient(t)
 	ctx := context.Background()
 
 	// First, get a voice that supports ssfm-v21
@@ -175,7 +183,7 @@ func TestTextToSpeech(t *testing.T) {
 }
 
 func TestTextToSpeechV30(t *testing.T) {
-	client := getTestClient()
+	client := getTestClient(t)
 	ctx := context.Background()
 
 	// Get a voice that supports ssfm-v30
@@ -229,7 +237,7 @@ func TestTextToSpeechV30(t *testing.T) {
 }
 
 func TestTextToSpeechPresetPrompt(t *testing.T) {
-	client := getTestClient()
+	client := getTestClient(t)
 	ctx := context.Background()
 
 	// Get a voice that supports ssfm-v30
@@ -313,7 +321,7 @@ func TestAPIErrorHandling(t *testing.T) {
 }
 
 func TestTextToSpeechInvalidVoice(t *testing.T) {
-	client := getTestClient()
+	client := getTestClient(t)
 	ctx := context.Background()
 
 	request := &TTSRequest{
