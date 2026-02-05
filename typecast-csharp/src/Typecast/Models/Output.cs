@@ -29,11 +29,11 @@ public class Output
     public double? AudioTempo { get; set; } = 1.0;
 
     /// <summary>
-    /// Audio output format (default "wav").
+    /// Audio output format (default WAV).
     /// </summary>
     [JsonPropertyName("audio_format")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? AudioFormat { get; set; } = "wav";
+    public AudioFormat? AudioFormat { get; set; } = Models.AudioFormat.Wav;
 
     /// <summary>
     /// Creates a new Output with default values.
@@ -46,12 +46,34 @@ public class Output
     /// <param name="volume">Volume level (0-200)</param>
     /// <param name="audioPitch">Pitch adjustment in semitones (-12 to 12)</param>
     /// <param name="audioTempo">Tempo multiplier (0.5-2.0)</param>
-    /// <param name="audioFormat">Audio format ("wav" or "mp3")</param>
-    public Output(int? volume = 100, int? audioPitch = 0, double? audioTempo = 1.0, string? audioFormat = "wav")
+    /// <param name="audioFormat">Audio format</param>
+    public Output(int? volume = 100, int? audioPitch = 0, double? audioTempo = 1.0, AudioFormat? audioFormat = null)
     {
         Volume = volume;
         AudioPitch = audioPitch;
         AudioTempo = audioTempo;
-        AudioFormat = audioFormat;
+        AudioFormat = audioFormat ?? Models.AudioFormat.Wav;
+    }
+
+    /// <summary>
+    /// Validates the output configuration.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when values are out of valid range.</exception>
+    public void Validate()
+    {
+        if (Volume.HasValue && (Volume.Value < 0 || Volume.Value > 200))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Volume), "Volume must be between 0 and 200.");
+        }
+
+        if (AudioPitch.HasValue && (AudioPitch.Value < -12 || AudioPitch.Value > 12))
+        {
+            throw new ArgumentOutOfRangeException(nameof(AudioPitch), "AudioPitch must be between -12 and 12.");
+        }
+
+        if (AudioTempo.HasValue && (AudioTempo.Value < 0.5 || AudioTempo.Value > 2.0))
+        {
+            throw new ArgumentOutOfRangeException(nameof(AudioTempo), "AudioTempo must be between 0.5 and 2.0.");
+        }
     }
 }
