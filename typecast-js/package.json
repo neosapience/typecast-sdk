@@ -1,0 +1,76 @@
+{
+  "name": "@neosapience/typecast-js",
+  "version": "0.1.5",
+  "type": "module",
+  "main": "./lib/index.cjs",
+  "module": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js",
+      "require": "./lib/index.cjs"
+    }
+  },
+  "files": [
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:package": "bash scripts/test-package.sh",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run lint && vitest run && npm run build",
+    "link:dev": "npm link",
+    "clean": "rm -rf lib",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\""
+  },
+  "keywords": [
+    "typecast",
+    "tts",
+    "text-to-speech",
+    "ai",
+    "voice",
+    "speech-synthesis",
+    "typescript",
+    "nodejs",
+    "javascript",
+    "sdk"
+  ],
+  "author": "Neosapience <help@typecast.ai>",
+  "license": "Apache-2.0",
+  "description": "The official Node.js library for the Typecast API. Text-to-Speech with AI voices. TypeScript support included.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neosapience/typecast-js.git"
+  },
+  "homepage": "https://typecast.ai",
+  "bugs": {
+    "url": "https://github.com/neosapience/typecast-js/issues"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "@typescript-eslint/eslint-plugin": "^7.3.1",
+    "@typescript-eslint/parser": "^7.3.1",
+    "dotenv": "^16.4.7",
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.5",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.9"
+  },
+  "dependencies": {}
+}

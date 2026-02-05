@@ -1,0 +1,66 @@
+# Source files (only ship compiled lib/)
+src/
+*.ts
+!*.d.ts
+
+# Tests
+test/
+*.test.ts
+*.test.js
+test-output.wav
+coverage/
+.nyc_output/
+
+# Examples
+examples/
+
+# Config files
+tsconfig.json
+tsup.config.ts
+vite.config.ts
+.eslintrc*
+.prettierrc*
+.editorconfig
+
+# Build artifacts
+*.tsbuildinfo
+.cache/
+
+# Development files
+.env
+.env.*
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# CI/CD
+.circleci/
+.github/
+.gitlab-ci.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation that's not needed in package
+docs/
+*.md
+!README.md
+
+# Misc
+Makefile
+docker/
+Dockerfile
+.dockerignore
+
+

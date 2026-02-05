@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+      "target": "es2020",
+      "module": "es2020",
+      "moduleResolution": "bundler",
+      "strict": true,
+      "esModuleInterop": true,
+      "declaration": true,
+      "declarationMap": true,
+      "types": [
+        "vitest/globals"
+      ]
+    },
+    "include": ["src"],
+    "exclude": ["node_modules", "test"]
+  }
