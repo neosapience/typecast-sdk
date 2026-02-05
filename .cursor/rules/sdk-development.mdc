@@ -1,0 +1,59 @@
+---
+description: Core development guidelines for Typecast SDK development
+globs: 
+alwaysApply: true
+---
+
+# Typecast SDK Development Rules
+
+## Backward Compatibility (CRITICAL)
+
+All SDKs must maintain backward compatibility. Breaking changes are strongly discouraged.
+
+- Do NOT remove or rename existing public APIs
+- Do NOT change method signatures in ways that break existing code
+- Use deprecation warnings before removing features
+- Add new parameters as optional with sensible defaults
+- When in doubt, maintain compatibility over introducing new patterns
+
+## Cross-SDK Consistency
+
+SDKs should maintain similar structure and API patterns across languages where feasible.
+
+**However**, language-specific idioms and runtime characteristics take precedence:
+- Follow each language's conventions and best practices
+- Respect language-specific patterns (e.g., async/await in JS, goroutines in Go)
+- Use native error handling mechanisms
+
+## OpenAPI Specification
+
+If an `openapi.json` file exists at the project root, use it as the **source of truth** for:
+- API endpoint definitions
+- Request/response schemas
+- Model definitions
+- Error codes and messages
+
+## Code Quality Standards
+
+### File Length Limit
+Keep all source files under 450 lines. If a file exceeds this limit:
+- Split into logical modules/classes
+- Extract helper functions to separate files
+
+### Comments and Documentation
+**All comments must be written in English.** This includes:
+- Inline code comments
+- Function/method documentation
+- README files and guides
+
+### Security Requirements (CRITICAL)
+
+- NO private keys, secrets, or credentials in code
+- NO API keys committed to the repository
+- Use `.env.example` files to document required environment variables
+- Validate and sanitize all user inputs
+- Use secure HTTP connections (HTTPS only)
+
+## Additional Context
+
+For complete guidelines, refer to [CLAUDE.md](mdc:CLAUDE.md) in the project root.

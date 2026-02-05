@@ -315,3 +315,4 @@ logs/
 # Misc
 # ----------------
 .npmrc
+openapi.json
