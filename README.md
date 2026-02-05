@@ -92,7 +92,19 @@ For detailed API documentation and guides, visit **[typecast.ai/docs](https://ty
 
 ## License
 
-Each SDK is licensed under the MIT License. See individual SDK directories for details.
+Each SDK is licensed under either the **MIT License** or **Apache License 2.0**. The specific license for each SDK can be found in the LICENSE file within each SDK directory.
+
+| SDK | License |
+|-----|---------|
+| typecast-python | Apache 2.0 |
+| typecast-js | Apache 2.0 |
+| typecast-go | MIT |
+| typecast-java | MIT |
+| typecast-kotlin | Apache 2.0 |
+| typecast-csharp | Apache 2.0 |
+| typecast-swift | Apache 2.0 |
+| typecast-rust | MIT |
+| typecast-c | MIT |
 
 <br/>
 
