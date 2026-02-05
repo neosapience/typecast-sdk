@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netstandard2.1;net6.0;net8.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RootNamespace>Typecast</RootNamespace>
+    <AssemblyName>Typecast</AssemblyName>
+    
+    <!-- NuGet Package Configuration -->
+    <PackageId>Typecast</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Typecast</Authors>
+    <Company>Typecast</Company>
+    <Description>Official C# SDK for Typecast Text-to-Speech API. Supports .NET Standard 2.0+, .NET 6+, Unity (via NuGetForUnity), and Blazor.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/typecast-ai/typecast-csharp</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/typecast-ai/typecast-csharp</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>typecast;tts;text-to-speech;speech;synthesis;ai;voice;audio;unity;blazor</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <Copyright>Copyright (c) 2024 Typecast</Copyright>
+    
+    <!-- Enable source link for debugging -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\icon.png" Pack="true" PackagePath="\" Condition="Exists('..\..\icon.png')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.0.5" Condition="'$(TargetFramework)' == 'netstandard2.0' Or '$(TargetFramework)' == 'netstandard2.1'" />
+  </ItemGroup>
+
+  <!-- For .NET Standard 2.0 compatibility -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="8.0.0" />
+    <PackageReference Include="System.Net.Http.Json" Version="8.0.1" />
+  </ItemGroup>
+
+</Project>

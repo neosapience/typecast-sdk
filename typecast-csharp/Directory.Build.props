@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <Authors>Typecast</Authors>
+    <Company>Typecast</Company>
+    <Copyright>Copyright (c) 2024 Typecast</Copyright>
+    <Product>Typecast SDK</Product>
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+</Project>
