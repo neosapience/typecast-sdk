@@ -26,7 +26,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
    ```
 3. **Create a branch** for your changes:
    ```bash
-   git checkout -b feature/your-feature-name
+   git checkout -b feat/your-feature-name
    ```
 
 ## How to Contribute
@@ -43,17 +43,17 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 This monorepo contains SDKs for multiple languages:
 
-| Directory | Language | Package Manager |
-|-----------|----------|-----------------|
-| `typecast-python` | Python | pip / uv |
-| `typecast-js` | JavaScript/TypeScript | npm |
-| `typecast-go` | Go | go modules |
-| `typecast-java` | Java | Maven |
-| `typecast-kotlin` | Kotlin | Gradle |
-| `typecast-csharp` | C# | NuGet |
-| `typecast-swift` | Swift | SPM |
-| `typecast-rust` | Rust | Cargo |
-| `typecast-c` | C | CMake |
+| Directory         | Language              | Package Manager |
+| ----------------- | --------------------- | --------------- |
+| `typecast-python` | Python                | pip / uv        |
+| `typecast-js`     | JavaScript/TypeScript | npm             |
+| `typecast-go`     | Go                    | go modules      |
+| `typecast-java`   | Java                  | Maven           |
+| `typecast-kotlin` | Kotlin                | Gradle          |
+| `typecast-csharp` | C#                    | NuGet           |
+| `typecast-swift`  | Swift                 | SPM             |
+| `typecast-rust`   | Rust                  | Cargo           |
+| `typecast-c`      | C                     | CMake           |
 
 Each SDK has its own `README.md` with specific setup instructions.
 
@@ -128,17 +128,17 @@ See individual SDK directories for more detailed instructions.
 
 ### Language-Specific
 
-| Language | Style Guide |
-|----------|-------------|
-| Python | [PEP 8](https://pep8.org/), type hints required |
-| JavaScript/TypeScript | ESLint + Prettier (configured in repo) |
-| Go | `gofmt` and `golint` |
-| Java | Google Java Style Guide |
-| Kotlin | Kotlin Coding Conventions |
-| C# | .NET Coding Conventions |
-| Swift | Swift API Design Guidelines |
-| Rust | `rustfmt` and `clippy` |
-| C | K&R style with 4-space indentation |
+| Language              | Style Guide                                     |
+| --------------------- | ----------------------------------------------- |
+| Python                | [PEP 8](https://pep8.org/), type hints required |
+| JavaScript/TypeScript | ESLint + Prettier (configured in repo)          |
+| Go                    | `gofmt` and `golint`                            |
+| Java                  | Google Java Style Guide                         |
+| Kotlin                | Kotlin Coding Conventions                       |
+| C#                    | .NET Coding Conventions                         |
+| Swift                 | Swift API Design Guidelines                     |
+| Rust                  | `rustfmt` and `clippy`                          |
+| C                     | K&R style with 4-space indentation              |
 
 ### Commit Messages
 
@@ -155,6 +155,7 @@ Closes #123
 ```
 
 Prefixes:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation only
@@ -173,6 +174,7 @@ Prefixes:
 ### Bug Reports
 
 Include:
+
 - SDK name and version
 - Operating system and version
 - Steps to reproduce
@@ -183,6 +185,7 @@ Include:
 ### Feature Requests
 
 Include:
+
 - Clear description of the feature
 - Use case and motivation
 - Proposed API (if applicable)
