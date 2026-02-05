@@ -1,0 +1,33 @@
+# Typecast C SDK - Windows DLL Test Environment
+# Uses Wine to run Windows executables on Linux
+# Tests the built DLL functionality
+
+FROM --platform=linux/amd64 debian:bookworm-slim
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Enable 32-bit architecture for Wine
+RUN dpkg --add-architecture i386
+
+# Install Wine, MinGW-w64, and other dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        wine \
+        wine64 \
+        mingw-w64 \
+        ca-certificates \
+        xvfb \
+        && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set Wine to not display GUI warnings
+ENV WINEDEBUG=-all
+ENV DISPLAY=:99
+
+# Create working directory
+WORKDIR /test
+
+# Set the entrypoint to run tests
+ENTRYPOINT ["/bin/sh", "-c"]
