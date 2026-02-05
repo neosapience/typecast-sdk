@@ -109,7 +109,7 @@ public class TypecastClient : IDisposable
 
         var format = AudioFormat.Wav;
         var contentType = response.Content.Headers.ContentType?.MediaType;
-        if (!string.IsNullOrEmpty(contentType))
+        if (contentType is not null && contentType.Length > 0)
         {
             try
             {
@@ -296,10 +296,10 @@ public class TypecastClient : IDisposable
         {
             case SmartPrompt smart:
                 result["emotion_type"] = "smart";
-                if (!string.IsNullOrEmpty(smart.PreviousText))
-                    result["previous_text"] = smart.PreviousText;
-                if (!string.IsNullOrEmpty(smart.NextText))
-                    result["next_text"] = smart.NextText;
+                if (smart.PreviousText is { Length: > 0 } previousText)
+                    result["previous_text"] = previousText;
+                if (smart.NextText is { Length: > 0 } nextText)
+                    result["next_text"] = nextText;
                 break;
 
             case PresetPrompt preset:
