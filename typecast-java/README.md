@@ -436,7 +436,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Support
 
-[Documentation](https://docs.typecast.ai) •
+[Documentation](https://typecast.ai/docs) •
 [Email](mailto:help@typecast.ai) •
 [GitHub Issues](https://github.com/typecast-ai/typecast-java/issues)
 

@@ -201,6 +201,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Links
 
-- [Typecast API Documentation](https://docs.typecast.ai)
+- [Typecast API Documentation](https://typecast.ai/docs)
 - [Typecast Dashboard](https://typecast.ai)
-- [API Reference](https://docs.typecast.ai/api-reference)
+- [API Reference](https://typecast.ai/docs/api-reference)

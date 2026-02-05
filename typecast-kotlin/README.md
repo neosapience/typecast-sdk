@@ -262,5 +262,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Links
 
 - [Typecast Website](https://typecast.ai)
-- [API Documentation](https://docs.typecast.ai)
+- [API Documentation](https://typecast.ai/docs)
 - [GitHub Repository](https://github.com/typecast-ai/typecast-kotlin)

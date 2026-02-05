@@ -4,7 +4,7 @@
 
 **Official SDKs for the Typecast Text-to-Speech API**
 
-[![API Docs](https://img.shields.io/badge/API-Documentation-blue?style=flat-square)](https://docs.typecast.ai)
+[![API Docs](https://img.shields.io/badge/API-Documentation-blue?style=flat-square)](https://typecast.ai/docs)
 [![Typecast](https://img.shields.io/badge/Typecast-AI-purple?style=flat-square)](https://typecast.ai)
 
 ---
@@ -86,7 +86,7 @@ const audio = await client.tts.speak({
 
 ## Documentation
 
-For detailed API documentation and guides, visit **[docs.typecast.ai](https://docs.typecast.ai)**
+For detailed API documentation and guides, visit **[typecast.ai/docs](https://typecast.ai/docs)**
 
 <br/>
 

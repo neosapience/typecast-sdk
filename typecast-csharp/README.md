@@ -653,6 +653,6 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## Support
 
-- [Typecast Documentation](https://docs.typecast.ai)
-- [API Reference](https://docs.typecast.ai/api-reference)
+- [Typecast Documentation](https://typecast.ai/docs)
+- [API Reference](https://typecast.ai/docs/api-reference)
 - [GitHub Issues](https://github.com/typecast-ai/typecast-csharp/issues)

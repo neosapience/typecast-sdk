@@ -979,4 +979,4 @@ Copyright (c) 2025 Typecast
 ## Links
 
 - [Typecast AI](https://typecast.ai)
-- [API Documentation](https://docs.typecast.ai)
+- [API Documentation](https://typecast.ai/docs)
