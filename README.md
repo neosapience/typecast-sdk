@@ -108,6 +108,24 @@ Each SDK is licensed under either the **MIT License** or **Apache License 2.0**.
 
 <br/>
 
+## Third-Party Licenses
+
+This project uses third-party libraries across different SDK implementations. We are committed to transparency and proper attribution of all dependencies.
+
+The complete list of third-party licenses is documented in [`THIRD-PARTY-LICENSES.txt`](./THIRD-PARTY-LICENSES.txt).
+
+### Updating Third-Party Licenses
+
+To regenerate the third-party license file after dependency changes:
+
+```bash
+./scripts/update-third-party-licenses.sh
+```
+
+This script automatically collects license information from all SDK implementations using language-specific tools (pip-licenses, license-checker, cargo-license, etc.).
+
+<br/>
+
 ---
 
 <div align="center">
