@@ -86,7 +86,10 @@ multi_line_output = 3
 
 [dependency-groups]
 dev = [
+    "pytest>=7.0.0",
     "pytest-cov>=7.0.0",
+    "pytest-mock>=3.14.0",
+    "pytest-asyncio>=0.21.0",
     "python-dotenv>=1.1.1",
     "ruff>=0.14.0",
 ]

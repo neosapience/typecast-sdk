@@ -31,7 +31,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --group dev
 
       - name: Run tests
         run: uv run pytest tests/ -v --ignore=tests/integration_smoke_test.py --ignore=tests/test_integration_tts.py --ignore=tests/test_integration_voices.py
@@ -129,7 +129,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run tests
-        run: ./gradlew test --exclude-task integrationTest
+        run: gradle test --exclude-task integrationTest
 
   # ============================================
   # C# SDK

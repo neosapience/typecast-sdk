@@ -15,7 +15,7 @@
 # Node.js / JavaScript
 # ----------------
 node_modules/
-package-lock.json
+# Note: package-lock.json is NOT ignored - required for npm ci in CI
 yarn.lock
 pnpm-lock.yaml
 
@@ -184,6 +184,7 @@ buildNumber.properties
 
 # Package files
 *.jar
+!**/gradle/wrapper/gradle-wrapper.jar
 *.war
 *.ear
 *.zip
@@ -215,7 +216,6 @@ failsafe-reports/
 # ----------------
 # Gradle
 .gradle/
-!gradle/wrapper/gradle-wrapper.jar
 
 # Kotlin compiled
 out/
@@ -306,10 +306,10 @@ ehthumbs.db
 logs/
 *.log
 
-# Audio output files
+# Audio output files (in root directories, not source code)
 *.wav
 *.mp3
-output.*
+# Note: Removed 'output.*' pattern as it incorrectly matches Output.java/Output.cs source files
 
 # ----------------
 # Misc
