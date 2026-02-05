@@ -8,6 +8,7 @@
 .env
 .env.local
 .env.*.local
+*.env
 !.env.example
 
 # ----------------
@@ -18,7 +19,7 @@ package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
-# Build outputs
+# Build outputs (JS)
 lib/
 dist/
 build/
@@ -31,7 +32,7 @@ coverage/
 .npm
 .eslintcache
 
-# Logs
+# Logs (JS)
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -65,7 +66,7 @@ env/
 venv/
 ENV/
 
-# Testing
+# Testing (Python)
 .coverage
 htmlcov/
 .pytest_cache/
@@ -73,14 +74,226 @@ htmlcov/
 .ruff_cache/
 
 # ----------------
+# C / C++
+# ----------------
+# Build directories
+[Bb]uild/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+
+# Compiled objects
+*.o
+*.obj
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+
+# Libraries
+*.dylib
+
+# ----------------
+# C# / .NET
+# ----------------
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# NuGet packages
+*.nupkg
+*.snupkg
+packages/
+*.nuget.props
+*.nuget.targets
+
+# Test results (.NET)
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coveragexml
+coverage*.json
+coverage*.xml
+
+# NCrunch
+*.ncrunchproject
+*.ncrunchsolution
+_NCrunch_*
+
+# DotCover
+*.dotCover
+
+# BenchmarkDotNet
+BenchmarkDotNet.Artifacts/
+
+# Project specific
+*.DotSettings.user
+launchSettings.json
+
+# ----------------
+# Go
+# ----------------
+*.exe~
+*.dll
+*.test
+go.work
+go.work.sum
+vendor/
+test_output*
+
+# ----------------
+# Java
+# ----------------
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Compiled files
+*.class
+
+# Package files
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# NetBeans
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# JVM crash logs
+hs_err_pid*
+replay_pid*
+
+# Test output (Java)
+test-output/
+surefire-reports/
+failsafe-reports/
+
+# ----------------
+# Kotlin
+# ----------------
+# Gradle
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Kotlin compiled
+out/
+
+# ----------------
+# Rust
+# ----------------
+/target/
+Cargo.lock
+*~
+
+# ----------------
+# Swift
+# ----------------
+# Xcode
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+Carthage/Checkouts
+
+# Accio
+Dependencies/
+.accio/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Code Injection
+iOSInjectionProject/
+
+# ----------------
 # IDE / Editor
 # ----------------
 .idea/
+*.iml
+*.ipr
+*.iws
 .vscode/
 *.swp
 *.swo
 .DS_Store
 Thumbs.db
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Rider
+*.sln.iml
 
 # ----------------
 # Docker
@@ -96,6 +309,7 @@ logs/
 # Audio output files
 *.wav
 *.mp3
+output.*
 
 # ----------------
 # Misc
