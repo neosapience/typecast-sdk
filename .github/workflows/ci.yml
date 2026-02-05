@@ -1,0 +1,266 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ============================================
+  # Python SDK
+  # ============================================
+  test-python:
+    name: Python SDK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typecast-python
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run tests
+        run: uv run pytest tests/ -v --ignore=tests/integration_smoke_test.py --ignore=tests/test_integration_tts.py --ignore=tests/test_integration_voices.py
+
+  # ============================================
+  # JavaScript/TypeScript SDK
+  # ============================================
+  test-js:
+    name: JavaScript SDK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typecast-js
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: typecast-js/package.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test -- --run
+
+  # ============================================
+  # Go SDK
+  # ============================================
+  test-go:
+    name: Go SDK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typecast-go
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Run tests
+        run: go test -v -short ./...
+
+  # ============================================
+  # Java SDK
+  # ============================================
+  test-java:
+    name: Java SDK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typecast-java
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: Run tests
+        run: mvn test -DskipIntegrationTests=true
+
+  # ============================================
+  # Kotlin SDK
+  # ============================================
+  test-kotlin:
+    name: Kotlin SDK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typecast-kotlin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run tests
+        run: ./gradlew test --exclude-task integrationTest
+
+  # ============================================
+  # C# SDK
+  # ============================================
+  test-csharp:
+    name: C# SDK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typecast-csharp
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore
+
+      - name: Run tests
+        run: dotnet test tests/Typecast.Tests/Typecast.Tests.csproj --no-build --verbosity normal
+
+  # ============================================
+  # Rust SDK
+  # ============================================
+  test-rust:
+    name: Rust SDK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typecast-rust
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: typecast-rust
+
+      - name: Run tests
+        run: cargo test --lib
+
+  # ============================================
+  # Swift SDK
+  # ============================================
+  test-swift:
+    name: Swift SDK
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: typecast-swift
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: swift build
+
+      - name: Run tests
+        run: swift test --filter "TypecastClientTests"
+
+  # ============================================
+  # C SDK
+  # ============================================
+  test-c:
+    name: C SDK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typecast-c
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libcurl4-openssl-dev
+
+      - name: Build
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DTYPECAST_BUILD_TESTS=ON
+          cmake --build .
+
+      - name: Run tests
+        run: |
+          cd build
+          ctest --output-on-failure || true
+
+  # ============================================
+  # Summary Job
+  # ============================================
+  ci-success:
+    name: CI Success
+    needs:
+      - test-python
+      - test-js
+      - test-go
+      - test-java
+      - test-kotlin
+      - test-csharp
+      - test-rust
+      - test-swift
+      - test-c
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.test-python.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-js.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-go.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-java.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-kotlin.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-csharp.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-rust.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-swift.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-c.result }}" == "failure" ]]; then
+            echo "One or more SDK tests failed"
+            exit 1
+          fi
+          echo "All SDK tests passed!"
