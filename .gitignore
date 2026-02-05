@@ -1,0 +1,103 @@
+# ================================
+# Typecast SDK Monorepo .gitignore
+# ================================
+
+# ----------------
+# Environment
+# ----------------
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ----------------
+# Node.js / JavaScript
+# ----------------
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Build outputs
+lib/
+dist/
+build/
+*.tsbuildinfo
+
+# Test coverage
+coverage/
+
+# Optional npm cache
+.npm
+.eslintcache
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ----------------
+# Python
+# ----------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv
+.test_venv
+.ci_test_venv
+env/
+venv/
+ENV/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ----------------
+# IDE / Editor
+# ----------------
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ----------------
+# Docker
+# ----------------
+.docker/
+
+# ----------------
+# Logs & Output
+# ----------------
+logs/
+*.log
+
+# Audio output files
+*.wav
+*.mp3
+
+# ----------------
+# Misc
+# ----------------
+.npmrc
