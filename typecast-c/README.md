@@ -1,6 +1,6 @@
 # Typecast C/C++ SDK
 
-Text-to-Speech API client library for [Typecast AI](https://typecast.ai).
+Text-to-Speech API client library for [Typecast AI](https://typecast.ai/?lang=en).
 
 ## Features
 
@@ -978,5 +978,5 @@ Copyright (c) 2025 Typecast
 
 ## Links
 
-- [Typecast AI](https://typecast.ai)
+- [Typecast AI](https://typecast.ai/?lang=en)
 - [API Documentation](https://typecast.ai/docs)

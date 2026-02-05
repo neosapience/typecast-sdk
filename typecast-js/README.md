@@ -325,4 +325,4 @@ import type {
 
 ## License
 
-[Apache-2.0](LICENSE) © [Neosapience](https://typecast.ai)
+[Apache-2.0](LICENSE) © [Neosapience](https://typecast.ai/?lang=en)

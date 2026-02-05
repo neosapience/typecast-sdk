@@ -1,6 +1,6 @@
 # Typecast Rust SDK
 
-Official Rust SDK for the [Typecast](https://typecast.ai) Text-to-Speech API.
+Official Rust SDK for the [Typecast](https://typecast.ai/?lang=en) Text-to-Speech API.
 
 ## Installation
 
@@ -202,5 +202,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Links
 
 - [Typecast API Documentation](https://typecast.ai/docs)
-- [Typecast Dashboard](https://typecast.ai)
+- [Typecast Dashboard](https://typecast.ai/?lang=en)
 - [API Reference](https://typecast.ai/docs/api-reference)

@@ -1,6 +1,6 @@
 # Typecast C# SDK
 
-Official C# SDK for the [Typecast](https://typecast.ai) Text-to-Speech API. This SDK supports .NET Standard 2.0+, .NET 6+, Unity (via NuGetForUnity), and Blazor applications.
+Official C# SDK for the [Typecast](https://typecast.ai/?lang=en) Text-to-Speech API. This SDK supports .NET Standard 2.0+, .NET 6+, Unity (via NuGetForUnity), and Blazor applications.
 
 [![NuGet](https://img.shields.io/nuget/v/Typecast.svg)](https://www.nuget.org/packages/Typecast)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)

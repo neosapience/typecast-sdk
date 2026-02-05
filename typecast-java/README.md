@@ -442,6 +442,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-Made with ❤️ by [Typecast](https://typecast.ai)
+Made with ❤️ by [Typecast](https://typecast.ai/?lang=en)
 
 </div>

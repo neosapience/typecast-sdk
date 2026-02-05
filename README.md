@@ -5,7 +5,7 @@
 **Official SDKs for the Typecast Text-to-Speech API**
 
 [![API Docs](https://img.shields.io/badge/API-Documentation-blue?style=flat-square)](https://typecast.ai/docs)
-[![Typecast](https://img.shields.io/badge/Typecast-AI-purple?style=flat-square)](https://typecast.ai)
+[![Typecast](https://img.shields.io/badge/Typecast-AI-purple?style=flat-square)](https://typecast.ai/?lang=en)
 
 ---
 
@@ -17,7 +17,7 @@ _Transform text into natural, expressive speech with Typecast AI_
 
 ## Overview
 
-This monorepo contains official SDK clients for the [Typecast](https://typecast.ai) Text-to-Speech API across multiple programming languages. Each SDK provides a simple, idiomatic interface to convert text into high-quality AI-generated speech.
+This monorepo contains official SDK clients for the [Typecast](https://typecast.ai/?lang=en) Text-to-Speech API across multiple programming languages. Each SDK provides a simple, idiomatic interface to convert text into high-quality AI-generated speech.
 
 <br/>
 
@@ -41,7 +41,7 @@ This monorepo contains official SDK clients for the [Typecast](https://typecast.
 
 ### 1. Get Your API Key
 
-Sign up at [typecast.ai](https://typecast.ai) and generate an API key from your dashboard.
+Sign up at [typecast.ai](https://typecast.ai/?lang=en) and generate an API key from your dashboard.
 
 ### 2. Install Your Preferred SDK
 
@@ -100,6 +100,6 @@ Each SDK is licensed under the MIT License. See individual SDK directories for d
 
 <div align="center">
 
-Made with ❤️ by [Typecast AI](https://typecast.ai)
+Made with ❤️ by [Typecast AI](https://typecast.ai/?lang=en)
 
 </div>

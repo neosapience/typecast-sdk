@@ -323,4 +323,4 @@ if err != nil {
 
 ## License
 
-[MIT](LICENSE) © [Neosapience](https://typecast.ai)
+[MIT](LICENSE) © [Neosapience](https://typecast.ai/?lang=en)

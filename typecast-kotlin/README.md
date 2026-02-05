@@ -1,6 +1,6 @@
 # Typecast Kotlin SDK
 
-Official Kotlin SDK for the [Typecast](https://typecast.ai) Text-to-Speech API.
+Official Kotlin SDK for the [Typecast](https://typecast.ai/?lang=en) Text-to-Speech API.
 
 ## Installation
 
@@ -261,6 +261,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Links
 
-- [Typecast Website](https://typecast.ai)
+- [Typecast Website](https://typecast.ai/?lang=en)
 - [API Documentation](https://typecast.ai/docs)
 - [GitHub Repository](https://github.com/typecast-ai/typecast-kotlin)
