@@ -54,6 +54,33 @@ Keep all source files under 450 lines. If a file exceeds this limit:
 - Validate and sanitize all user inputs
 - Use secure HTTP connections (HTTPS only)
 
+## Pre-Commit Security Checklist (MUST CHECK ON EVERY COMMIT)
+
+**This checklist MUST be reviewed before every commit. Failure to comply may result in security incidents.**
+
+### 1. Security & Sensitive Information (HIGHEST PRIORITY)
+
+Checking for hidden credentials in code is the top priority.
+
+- [ ] **Secrets & API Keys**: Verify no AWS keys, DB credentials, API tokens, or other secrets are hardcoded
+- [ ] **Configuration Files**: Ensure `.env`, `config.yaml`, `credentials.json`, and similar files are properly listed in `.gitignore`
+- [ ] **Internal IPs & Domains**: Remove or generalize internal network IP addresses and private domain names that are not accessible externally
+
+### 2. Commit History (Past Records Matter)
+
+Remember that ALL past commits will be public, not just the current code.
+
+- [ ] **Past Mistakes**: If security information was ever committed in the past, simply removing it from current files is NOT enough
+- [ ] **History Cleanup**: Use tools like `git filter-repo` or `BFG Repo-Cleaner` to completely remove commits containing sensitive data, or create a new repository with only the current state as an 'Initial Commit'
+
+### 3. Legal Review & Licensing
+
+Legal basis is required when publishing corporate code assets.
+
+- [ ] **Open Source License**: Decide on a license (MIT, Apache 2.0, etc.) and add a LICENSE file. Without a license, others cannot legally use the code
+- [ ] **Third-Party Libraries**: Verify that all libraries used in the project have licenses compatible with public release
+- [ ] **Intellectual Property (IP)**: Ensure no core company technology or patent-related logic is included. Consult with legal team if available
+
 ## Additional Context
 
 For complete guidelines, refer to [CLAUDE.md](mdc:CLAUDE.md) in the project root.
