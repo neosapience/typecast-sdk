@@ -1,8 +1,10 @@
 package com.neosapience
 
 import io.github.cdimascio.dotenv.dotenv
+import com.neosapience.exceptions.BadRequestException
 import com.neosapience.exceptions.ForbiddenException
 import com.neosapience.exceptions.NotFoundException
+import com.neosapience.exceptions.TypecastException
 import com.neosapience.models.*
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
@@ -132,10 +134,10 @@ class TypecastClientE2ETest {
         Assumptions.assumeTrue(testVoiceId != null, "Skipping: API key may be invalid")
 
         // API may return 400 (BadRequest) or 404 (NotFound) for invalid voice IDs
-        val exception = assertThrows(io.typecast.exceptions.TypecastException::class.java) {
+        val exception = assertThrows(TypecastException::class.java) {
             client.getVoiceV2("invalid_voice_id_that_does_not_exist")
         }
-        assertTrue(exception is NotFoundException || exception is io.typecast.exceptions.BadRequestException,
+        assertTrue(exception is NotFoundException || exception is BadRequestException,
             "Expected NotFoundException or BadRequestException, got ${exception::class.simpleName}")
     }
 
