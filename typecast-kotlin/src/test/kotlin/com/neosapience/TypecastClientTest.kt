@@ -1,8 +1,8 @@
-package io.typecast
+package com.neosapience
 
-import io.typecast.exceptions.ForbiddenException
-import io.typecast.exceptions.NotFoundException
-import io.typecast.models.*
+import com.neosapience.exceptions.ForbiddenException
+import com.neosapience.exceptions.NotFoundException
+import com.neosapience.models.*
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.*

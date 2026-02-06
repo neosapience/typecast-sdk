@@ -1,4 +1,4 @@
-package io.typecast.models
+package com.neosapience.models
 
 /**
  * Response from Text-to-Speech synthesis.

@@ -1,4 +1,4 @@
-package io.typecast.exceptions
+package com.neosapience.exceptions
 
 /**
  * Base exception for all Typecast API errors.

@@ -1,8 +1,8 @@
-package io.typecast
+package com.neosapience
 
 import io.github.cdimascio.dotenv.dotenv
-import io.typecast.exceptions.*
-import io.typecast.models.*
+import com.neosapience.exceptions.*
+import com.neosapience.models.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json

@@ -1,4 +1,4 @@
-package io.typecast.models
+package com.neosapience.models
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

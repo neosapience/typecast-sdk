@@ -1,9 +1,9 @@
-package io.typecast
+package com.neosapience
 
 import io.github.cdimascio.dotenv.dotenv
-import io.typecast.exceptions.ForbiddenException
-import io.typecast.exceptions.NotFoundException
-import io.typecast.models.*
+import com.neosapience.exceptions.ForbiddenException
+import com.neosapience.exceptions.NotFoundException
+import com.neosapience.models.*
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
 import java.io.File
