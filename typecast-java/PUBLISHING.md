@@ -42,11 +42,15 @@ Create or update `~/.m2/settings.xml`:
       </activation>
       <properties>
         <gpg.keyname>YOUR_GPG_KEY_ID</gpg.keyname>
+        <!-- Read GPG passphrase from environment variable -->
+        <gpg.passphrase>${env.GPG_PASSPHRASE}</gpg.passphrase>
       </properties>
     </profile>
   </profiles>
 </settings>
 ```
+
+> **Security Note**: Never pass the GPG passphrase directly on the command line (e.g., `-Dgpg.passphrase="..."`), as it may be exposed in shell history or process listings. Use environment variables instead.
 
 ### 3. GPG Key Setup
 
@@ -66,12 +70,34 @@ gpg --keyserver keyserver.ubuntu.com --send-keys YOUR_KEY_ID
 
 ## Publishing
 
-### Option 1: Using Environment Variables
+### Option 1: Using Environment Variables (Recommended)
+
+Set the GPG passphrase as an environment variable before running Maven:
 
 ```bash
+# Export the GPG passphrase (do this once per terminal session)
+export GPG_PASSPHRASE="YOUR_GPG_PASSPHRASE"
+
 # Build and deploy
 cd typecast-java
-mvn clean deploy -Dgpg.passphrase="YOUR_GPG_PASSPHRASE"
+mvn clean deploy
+```
+
+The passphrase will be read from the `GPG_PASSPHRASE` environment variable via your `settings.xml` configuration (see above).
+
+**Alternative: Configure maven-gpg-plugin in pom.xml**
+
+If you prefer to configure the passphrase source directly in the project, add this to your `pom.xml`:
+
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-gpg-plugin</artifactId>
+    <version>3.1.0</version>
+    <configuration>
+        <passphrase>${env.GPG_PASSPHRASE}</passphrase>
+    </configuration>
+</plugin>
 ```
 
 ### Option 2: Interactive GPG Passphrase
@@ -79,7 +105,7 @@ mvn clean deploy -Dgpg.passphrase="YOUR_GPG_PASSPHRASE"
 ```bash
 cd typecast-java
 mvn clean deploy
-# GPG will prompt for passphrase
+# GPG will prompt for passphrase if not configured via environment variable
 ```
 
 ### Build Output
