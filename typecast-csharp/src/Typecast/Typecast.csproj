@@ -12,17 +12,17 @@
     <!-- NuGet Package Configuration -->
     <PackageId>Typecast</PackageId>
     <Version>0.1.0</Version>
-    <Authors>Typecast</Authors>
-    <Company>Typecast</Company>
+    <Authors>Neosapience</Authors>
+    <Company>Neosapience</Company>
     <Description>Official C# SDK for Typecast Text-to-Speech API. Supports .NET Standard 2.0+, .NET 6+, Unity (via NuGetForUnity), and Blazor.</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/typecast-ai/typecast-csharp</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/typecast-ai/typecast-csharp</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/neosapience/typecast-sdk/tree/main/typecast-csharp</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/neosapience/typecast-sdk</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>typecast;tts;text-to-speech;speech;synthesis;ai;voice;audio;unity;blazor</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
-    <Copyright>Copyright (c) 2024 Typecast</Copyright>
+    <Copyright>Copyright (c) 2026 Neosapience &lt;help@typecast.ai&gt;</Copyright>
     
     <!-- Enable source link for debugging -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>

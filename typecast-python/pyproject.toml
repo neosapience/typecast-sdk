@@ -51,8 +51,8 @@ dev = [
 [project.urls]
 Homepage = "https://typecast.ai"
 Documentation = "https://typecast.ai/docs/overview"
-Repository = "https://github.com/neosapience/typecast-python"
-Issues = "https://github.com/neosapience/typecast-python/issues"
+Repository = "https://github.com/neosapience/typecast-sdk/tree/main/typecast-python"
+Issues = "https://github.com/neosapience/typecast-sdk/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/typecast"]

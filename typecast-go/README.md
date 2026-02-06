@@ -8,7 +8,7 @@ Convert text to lifelike speech using AI-powered voices
 
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D1.21-00ADD8.svg?style=flat-square&logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Go Reference](https://img.shields.io/badge/Go-Reference-00ADD8.svg?style=flat-square&logo=go&logoColor=white)](https://pkg.go.dev/github.com/neosapience/typecast-go)
+[![Go Reference](https://img.shields.io/badge/Go-Reference-00ADD8.svg?style=flat-square&logo=go&logoColor=white)](https://pkg.go.dev/github.com/neosapience/typecast-sdk/typecast-go)
 
 [Documentation](https://typecast.ai/docs) | [API Reference](https://typecast.ai/docs/api-reference) | [Get API Key](https://typecast.ai/developers/api/api-key)
 
@@ -35,7 +35,7 @@ Convert text to lifelike speech using AI-powered voices
 ## Installation
 
 ```bash
-go get github.com/neosapience/typecast-go
+go get github.com/neosapience/typecast-sdk/typecast-go
 ```
 
 ---
@@ -49,7 +49,7 @@ import (
     "context"
     "os"
 
-    typecast "github.com/neosapience/typecast-go"
+    typecast "github.com/neosapience/typecast-sdk/typecast-go"
 )
 
 func main() {
@@ -93,7 +93,7 @@ func main() {
 ### Configuration
 
 ```go
-import typecast "github.com/neosapience/typecast-go"
+import typecast "github.com/neosapience/typecast-sdk/typecast-go"
 
 // Using environment variable (recommended)
 // export TYPECAST_API_KEY="your-api-key"
