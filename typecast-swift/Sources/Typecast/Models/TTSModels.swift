@@ -258,13 +258,19 @@ public struct TTSRequest: Codable, Sendable {
 }
 
 /// Text-to-Speech response
-public struct TTSResponse: Sendable {
+public struct TTSResponse: Codable, Sendable {
     /// Generated audio data
     public let audioData: Data
     /// Audio duration in seconds
     public let duration: TimeInterval
     /// Audio format (wav or mp3)
     public let format: AudioFormat
+    
+    enum CodingKeys: String, CodingKey {
+        case audioData = "audio_data"
+        case duration
+        case format
+    }
     
     public init(audioData: Data, duration: TimeInterval, format: AudioFormat) {
         self.audioData = audioData
