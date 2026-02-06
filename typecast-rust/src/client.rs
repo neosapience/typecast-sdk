@@ -21,7 +21,7 @@ pub const DEFAULT_TIMEOUT_SECS: u64 = 60;
 pub struct ClientConfig {
     /// API key for authentication
     pub api_key: String,
-    /// Base URL for the API (defaults to https://api.typecast.ai)
+    /// Base URL for the API (defaults to <https://api.typecast.ai>)
     pub base_url: String,
     /// Request timeout duration
     pub timeout: Duration,
@@ -153,9 +153,9 @@ impl TypecastClient {
     /// # Example
     ///
     /// ```no_run
-    /// use typecast::{TypecastClient, TTSRequest, TTSModel, ClientConfig};
+    /// use typecast_rust::{TypecastClient, TTSRequest, TTSModel, ClientConfig};
     ///
-    /// # async fn example() -> typecast::Result<()> {
+    /// # async fn example() -> typecast_rust::Result<()> {
     /// let client = TypecastClient::from_env()?;
     /// let request = TTSRequest::new(
     ///     "tc_60e5426de8b95f1d3000d7b5",
@@ -223,9 +223,9 @@ impl TypecastClient {
     /// # Example
     ///
     /// ```no_run
-    /// use typecast::{TypecastClient, VoicesV2Filter, TTSModel, Gender, ClientConfig};
+    /// use typecast_rust::{TypecastClient, VoicesV2Filter, TTSModel, Gender, ClientConfig};
     ///
-    /// # async fn example() -> typecast::Result<()> {
+    /// # async fn example() -> typecast_rust::Result<()> {
     /// let client = TypecastClient::from_env()?;
     /// 
     /// // Get all voices
@@ -285,9 +285,9 @@ impl TypecastClient {
     /// # Example
     ///
     /// ```no_run
-    /// use typecast::{TypecastClient, ClientConfig};
+    /// use typecast_rust::{TypecastClient, ClientConfig};
     ///
-    /// # async fn example() -> typecast::Result<()> {
+    /// # async fn example() -> typecast_rust::Result<()> {
     /// let client = TypecastClient::from_env()?;
     /// let voice = client.get_voice_v2("tc_60e5426de8b95f1d3000d7b5").await?;
     /// println!("Voice: {} ({})", voice.voice_name, voice.voice_id);

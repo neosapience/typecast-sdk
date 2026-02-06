@@ -3,7 +3,7 @@
 //! These tests require a valid TYPECAST_API_KEY environment variable.
 //! Run with: TYPECAST_API_KEY=your_key cargo test --test integration_test
 
-use typecast::{
+use typecast_rust::{
     AudioFormat, ClientConfig, EmotionPreset, Gender, Output, PresetPrompt, SmartPrompt,
     TTSModel, TTSRequest, TypecastClient, VoicesV2Filter,
 };

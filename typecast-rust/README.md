@@ -8,17 +8,17 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-typecast = "0.1.0"
+typecast-rust = "0.1.0"
 tokio = { version = "1", features = ["full"] }
 ```
 
 ## Quick Start
 
 ```rust
-use typecast::{TypecastClient, TTSRequest, TTSModel};
+use typecast_rust::{TypecastClient, TTSRequest, TTSModel};
 
 #[tokio::main]
-async fn main() -> typecast::Result<()> {
+async fn main() -> typecast_rust::Result<()> {
     // Create a client (reads TYPECAST_API_KEY from environment)
     let client = TypecastClient::from_env()?;
 
@@ -50,7 +50,7 @@ async fn main() -> typecast::Result<()> {
 ### Custom Configuration
 
 ```rust
-use typecast::{TypecastClient, ClientConfig};
+use typecast_rust::{TypecastClient, ClientConfig};
 use std::time::Duration;
 
 let config = ClientConfig::new("your-api-key")
@@ -65,7 +65,7 @@ let client = TypecastClient::new(config)?;
 ### Text-to-Speech
 
 ```rust
-use typecast::{TTSRequest, TTSModel, Output, AudioFormat};
+use typecast_rust::{TTSRequest, TTSModel, Output, AudioFormat};
 
 // Basic request
 let request = TTSRequest::new(
@@ -94,7 +94,7 @@ let request = TTSRequest::new(
 #### Preset Emotions (ssfm-v30)
 
 ```rust
-use typecast::{PresetPrompt, EmotionPreset};
+use typecast_rust::{PresetPrompt, EmotionPreset};
 
 let request = TTSRequest::new(voice_id, text, TTSModel::SsfmV30)
     .prompt(PresetPrompt::new()
@@ -114,7 +114,7 @@ Available presets:
 #### Smart Context-Aware Emotion (ssfm-v30)
 
 ```rust
-use typecast::SmartPrompt;
+use typecast_rust::SmartPrompt;
 
 let request = TTSRequest::new(voice_id, text, TTSModel::SsfmV30)
     .prompt(SmartPrompt::new()
@@ -125,7 +125,7 @@ let request = TTSRequest::new(voice_id, text, TTSModel::SsfmV30)
 ### Voice Discovery
 
 ```rust
-use typecast::{VoicesV2Filter, TTSModel, Gender, Age};
+use typecast_rust::{VoicesV2Filter, TTSModel, Gender, Age};
 
 // Get all voices
 let voices = client.get_voices_v2(None).await?;
@@ -146,7 +146,7 @@ println!("Voice: {} ({:?})", voice.voice_name, voice.gender);
 ## Error Handling
 
 ```rust
-use typecast::TypecastError;
+use typecast_rust::TypecastError;
 
 match client.text_to_speech(&request).await {
     Ok(response) => {
@@ -204,3 +204,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 - [Typecast API Documentation](https://typecast.ai/docs)
 - [Typecast Dashboard](https://typecast.ai/?lang=en)
 - [API Reference](https://typecast.ai/docs/api-reference)
+- [crates.io](https://crates.io/crates/typecast-rust)
+- [docs.rs](https://docs.rs/typecast-rust)
