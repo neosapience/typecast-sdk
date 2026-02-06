@@ -22,6 +22,10 @@
 #include <ctype.h>
 #include <float.h>
 
+#if defined(_WIN32) || defined(_WIN64)
+    #define strcasecmp _stricmp
+#endif
+
 #include "cJSON.h"
 
 /* Memory hooks */
