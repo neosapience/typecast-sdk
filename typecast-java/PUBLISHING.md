@@ -174,6 +174,7 @@ echo "pinentry-program /usr/local/bin/pinentry-mac" >> ~/.gnupg/gpg-agent.conf
 ### Validation Fails
 
 Common issues:
+
 - Missing Javadoc JAR
 - Missing Sources JAR
 - Invalid POM metadata (missing required elements)
@@ -213,12 +214,12 @@ git push origin main --tags
 
 ## Central Portal vs Legacy OSSRH
 
-| Feature | Central Portal (New) | OSSRH (Deprecated) |
-|---------|---------------------|-------------------|
-| URL | central.sonatype.com | s01.oss.sonatype.org |
-| Plugin | central-publishing-maven-plugin | nexus-staging-maven-plugin |
-| Authentication | User Token | JIRA credentials |
-| Status | Active | Shut down (June 2025) |
+| Feature        | Central Portal (New)            | OSSRH (Deprecated)         |
+| -------------- | ------------------------------- | -------------------------- |
+| URL            | central.sonatype.com            | s01.oss.sonatype.org       |
+| Plugin         | central-publishing-maven-plugin | nexus-staging-maven-plugin |
+| Authentication | User Token                      | JIRA credentials           |
+| Status         | Active                          | Shut down (June 2025)      |
 
 ## Links
 

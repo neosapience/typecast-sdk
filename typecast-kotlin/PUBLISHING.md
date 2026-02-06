@@ -151,6 +151,7 @@ cat private-key.asc | base64 | tr -d '\n' > private-key-base64.txt
 ### Validation Fails
 
 Common issues:
+
 - Missing Javadoc JAR
 - Missing Sources JAR
 - Invalid POM metadata
@@ -189,23 +190,23 @@ git push origin main --tags
 
 ## Gradle Tasks Reference
 
-| Task | Description |
-|------|-------------|
-| `./gradlew build` | Build the project |
-| `./gradlew test` | Run unit tests |
-| `./gradlew e2eTest` | Run E2E tests |
+| Task                                              | Description                                 |
+| ------------------------------------------------- | ------------------------------------------- |
+| `./gradlew build`                                 | Build the project                           |
+| `./gradlew test`                                  | Run unit tests                              |
+| `./gradlew e2eTest`                               | Run E2E tests                               |
 | `./gradlew publishAllPublicationsToCentralPortal` | Publish to Maven Central via Central Portal |
-| `./gradlew publishToMavenLocal` | Publish to local Maven repo |
-| `./gradlew clean` | Clean build artifacts |
+| `./gradlew publishToMavenLocal`                   | Publish to local Maven repo                 |
+| `./gradlew clean`                                 | Clean build artifacts                       |
 
 ## Central Portal vs Legacy OSSRH
 
-| Feature | Central Portal (New) | OSSRH (Deprecated) |
-|---------|---------------------|-------------------|
-| URL | central.sonatype.com | s01.oss.sonatype.org |
-| Gradle Plugin | nmcp (community) | maven-publish + nexus |
-| Authentication | User Token | JIRA credentials |
-| Status | Active | Shut down (June 2025) |
+| Feature        | Central Portal (New) | OSSRH (Deprecated)    |
+| -------------- | -------------------- | --------------------- |
+| URL            | central.sonatype.com | s01.oss.sonatype.org  |
+| Gradle Plugin  | nmcp (community)     | maven-publish + nexus |
+| Authentication | User Token           | JIRA credentials      |
+| Status         | Active               | Shut down (June 2025) |
 
 ## Links
 
