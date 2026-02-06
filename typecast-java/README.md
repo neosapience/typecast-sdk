@@ -42,7 +42,7 @@ Add the following dependency to your `pom.xml`:
 
 ```xml
 <dependency>
-    <groupId>io.typecast</groupId>
+    <groupId>com.neosapience</groupId>
     <artifactId>typecast-java</artifactId>
     <version>1.0.0</version>
 </dependency>
@@ -56,7 +56,7 @@ Add the following dependency to your `pom.xml`:
 Add to your `build.gradle`:
 
 ```groovy
-implementation 'io.typecast:typecast-java:1.0.0'
+implementation 'com.neosapience:typecast-java:1.0.0'
 ```
 
 </details>
@@ -81,8 +81,8 @@ implementation 'io.typecast:typecast-java:1.0.0'
 ## Quick Start
 
 ```java
-import io.typecast.TypecastClient;
-import io.typecast.models.*;
+import com.neosapience.TypecastClient;
+import com.neosapience.models.*;
 
 import java.io.FileOutputStream;
 
@@ -255,7 +255,7 @@ VoiceV2Response voice = client.getVoiceV2("tc_voice_id");
 <summary><b>Error Handling</b></summary>
 
 ```java
-import io.typecast.exceptions.*;
+import com.neosapience.exceptions.*;
 
 try {
     TTSResponse response = client.textToSpeech(request);
@@ -337,7 +337,7 @@ try {
 
    ```xml
    <dependency>
-       <groupId>io.typecast</groupId>
+       <groupId>com.neosapience</groupId>
        <artifactId>typecast-java</artifactId>
        <version>1.0.0</version>
    </dependency>

@@ -8,7 +8,7 @@ Official Kotlin SDK for the [Typecast](https://typecast.ai/?lang=en) Text-to-Spe
 
 ```kotlin
 dependencies {
-    implementation("io.typecast:typecast-kotlin:1.0.0")
+    implementation("com.neosapience:typecast-kotlin:1.0.0")
 }
 ```
 
@@ -16,7 +16,7 @@ dependencies {
 
 ```groovy
 dependencies {
-    implementation 'io.typecast:typecast-kotlin:1.0.0'
+    implementation 'com.neosapience:typecast-kotlin:1.0.0'
 }
 ```
 
@@ -24,7 +24,7 @@ dependencies {
 
 ```xml
 <dependency>
-    <groupId>io.typecast</groupId>
+    <groupId>com.neosapience</groupId>
     <artifactId>typecast-kotlin</artifactId>
     <version>1.0.0</version>
 </dependency>
@@ -33,8 +33,8 @@ dependencies {
 ## Quick Start
 
 ```kotlin
-import io.typecast.TypecastClient
-import io.typecast.models.*
+import com.neosapience.TypecastClient
+import com.neosapience.models.*
 
 // Create client with API key
 val client = TypecastClient.create("your-api-key")
@@ -199,7 +199,7 @@ val client = TypecastClient.builder()
 The SDK throws specific exceptions for different error cases:
 
 ```kotlin
-import io.typecast.exceptions.*
+import com.neosapience.exceptions.*
 
 try {
     val response = client.textToSpeech(request)
