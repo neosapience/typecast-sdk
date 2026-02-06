@@ -4,14 +4,14 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.typecast</groupId>
+    <groupId>com.neosapience</groupId>
     <artifactId>typecast-java</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
 
     <name>Typecast Java SDK</name>
     <description>Official Java SDK for Typecast Text-to-Speech API</description>
-    <url>https://github.com/typecast-ai/typecast-java</url>
+    <url>https://github.com/neosapience/typecast-sdk/tree/main/typecast-java</url>
 
     <licenses>
         <license>
@@ -23,19 +23,20 @@
 
     <developers>
         <developer>
-            <id>typecast</id>
-            <name>Typecast Team</name>
+            <id>neosapience</id>
+            <name>Neosapience</name>
             <email>help@typecast.ai</email>
-            <organization>Typecast</organization>
+            <organization>Neosapience</organization>
             <organizationUrl>https://typecast.ai</organizationUrl>
         </developer>
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/typecast-ai/typecast-java.git</connection>
-        <developerConnection>scm:git:ssh://github.com:typecast-ai/typecast-java.git</developerConnection>
-        <url>https://github.com/typecast-ai/typecast-java</url>
+        <connection>scm:git:git://github.com/neosapience/typecast-sdk.git</connection>
+        <developerConnection>scm:git:ssh://github.com:neosapience/typecast-sdk.git</developerConnection>
+        <url>https://github.com/neosapience/typecast-sdk/tree/main/typecast-java</url>
     </scm>
+
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -183,6 +184,41 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
                 <version>3.3.0</version>
+            </plugin>
+
+            <!-- GPG Signing Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                        <configuration>
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Central Publishing Plugin for Maven Central -->
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <version>0.7.0</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                    <autoPublish>true</autoPublish>
+                    <waitUntil>published</waitUntil>
+                </configuration>
             </plugin>
         </plugins>
     </build>

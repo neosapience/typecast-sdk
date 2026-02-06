@@ -3,9 +3,12 @@ plugins {
     kotlin("plugin.serialization") version "1.9.22"
     `maven-publish`
     `java-library`
+    signing
+    id("com.gradleup.nmcp") version "1.4.4"
+    id("com.gradleup.nmcp.aggregation") version "1.4.4"
 }
 
-group = "io.typecast"
+group = "com.neosapience"
 version = "1.0.0"
 
 repositories {
@@ -31,6 +34,9 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
+
+    // NMCP aggregation (Central Portal publishing)
+    nmcpAggregation(project(":"))
 }
 
 tasks.test {
@@ -64,7 +70,7 @@ publishing {
             pom {
                 name.set("Typecast Kotlin SDK")
                 description.set("Official Kotlin SDK for Typecast Text-to-Speech API")
-                url.set("https://github.com/typecast-ai/typecast-kotlin")
+                url.set("https://github.com/neosapience/typecast-sdk/tree/main/typecast-kotlin")
                 
                 licenses {
                     license {
@@ -75,18 +81,34 @@ publishing {
                 
                 developers {
                     developer {
-                        id.set("typecast")
-                        name.set("Typecast Team")
+                        id.set("neosapience")
+                        name.set("Neosapience")
                         email.set("help@typecast.ai")
+                        organization.set("Neosapience")
+                        organizationUrl.set("https://typecast.ai")
                     }
                 }
                 
                 scm {
-                    connection.set("scm:git:git://github.com/typecast-ai/typecast-kotlin.git")
-                    developerConnection.set("scm:git:ssh://github.com:typecast-ai/typecast-kotlin.git")
-                    url.set("https://github.com/typecast-ai/typecast-kotlin")
+                    connection.set("scm:git:git://github.com/neosapience/typecast-sdk.git")
+                    developerConnection.set("scm:git:ssh://github.com:neosapience/typecast-sdk.git")
+                    url.set("https://github.com/neosapience/typecast-sdk/tree/main/typecast-kotlin")
                 }
             }
         }
+    }
+}
+
+signing {
+    useGpgCmd()
+    sign(publishing.publications["maven"])
+}
+
+// Central Portal Publishing Configuration
+nmcpAggregation {
+    centralPortal {
+        username = System.getenv("CENTRAL_USERNAME") ?: findProperty("centralUsername")?.toString()
+        password = System.getenv("CENTRAL_PASSWORD") ?: findProperty("centralPassword")?.toString()
+        publishingType = "AUTOMATIC"
     }
 }
