@@ -1,8 +1,8 @@
 <Project>
   <PropertyGroup>
-    <Authors>Typecast</Authors>
-    <Company>Typecast</Company>
-    <Copyright>Copyright (c) 2024 Typecast</Copyright>
+    <Authors>Neosapience</Authors>
+    <Company>Neosapience</Company>
+    <Copyright>Copyright (c) 2026 Neosapience &lt;help@typecast.ai&gt;</Copyright>
     <Product>Typecast SDK</Product>
     <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
