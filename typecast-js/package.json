@@ -48,11 +48,12 @@
   "description": "The official Node.js library for the Typecast API. Text-to-Speech with AI voices. TypeScript support included.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/neosapience/typecast-js.git"
+    "url": "git+https://github.com/neosapience/typecast-sdk.git",
+    "directory": "typecast-js"
   },
   "homepage": "https://typecast.ai",
   "bugs": {
-    "url": "https://github.com/neosapience/typecast-js/issues"
+    "url": "https://github.com/neosapience/typecast-sdk/issues"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
