@@ -4,7 +4,7 @@ plugins {
     `maven-publish`
     `java-library`
     signing
-    id("com.gradleup.nmcp") version "0.0.9"
+    id("com.gradleup.nmcp") version "1.4.4"
 }
 
 group = "com.neosapience"
