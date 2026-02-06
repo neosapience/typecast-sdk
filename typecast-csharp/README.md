@@ -2,7 +2,7 @@
 
 Official C# SDK for the [Typecast](https://typecast.ai/?lang=en) Text-to-Speech API. This SDK supports .NET Standard 2.0+, .NET 6+, Unity (via NuGetForUnity), and Blazor applications.
 
-[![NuGet](https://img.shields.io/nuget/v/Typecast.svg)](https://www.nuget.org/packages/Typecast)
+[![NuGet](https://img.shields.io/nuget/v/typecast-csharp.svg)](https://www.nuget.org/packages/typecast-csharp)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 ## Features
@@ -116,13 +116,13 @@ dotnet --list-runtimes
 ### NuGet Package Manager
 
 ```bash
-dotnet add package Typecast
+dotnet add package typecast-csharp
 ```
 
 Or via Package Manager Console:
 
 ```powershell
-Install-Package Typecast
+Install-Package typecast-csharp
 ```
 
 ### Unity (via NuGetForUnity)
@@ -134,7 +134,7 @@ Install-Package Typecast
 
 2. Open NuGet window (NuGet > Manage NuGet Packages)
 
-3. Search for "Typecast" and install
+3. Search for "typecast-csharp" and install
 
 ## Quick Start
 
@@ -641,8 +641,8 @@ dotnet test tests/Typecast.E2E.Tests
 ## Building from Source
 
 ```bash
-git clone https://github.com/typecast-ai/typecast-csharp.git
-cd typecast-csharp
+git clone https://github.com/neosapience/typecast-sdk.git
+cd typecast-sdk/typecast-csharp
 dotnet build
 dotnet pack -c Release
 ```
@@ -655,4 +655,4 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 - [Typecast Documentation](https://typecast.ai/docs)
 - [API Reference](https://typecast.ai/docs/api-reference)
-- [GitHub Issues](https://github.com/typecast-ai/typecast-csharp/issues)
+- [GitHub Issues](https://github.com/neosapience/typecast-sdk/issues)

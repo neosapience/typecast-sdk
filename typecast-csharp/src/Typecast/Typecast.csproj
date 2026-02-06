@@ -10,7 +10,7 @@
     <AssemblyName>Typecast</AssemblyName>
     
     <!-- NuGet Package Configuration -->
-    <PackageId>Typecast</PackageId>
+    <PackageId>typecast-csharp</PackageId>
     <Version>0.1.0</Version>
     <Authors>Neosapience</Authors>
     <Company>Neosapience</Company>
@@ -21,7 +21,6 @@
     <RepositoryType>git</RepositoryType>
     <PackageTags>typecast;tts;text-to-speech;speech;synthesis;ai;voice;audio;unity;blazor</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageIcon>icon.png</PackageIcon>
     <Copyright>Copyright (c) 2026 Neosapience &lt;help@typecast.ai&gt;</Copyright>
     
     <!-- Enable source link for debugging -->
@@ -33,7 +32,6 @@
 
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
-    <None Include="..\..\icon.png" Pack="true" PackagePath="\" Condition="Exists('..\..\icon.png')" />
   </ItemGroup>
 
   <ItemGroup>
