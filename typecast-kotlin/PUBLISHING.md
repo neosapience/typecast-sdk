@@ -76,7 +76,7 @@ export GPG_PASSPHRASE="your-gpg-passphrase"
 
 # Build and publish to Maven Central
 cd typecast-kotlin
-./gradlew publishToMavenCentral
+./gradlew publishAllPublicationsToCentralPortal
 ```
 
 ### Option 2: Using gradle.properties
@@ -85,7 +85,7 @@ If credentials are in `~/.gradle/gradle.properties`:
 
 ```bash
 cd typecast-kotlin
-./gradlew publishToMavenCentral
+./gradlew publishAllPublicationsToCentralPortal
 ```
 
 ### Build Without Publishing
@@ -194,7 +194,7 @@ git push origin main --tags
 | `./gradlew build` | Build the project |
 | `./gradlew test` | Run unit tests |
 | `./gradlew e2eTest` | Run E2E tests |
-| `./gradlew publishToMavenCentral` | Publish to Maven Central via Central Portal |
+| `./gradlew publishAllPublicationsToCentralPortal` | Publish to Maven Central via Central Portal |
 | `./gradlew publishToMavenLocal` | Publish to local Maven repo |
 | `./gradlew clean` | Clean build artifacts |
 
