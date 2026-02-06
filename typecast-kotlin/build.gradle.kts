@@ -5,6 +5,7 @@ plugins {
     `java-library`
     signing
     id("com.gradleup.nmcp") version "1.4.4"
+    id("com.gradleup.nmcp.aggregation") version "1.4.4"
 }
 
 group = "com.neosapience"
@@ -33,6 +34,9 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
+
+    // NMCP aggregation (Central Portal publishing)
+    nmcpAggregation(project(":"))
 }
 
 tasks.test {
@@ -101,10 +105,10 @@ signing {
 }
 
 // Central Portal Publishing Configuration
-nmcp {
-    publishAllProjectsProbablyBreakingProjectIsolation {
+nmcpAggregation {
+    centralPortal {
         username = System.getenv("CENTRAL_USERNAME") ?: findProperty("centralUsername")?.toString()
         password = System.getenv("CENTRAL_PASSWORD") ?: findProperty("centralPassword")?.toString()
-        publicationType = "AUTOMATIC"
+        publishingType = "AUTOMATIC"
     }
 }
