@@ -74,8 +74,8 @@ extern "C" {
 /* Library version */
 #define TYPECAST_VERSION_MAJOR 1
 #define TYPECAST_VERSION_MINOR 0
-#define TYPECAST_VERSION_PATCH 0
-#define TYPECAST_VERSION "1.0.0"
+#define TYPECAST_VERSION_PATCH 1
+#define TYPECAST_VERSION "1.0.1"
 
 /*
  * DLL Export/Import macros for Windows

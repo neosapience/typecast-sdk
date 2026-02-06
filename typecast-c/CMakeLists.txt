@@ -13,7 +13,7 @@
 #   cmake --build .
 
 cmake_minimum_required(VERSION 3.14)
-project(typecast VERSION 1.0.0 LANGUAGES C)
+project(typecast VERSION 1.0.1 LANGUAGES C)
 
 # Options
 option(TYPECAST_BUILD_SHARED "Build shared library" ON)

@@ -17,7 +17,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#if !defined(_WIN32) && !defined(_WIN64)
+#if defined(_WIN32) || defined(_WIN64)
+    #define strncasecmp _strnicmp
+#else
     #include <strings.h>  /* for strncasecmp */
 #endif
 #include <curl/curl.h>
