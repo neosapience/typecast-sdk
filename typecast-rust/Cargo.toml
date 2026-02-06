@@ -1,12 +1,13 @@
 [package]
-name = "typecast"
+name = "typecast-rust"
 version = "0.1.0"
 edition = "2021"
-authors = ["Typecast <dev@typecast.ai>"]
+authors = ["Neosapience <help@typecast.ai>"]
 description = "Official Rust SDK for Typecast Text-to-Speech API"
 license = "MIT"
-repository = "https://github.com/typecast-ai/typecast-rust"
-documentation = "https://docs.rs/typecast"
+repository = "https://github.com/neosapience/typecast-sdk/tree/main/typecast-rust"
+homepage = "https://typecast.ai/docs"
+documentation = "https://docs.rs/typecast-rust"
 keywords = ["tts", "text-to-speech", "typecast", "voice", "ai"]
 categories = ["api-bindings", "multimedia::audio"]
 readme = "README.md"
