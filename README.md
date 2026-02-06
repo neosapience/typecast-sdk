@@ -25,15 +25,15 @@ This monorepo contains official SDK clients for the [Typecast](https://typecast.
 
 |                                                   Language                                                    | Package                                  | Installation                                |
 | :-----------------------------------------------------------------------------------------------------------: | :--------------------------------------- | :------------------------------------------ |
-|     <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" width="24"/>     | [**typecast-python**](./typecast-python) | `pip install typecast-python`               |
-| <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/javascript/javascript-original.svg" width="24"/> | [**typecast-js**](./typecast-js)         | `npm install @neosapience/typecast-js`      |
-|         <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/go/go-original.svg" width="24"/>         | [**typecast-go**](./typecast-go)         | `go get github.com/neosapience/typecast-sdk/typecast-go` |
-|       <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg" width="24"/>       | [**typecast-java**](./typecast-java)     | Maven Central                               |
-|     <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/kotlin/kotlin-original.svg" width="24"/>     | [**typecast-kotlin**](./typecast-kotlin) | Gradle                                      |
+|     <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg" alt="Python" width="24"/>     | [**typecast-python**](./typecast-python) | `pip install typecast-python`               |
+| <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/javascript/javascript-original.svg" alt="JavaScript" width="24"/> | [**typecast-js**](./typecast-js)         | `npm install @neosapience/typecast-js`      |
+|         <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/go/go-original.svg" alt="Go" width="24"/>         | [**typecast-go**](./typecast-go)         | `go get github.com/neosapience/typecast-sdk/typecast-go` |
+|       <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg" alt="Java" width="24"/>       | [**typecast-java**](./typecast-java)     | `implementation 'com.neosapience:typecast-java:1.0.0'`       |
+|     <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/kotlin/kotlin-original.svg" alt="Kotlin" width="24"/>     | [**typecast-kotlin**](./typecast-kotlin) | `implementation("com.neosapience:typecast-kotlin:1.0.0")`     |
 |     <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/csharp/csharp-original.svg" alt="C#" width="24"/>     | [**typecast-csharp**](./typecast-csharp) | `dotnet add package typecast-csharp`        |
-|      <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/swift/swift-original.svg" width="24"/>      | [**typecast-swift**](./typecast-swift)   | Swift Package Manager                       |
-|       <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/rust/rust-original.svg" width="24"/>       | [**typecast-rust**](./typecast-rust)     | `cargo add typecast-rust`                   |
-|          <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/c/c-original.svg" width="24"/>          | [**typecast-c**](./typecast-c)           | CMake                                       |
+|      <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/swift/swift-original.svg" alt="Swift" width="24"/>      | [**typecast-swift**](./typecast-swift)   | Swift Package Manager                       |
+|       <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/rust/rust-original.svg" alt="Rust" width="24"/>       | [**typecast-rust**](./typecast-rust)     | `cargo add typecast-rust`                   |
+|          <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/c/c-original.svg" alt="C" width="24"/>          | [**typecast-c**](./typecast-c)           | CMake                                       |
 
 <br/>
 
