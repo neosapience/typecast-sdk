@@ -5,10 +5,10 @@
 //! # Quick Start
 //!
 //! ```no_run
-//! use typecast::{TypecastClient, TTSRequest, TTSModel, ClientConfig};
+//! use typecast_rust::{TypecastClient, TTSRequest, TTSModel, ClientConfig};
 //!
 //! #[tokio::main]
-//! async fn main() -> typecast::Result<()> {
+//! async fn main() -> typecast_rust::Result<()> {
 //!     // Create a client from environment variables
 //!     let client = TypecastClient::from_env()?;
 //!
@@ -46,7 +46,7 @@
 //! The SDK can be configured using environment variables:
 //!
 //! - `TYPECAST_API_KEY`: Your Typecast API key (required)
-//! - `TYPECAST_API_HOST`: Custom API host (optional, defaults to https://api.typecast.ai)
+//! - `TYPECAST_API_HOST`: Custom API host (optional, defaults to <https://api.typecast.ai>)
 //!
 //! # Error Handling
 //!
@@ -54,9 +54,9 @@
 //! detailed information about what went wrong:
 //!
 //! ```no_run
-//! use typecast::{TypecastClient, TTSRequest, TTSModel, TypecastError};
+//! use typecast_rust::{TypecastClient, TTSRequest, TTSModel, TypecastError};
 //!
-//! # async fn example() -> typecast::Result<()> {
+//! # async fn example() -> typecast_rust::Result<()> {
 //! let client = TypecastClient::from_env()?;
 //! let request = TTSRequest::new("invalid_voice", "Hello", TTSModel::SsfmV30);
 //!
