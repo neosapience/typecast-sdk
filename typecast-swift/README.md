@@ -64,7 +64,7 @@ Add the following to your `Package.swift` file:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/neosapience/typecast-swift.git", from: "1.0.0")
+    .package(url: "https://github.com/neosapience/typecast-sdk.git", from: "1.0.0")
 ]
 ```
 
@@ -74,7 +74,9 @@ Then add `Typecast` to your target dependencies:
 targets: [
     .target(
         name: "YourTarget",
-        dependencies: ["Typecast"]
+        dependencies: [
+            .product(name: "Typecast", package: "typecast-sdk")
+        ]
     )
 ]
 ```
@@ -83,7 +85,7 @@ targets: [
 
 1. Open your project in Xcode
 2. Go to **File** → **Add Package Dependencies...**
-3. Enter the repository URL: `https://github.com/neosapience/typecast-swift.git`
+3. Enter the repository URL: `https://github.com/neosapience/typecast-sdk.git`
 4. Select version rules and click **Add Package**
 5. Select the `Typecast` library and add it to your target
 
