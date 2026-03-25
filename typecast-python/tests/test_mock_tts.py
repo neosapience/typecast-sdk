@@ -1,5 +1,6 @@
 
 import pytest
+from pydantic import ValidationError
 
 from typecast.client import Typecast
 from typecast.models import Output, Prompt, TTSRequest, TTSResponse
@@ -18,9 +19,9 @@ class TestOutputValidation:
         assert output.volume is None
 
     def test_target_lufs_range(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             Output(volume=None, target_lufs=-71.0)
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             Output(volume=None, target_lufs=1.0)
 
     def test_volume_and_target_lufs_mutual_exclusion(self):
