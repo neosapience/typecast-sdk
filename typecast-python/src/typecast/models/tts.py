@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class TTSModel(str, Enum):
@@ -122,12 +122,24 @@ TTSPrompt = Union[Prompt, PresetPrompt, SmartPrompt]
 
 
 class Output(BaseModel):
-    volume: Optional[int] = Field(default=100, ge=0, le=200)
+    volume: Optional[int] = Field(
+        default=100,
+        ge=0,
+        le=200,
+        description="Volume (0-200). Cannot be used together with target_lufs.",
+    )
+    target_lufs: Optional[float] = Field(default=None, ge=-70.0, le=0.0)
     audio_pitch: Optional[int] = Field(default=0, ge=-12, le=12)
     audio_tempo: Optional[float] = Field(default=1.0, ge=0.5, le=2.0)
     audio_format: Optional[str] = Field(
         default="wav", description="Audio format", examples=["wav", "mp3"]
     )
+
+    @model_validator(mode="after")
+    def check_volume_and_target_lufs(self) -> "Output":
+        if self.target_lufs is not None and self.volume is not None:
+            raise ValueError("volume and target_lufs cannot be used together")
+        return self
 
 
 class TTSRequest(BaseModel):

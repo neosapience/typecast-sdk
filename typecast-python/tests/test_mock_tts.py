@@ -11,6 +11,27 @@ def typecast_client():
     return Typecast()
 
 
+class TestOutputValidation:
+    def test_target_lufs_valid(self):
+        output = Output(volume=None, target_lufs=-14.0)
+        assert output.target_lufs == -14.0
+
+    def test_target_lufs_range(self):
+        with pytest.raises(Exception):
+            Output(volume=None, target_lufs=-71.0)
+        with pytest.raises(Exception):
+            Output(volume=None, target_lufs=1.0)
+
+    def test_volume_and_target_lufs_mutual_exclusion(self):
+        with pytest.raises(ValueError):
+            Output(volume=100, target_lufs=-14.0)
+
+    def test_target_lufs_without_volume(self):
+        output = Output(volume=None, target_lufs=-14.0)
+        assert output.volume is None
+        assert output.target_lufs == -14.0
+
+
 class TestMockTTS:
     def test_mock_tts(self, typecast_client, mocker):
         # Arrange
