@@ -71,8 +71,12 @@ const (
 
 // Output represents audio output settings
 type Output struct {
-	// Volume controls the volume level (0-200, default: 100)
+	// Volume controls the volume level (0-200, default: 100).
+	// Cannot be used simultaneously with TargetLUFS.
 	Volume *int `json:"volume,omitempty"`
+	// TargetLUFS sets absolute loudness normalization (-70 to 0).
+	// Cannot be used simultaneously with Volume.
+	TargetLUFS *float64 `json:"target_lufs,omitempty"`
 	// AudioPitch adjusts pitch in semitones (-12 to +12, default: 0)
 	AudioPitch *int `json:"audio_pitch,omitempty"`
 	// AudioTempo controls speech speed (0.5 to 2.0, default: 1.0)
