@@ -276,6 +276,9 @@ public class TypecastClient {
             if (output.getVolume() != null) {
                 outputJson.addProperty("volume", output.getVolume());
             }
+            if (output.getTargetLufs() != null) {
+                outputJson.addProperty("target_lufs", output.getTargetLufs());
+            }
             if (output.getAudioPitch() != null) {
                 outputJson.addProperty("audio_pitch", output.getAudioPitch());
             }

@@ -9,10 +9,19 @@ public class Output
 {
     /// <summary>
     /// Volume level (0-200, default 100).
+    /// Cannot be used simultaneously with TargetLufs.
     /// </summary>
     [JsonPropertyName("volume")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? Volume { get; set; } = 100;
+
+    /// <summary>
+    /// Target loudness in LUFS for absolute loudness normalization (-70 to 0).
+    /// Cannot be used simultaneously with Volume.
+    /// </summary>
+    [JsonPropertyName("target_lufs")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? TargetLufs { get; set; }
 
     /// <summary>
     /// Audio pitch adjustment in semitones (-12 to 12, default 0).
@@ -47,9 +56,10 @@ public class Output
     /// <param name="audioPitch">Pitch adjustment in semitones (-12 to 12)</param>
     /// <param name="audioTempo">Tempo multiplier (0.5-2.0)</param>
     /// <param name="audioFormat">Audio format</param>
-    public Output(int? volume = 100, int? audioPitch = 0, double? audioTempo = 1.0, AudioFormat? audioFormat = null)
+    public Output(int? volume = 100, int? audioPitch = 0, double? audioTempo = 1.0, AudioFormat? audioFormat = null, double? targetLufs = null)
     {
-        Volume = volume;
+        Volume = (targetLufs.HasValue && volume == 100) ? null : volume;
+        TargetLufs = targetLufs;
         AudioPitch = audioPitch;
         AudioTempo = audioTempo;
         AudioFormat = audioFormat ?? Models.AudioFormat.Wav;
@@ -64,6 +74,16 @@ public class Output
         if (Volume.HasValue && (Volume.Value < 0 || Volume.Value > 200))
         {
             throw new ArgumentOutOfRangeException(nameof(Volume), "Volume must be between 0 and 200.");
+        }
+
+        if (TargetLufs.HasValue && (TargetLufs.Value < -70.0 || TargetLufs.Value > 0.0))
+        {
+            throw new ArgumentOutOfRangeException(nameof(TargetLufs), "TargetLufs must be between -70 and 0.");
+        }
+
+        if (Volume.HasValue && TargetLufs.HasValue)
+        {
+            throw new ArgumentException("Volume and TargetLufs cannot be used simultaneously.");
         }
 
         if (AudioPitch.HasValue && (AudioPitch.Value < -12 || AudioPitch.Value > 12))

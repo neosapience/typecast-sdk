@@ -347,5 +347,25 @@ class TypecastClientTest {
         assertThrows(IllegalArgumentException::class.java) {
             Output(audioTempo = 3.0) // max is 2.0
         }
+
+        assertThrows(IllegalArgumentException::class.java) {
+            Output(targetLufs = -71.0) // min is -70
+        }
+
+        assertThrows(IllegalArgumentException::class.java) {
+            Output(targetLufs = 1.0) // max is 0
+        }
+
+        assertThrows(IllegalArgumentException::class.java) {
+            Output(volume = 100, targetLufs = -14.0) // cannot use both
+        }
+
+        assertDoesNotThrow {
+            Output(targetLufs = -14.0) // valid target_lufs without volume
+        }
+
+        val output = Output(targetLufs = -14.0)
+        assertNull(output.volume)
+        assertEquals(-14.0, output.targetLufs)
     }
 }

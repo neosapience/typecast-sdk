@@ -6,7 +6,8 @@ import kotlinx.serialization.Serializable
 /**
  * Audio output configuration for TTS synthesis.
  *
- * @property volume Volume level (0-200, default 100)
+ * @property volume Volume level (0-200). Set explicitly when needed; null by default.
+ * @property targetLufs Target loudness in LUFS (-70 to 0). Cannot be used simultaneously with volume.
  * @property audioPitch Audio pitch adjustment in semitones (-12 to 12, default 0)
  * @property audioTempo Audio tempo multiplier (0.5-2.0, default 1.0)
  * @property audioFormat Audio output format (default WAV)
@@ -14,8 +15,11 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class Output(
     @SerialName("volume")
-    val volume: Int? = 100,
-    
+    val volume: Int? = null,
+
+    @SerialName("target_lufs")
+    val targetLufs: Double? = null,
+
     @SerialName("audio_pitch")
     val audioPitch: Int? = 0,
     
@@ -35,6 +39,12 @@ data class Output(
         audioTempo?.let {
             require(it in 0.5..2.0) { "AudioTempo must be between 0.5 and 2.0" }
         }
+        targetLufs?.let {
+            require(it in -70.0..0.0) { "TargetLufs must be between -70 and 0" }
+        }
+        require(!(volume != null && targetLufs != null)) {
+            "Volume and targetLufs cannot be used simultaneously"
+        }
     }
     
     companion object {
@@ -42,21 +52,26 @@ data class Output(
     }
     
     class Builder {
-        private var volume: Int? = 100
+        private var volume: Int? = null
+        private var targetLufs: Double? = null
         private var audioPitch: Int? = 0
         private var audioTempo: Double? = 1.0
         private var audioFormat: AudioFormat? = AudioFormat.WAV
-        
+
         fun volume(value: Int?) = apply { volume = value }
+        fun targetLufs(value: Double?) = apply { targetLufs = value }
         fun audioPitch(value: Int?) = apply { audioPitch = value }
         fun audioTempo(value: Double?) = apply { audioTempo = value }
         fun audioFormat(value: AudioFormat?) = apply { audioFormat = value }
-        
-        fun build() = Output(
-            volume = volume,
-            audioPitch = audioPitch,
-            audioTempo = audioTempo,
-            audioFormat = audioFormat
-        )
+
+        fun build(): Output {
+            return Output(
+                volume = volume,
+                targetLufs = targetLufs,
+                audioPitch = audioPitch,
+                audioTempo = audioTempo,
+                audioFormat = audioFormat
+            )
+        }
     }
 }

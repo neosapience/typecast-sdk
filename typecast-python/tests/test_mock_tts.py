@@ -1,5 +1,6 @@
 
 import pytest
+from pydantic import ValidationError
 
 from typecast.client import Typecast
 from typecast.models import Output, Prompt, TTSRequest, TTSResponse
@@ -9,6 +10,28 @@ from typecast.models import Output, Prompt, TTSRequest, TTSResponse
 def typecast_client():
     # Get API key from environment variables
     return Typecast()
+
+
+class TestOutputValidation:
+    def test_target_lufs_valid(self):
+        output = Output(target_lufs=-14.0)
+        assert output.target_lufs == -14.0
+        assert output.volume is None
+
+    def test_target_lufs_range(self):
+        with pytest.raises(ValidationError):
+            Output(volume=None, target_lufs=-71.0)
+        with pytest.raises(ValidationError):
+            Output(volume=None, target_lufs=1.0)
+
+    def test_volume_and_target_lufs_mutual_exclusion(self):
+        with pytest.raises(ValueError):
+            Output(volume=100, target_lufs=-14.0)
+
+    def test_target_lufs_with_explicit_volume_none(self):
+        output = Output(volume=None, target_lufs=-14.0)
+        assert output.volume is None
+        assert output.target_lufs == -14.0
 
 
 class TestMockTTS:

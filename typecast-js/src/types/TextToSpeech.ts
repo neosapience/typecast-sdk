@@ -112,13 +112,21 @@ export type TTSPrompt = Prompt | PresetPrompt | SmartPrompt;
  * Audio output settings for controlling the final audio characteristics
  */
 export interface Output {
-  /** 
-   * Output volume
+  /**
+   * Relative volume scaling of the output audio.
+   * Cannot be used simultaneously with target_lufs.
    * @min 0
    * @max 200
    * @default 100
    */
   volume?: number;
+  /**
+   * Target loudness in LUFS for absolute loudness normalization.
+   * Cannot be used simultaneously with volume.
+   * @min -70
+   * @max 0
+   */
+  target_lufs?: number;
   /** 
    * Audio pitch adjustment in semitones
    * @min -12

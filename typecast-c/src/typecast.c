@@ -241,7 +241,11 @@ static cJSON* build_tts_request_json(const TypecastTTSRequest* request) {
     if (request->output) {
         cJSON* output = cJSON_CreateObject();
         if (output) {
-            cJSON_AddNumberToObject(output, "volume", request->output->volume);
+            if (request->output->use_target_lufs) {
+                cJSON_AddNumberToObject(output, "target_lufs", request->output->target_lufs);
+            } else {
+                cJSON_AddNumberToObject(output, "volume", request->output->volume);
+            }
             cJSON_AddNumberToObject(output, "audio_pitch", request->output->audio_pitch);
             cJSON_AddNumberToObject(output, "audio_tempo", request->output->audio_tempo);
             cJSON_AddStringToObject(output, "audio_format", 

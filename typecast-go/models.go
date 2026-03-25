@@ -1,5 +1,7 @@
 package typecast
 
+import "fmt"
+
 // TTSModel represents the TTS model version
 type TTSModel string
 
@@ -71,14 +73,44 @@ const (
 
 // Output represents audio output settings
 type Output struct {
-	// Volume controls the volume level (0-200, default: 100)
+	// Volume controls the volume level (0-200, default: 100).
+	// Cannot be used simultaneously with TargetLUFS.
 	Volume *int `json:"volume,omitempty"`
+	// TargetLUFS sets absolute loudness normalization (-70 to 0).
+	// Cannot be used simultaneously with Volume.
+	TargetLUFS *float64 `json:"target_lufs,omitempty"`
 	// AudioPitch adjusts pitch in semitones (-12 to +12, default: 0)
 	AudioPitch *int `json:"audio_pitch,omitempty"`
 	// AudioTempo controls speech speed (0.5 to 2.0, default: 1.0)
 	AudioTempo *float64 `json:"audio_tempo,omitempty"`
 	// AudioFormat is the output format (wav or mp3, default: wav)
 	AudioFormat AudioFormat `json:"audio_format,omitempty"`
+}
+
+// Validate checks the Output fields for invalid values.
+func (o *Output) Validate() error {
+	if o == nil {
+		return nil
+	}
+	if o.Volume != nil && o.TargetLUFS != nil {
+		return fmt.Errorf("volume and target_lufs are mutually exclusive")
+	}
+	if o.Volume != nil && (*o.Volume < 0 || *o.Volume > 200) {
+		return fmt.Errorf("volume must be between 0 and 200")
+	}
+	if o.TargetLUFS != nil && (*o.TargetLUFS < -70 || *o.TargetLUFS > 0) {
+		return fmt.Errorf("target_lufs must be between -70 and 0")
+	}
+	if o.AudioPitch != nil && (*o.AudioPitch < -12 || *o.AudioPitch > 12) {
+		return fmt.Errorf("audio_pitch must be between -12 and 12")
+	}
+	if o.AudioTempo != nil && (*o.AudioTempo < 0.5 || *o.AudioTempo > 2.0) {
+		return fmt.Errorf("audio_tempo must be between 0.5 and 2.0")
+	}
+	if o.AudioFormat != "" && o.AudioFormat != AudioFormatWAV && o.AudioFormat != AudioFormatMP3 {
+		return fmt.Errorf("audio_format must be one of wav or mp3")
+	}
+	return nil
 }
 
 // Prompt represents emotion settings for ssfm-v21 model
