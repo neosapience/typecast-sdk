@@ -195,7 +195,9 @@ typedef struct TypecastClient TypecastClient;
  * Output settings for TTS request
  */
 typedef struct {
-    int volume;              /* 0-200, default 100 */
+    int volume;              /* 0-200, default 100. Cannot be used with target_lufs */
+    int use_target_lufs;     /* Set to 1 to use target_lufs instead of volume */
+    float target_lufs;       /* -70 to 0. Cannot be used with volume */
     int audio_pitch;         /* -12 to 12, default 0 */
     float audio_tempo;       /* 0.5 to 2.0, default 1.0 */
     TypecastAudioFormat audio_format; /* wav or mp3, default wav */
