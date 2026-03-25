@@ -411,13 +411,13 @@ class TypecastClientTest {
     @DisplayName("Output should validate target LUFS range")
     void output_validatesTargetLufsRange() {
         assertThrows(IllegalArgumentException.class, () ->
-                new Output().setTargetLufs(-71.0));
+                new Output().setVolume(null).setTargetLufs(-71.0));
 
         assertThrows(IllegalArgumentException.class, () ->
-                new Output().setTargetLufs(1.0));
+                new Output().setVolume(null).setTargetLufs(1.0));
 
-        assertDoesNotThrow(() -> new Output().setTargetLufs(-70.0));
-        assertDoesNotThrow(() -> new Output().setTargetLufs(0.0));
+        assertDoesNotThrow(() -> new Output().setVolume(null).setTargetLufs(-70.0));
+        assertDoesNotThrow(() -> new Output().setVolume(null).setTargetLufs(0.0));
     }
 
     @Test
