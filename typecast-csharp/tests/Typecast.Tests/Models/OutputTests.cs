@@ -142,13 +142,25 @@ public class OutputTests
     [Fact]
     public void Output_WithBothVolumeAndTargetLufs_ShouldThrow()
     {
-        // Arrange
-        var output = new Output(volume: 100, targetLufs: -14.0);
+        // Arrange - explicitly set non-default volume with targetLufs
+        var output = new Output(volume: 150, targetLufs: -14.0);
 
         // Act & Assert
         output.Invoking(o => o.Validate())
             .Should().Throw<ArgumentException>()
             .WithMessage("*simultaneously*");
+    }
+
+    [Fact]
+    public void Output_WithTargetLufsOnly_ShouldAutoClearVolume()
+    {
+        // Arrange - only targetLufs, volume uses default (100) which should be auto-cleared
+        var output = new Output(targetLufs: -14.0);
+
+        // Assert
+        output.Volume.Should().BeNull();
+        output.TargetLufs.Should().Be(-14.0);
+        output.Invoking(o => o.Validate()).Should().NotThrow();
     }
 
     [Fact]

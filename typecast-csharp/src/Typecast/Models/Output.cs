@@ -58,7 +58,7 @@ public class Output
     /// <param name="audioFormat">Audio format</param>
     public Output(int? volume = 100, int? audioPitch = 0, double? audioTempo = 1.0, AudioFormat? audioFormat = null, double? targetLufs = null)
     {
-        Volume = volume;
+        Volume = (targetLufs.HasValue && volume == 100) ? null : volume;
         TargetLufs = targetLufs;
         AudioPitch = audioPitch;
         AudioTempo = audioTempo;
