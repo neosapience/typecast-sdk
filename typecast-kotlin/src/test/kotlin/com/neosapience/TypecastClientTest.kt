@@ -347,5 +347,21 @@ class TypecastClientTest {
         assertThrows(IllegalArgumentException::class.java) {
             Output(audioTempo = 3.0) // max is 2.0
         }
+
+        assertThrows(IllegalArgumentException::class.java) {
+            Output(volume = null, targetLufs = -71.0) // min is -70
+        }
+
+        assertThrows(IllegalArgumentException::class.java) {
+            Output(volume = null, targetLufs = 1.0) // max is 0
+        }
+
+        assertThrows(IllegalArgumentException::class.java) {
+            Output(volume = 100, targetLufs = -14.0) // cannot use both
+        }
+
+        assertDoesNotThrow {
+            Output(volume = null, targetLufs = -14.0) // valid target_lufs
+        }
     }
 }
