@@ -40,6 +40,9 @@ public class Output {
         if (volume != null && (volume < 0 || volume > 200)) {
             throw new IllegalArgumentException("Volume must be between 0 and 200");
         }
+        if (volume != null && this.targetLufs != null) {
+            throw new IllegalArgumentException("Volume and targetLufs cannot be used simultaneously");
+        }
         this.volume = volume;
         return this;
     }
@@ -62,8 +65,11 @@ public class Output {
      * @throws IllegalArgumentException if targetLufs is out of range
      */
     public Output setTargetLufs(Double targetLufs) {
-        if (targetLufs != null && (targetLufs < -70.0 || targetLufs > 0.0)) {
-            throw new IllegalArgumentException("Target LUFS must be between -70 and 0");
+        if (targetLufs != null && (!Double.isFinite(targetLufs) || targetLufs < -70.0 || targetLufs > 0.0)) {
+            throw new IllegalArgumentException("Target LUFS must be a finite value between -70 and 0");
+        }
+        if (targetLufs != null && this.volume != null) {
+            throw new IllegalArgumentException("Volume and targetLufs cannot be used simultaneously");
         }
         this.targetLufs = targetLufs;
         return this;
