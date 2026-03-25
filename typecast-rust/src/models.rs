@@ -112,9 +112,14 @@ pub enum UseCase {
 /// Audio output settings
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Output {
-    /// Volume level (0-200, default: 100)
+    /// Volume level (0-200, default: 100).
+    /// Cannot be used simultaneously with target_lufs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub volume: Option<i32>,
+    /// Target loudness in LUFS for absolute loudness normalization (-70 to 0).
+    /// Cannot be used simultaneously with volume.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_lufs: Option<f64>,
     /// Pitch adjustment in semitones (-12 to +12, default: 0)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio_pitch: Option<i32>,
@@ -132,9 +137,16 @@ impl Output {
         Self::default()
     }
 
-    /// Set the volume (0-200)
+    /// Set the volume (0-200).
+    /// Cannot be used simultaneously with target_lufs.
     pub fn volume(mut self, volume: i32) -> Self {
         self.volume = Some(volume.clamp(0, 200));
+        self
+    }
+
+    /// Set the target LUFS (-70 to 0)
+    pub fn target_lufs(mut self, lufs: f64) -> Self {
+        self.target_lufs = Some(lufs.clamp(-70.0, 0.0));
         self
     }
 
