@@ -363,5 +363,12 @@ class TypecastClientTest {
         assertDoesNotThrow {
             Output(volume = null, targetLufs = -14.0) // valid target_lufs
         }
+
+        // Builder should auto-clear volume when targetLufs is set
+        val output = Output.builder()
+            .targetLufs(-14.0)
+            .build()
+        assertNull(output.volume)
+        assertEquals(-14.0, output.targetLufs)
     }
 }

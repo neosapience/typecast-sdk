@@ -53,23 +53,27 @@ data class Output(
     
     class Builder {
         private var volume: Int? = 100
+        private var volumeExplicitlySet: Boolean = false
         private var targetLufs: Double? = null
         private var audioPitch: Int? = 0
         private var audioTempo: Double? = 1.0
         private var audioFormat: AudioFormat? = AudioFormat.WAV
-        
-        fun volume(value: Int?) = apply { volume = value }
+
+        fun volume(value: Int?) = apply { volume = value; volumeExplicitlySet = true }
         fun targetLufs(value: Double?) = apply { targetLufs = value }
         fun audioPitch(value: Int?) = apply { audioPitch = value }
         fun audioTempo(value: Double?) = apply { audioTempo = value }
         fun audioFormat(value: AudioFormat?) = apply { audioFormat = value }
-        
-        fun build() = Output(
-            volume = volume,
-            targetLufs = targetLufs,
-            audioPitch = audioPitch,
-            audioTempo = audioTempo,
-            audioFormat = audioFormat
-        )
+
+        fun build(): Output {
+            val effectiveVolume = if (targetLufs != null && !volumeExplicitlySet) null else volume
+            return Output(
+                volume = effectiveVolume,
+                targetLufs = targetLufs,
+                audioPitch = audioPitch,
+                audioTempo = audioTempo,
+                audioFormat = audioFormat
+            )
+        }
     }
 }
