@@ -13,8 +13,9 @@ def typecast_client():
 
 class TestOutputValidation:
     def test_target_lufs_valid(self):
-        output = Output(volume=None, target_lufs=-14.0)
+        output = Output(target_lufs=-14.0)
         assert output.target_lufs == -14.0
+        assert output.volume is None
 
     def test_target_lufs_range(self):
         with pytest.raises(Exception):
@@ -26,7 +27,7 @@ class TestOutputValidation:
         with pytest.raises(ValueError):
             Output(volume=100, target_lufs=-14.0)
 
-    def test_target_lufs_without_volume(self):
+    def test_target_lufs_with_explicit_volume_none(self):
         output = Output(volume=None, target_lufs=-14.0)
         assert output.volume is None
         assert output.target_lufs == -14.0
