@@ -101,6 +101,15 @@ func (o *Output) Validate() error {
 	if o.TargetLUFS != nil && (*o.TargetLUFS < -70 || *o.TargetLUFS > 0) {
 		return fmt.Errorf("target_lufs must be between -70 and 0")
 	}
+	if o.AudioPitch != nil && (*o.AudioPitch < -12 || *o.AudioPitch > 12) {
+		return fmt.Errorf("audio_pitch must be between -12 and 12")
+	}
+	if o.AudioTempo != nil && (*o.AudioTempo < 0.5 || *o.AudioTempo > 2.0) {
+		return fmt.Errorf("audio_tempo must be between 0.5 and 2.0")
+	}
+	if o.AudioFormat != "" && o.AudioFormat != AudioFormatWAV && o.AudioFormat != AudioFormatMP3 {
+		return fmt.Errorf("audio_format must be one of wav or mp3")
+	}
 	return nil
 }
 
