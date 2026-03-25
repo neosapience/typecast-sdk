@@ -112,6 +112,45 @@ public class OutputTests
         output.Invoking(o => o.Validate()).Should().NotThrow();
     }
 
+    [Theory]
+    [InlineData(-71.0)]
+    [InlineData(1.0)]
+    public void Output_WithInvalidTargetLufs_ShouldThrow(double targetLufs)
+    {
+        // Arrange
+        var output = new Output(volume: null, targetLufs: targetLufs);
+
+        // Act & Assert
+        output.Invoking(o => o.Validate())
+            .Should().Throw<ArgumentOutOfRangeException>()
+            .WithMessage("*TargetLufs*");
+    }
+
+    [Theory]
+    [InlineData(-70.0)]
+    [InlineData(-14.0)]
+    [InlineData(0.0)]
+    public void Output_WithValidTargetLufs_ShouldNotThrow(double targetLufs)
+    {
+        // Arrange
+        var output = new Output(volume: null, targetLufs: targetLufs);
+
+        // Act & Assert
+        output.Invoking(o => o.Validate()).Should().NotThrow();
+    }
+
+    [Fact]
+    public void Output_WithBothVolumeAndTargetLufs_ShouldThrow()
+    {
+        // Arrange
+        var output = new Output(volume: 100, targetLufs: -14.0);
+
+        // Act & Assert
+        output.Invoking(o => o.Validate())
+            .Should().Throw<ArgumentException>()
+            .WithMessage("*simultaneously*");
+    }
+
     [Fact]
     public void Output_WithWavFormat_ShouldSetCorrectFormat()
     {
