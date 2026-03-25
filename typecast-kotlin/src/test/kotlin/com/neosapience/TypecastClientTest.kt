@@ -349,11 +349,11 @@ class TypecastClientTest {
         }
 
         assertThrows(IllegalArgumentException::class.java) {
-            Output(volume = null, targetLufs = -71.0) // min is -70
+            Output(targetLufs = -71.0) // min is -70
         }
 
         assertThrows(IllegalArgumentException::class.java) {
-            Output(volume = null, targetLufs = 1.0) // max is 0
+            Output(targetLufs = 1.0) // max is 0
         }
 
         assertThrows(IllegalArgumentException::class.java) {
@@ -361,13 +361,10 @@ class TypecastClientTest {
         }
 
         assertDoesNotThrow {
-            Output(volume = null, targetLufs = -14.0) // valid target_lufs
+            Output(targetLufs = -14.0) // valid target_lufs without volume
         }
 
-        // Builder should auto-clear volume when targetLufs is set
-        val output = Output.builder()
-            .targetLufs(-14.0)
-            .build()
+        val output = Output(targetLufs = -14.0)
         assertNull(output.volume)
         assertEquals(-14.0, output.targetLufs)
     }

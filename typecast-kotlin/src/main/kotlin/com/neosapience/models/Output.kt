@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 /**
  * Audio output configuration for TTS synthesis.
  *
- * @property volume Volume level (0-200, default 100)
+ * @property volume Volume level (0-200). Set explicitly when needed; null by default.
  * @property targetLufs Target loudness in LUFS (-70 to 0). Cannot be used simultaneously with volume.
  * @property audioPitch Audio pitch adjustment in semitones (-12 to 12, default 0)
  * @property audioTempo Audio tempo multiplier (0.5-2.0, default 1.0)
@@ -15,7 +15,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class Output(
     @SerialName("volume")
-    val volume: Int? = 100,
+    val volume: Int? = null,
 
     @SerialName("target_lufs")
     val targetLufs: Double? = null,
@@ -52,23 +52,21 @@ data class Output(
     }
     
     class Builder {
-        private var volume: Int? = 100
-        private var volumeExplicitlySet: Boolean = false
+        private var volume: Int? = null
         private var targetLufs: Double? = null
         private var audioPitch: Int? = 0
         private var audioTempo: Double? = 1.0
         private var audioFormat: AudioFormat? = AudioFormat.WAV
 
-        fun volume(value: Int?) = apply { volume = value; volumeExplicitlySet = true }
+        fun volume(value: Int?) = apply { volume = value }
         fun targetLufs(value: Double?) = apply { targetLufs = value }
         fun audioPitch(value: Int?) = apply { audioPitch = value }
         fun audioTempo(value: Double?) = apply { audioTempo = value }
         fun audioFormat(value: AudioFormat?) = apply { audioFormat = value }
 
         fun build(): Output {
-            val effectiveVolume = if (targetLufs != null && !volumeExplicitlySet) null else volume
             return Output(
-                volume = effectiveVolume,
+                volume = volume,
                 targetLufs = targetLufs,
                 audioPitch = audioPitch,
                 audioTempo = audioTempo,
