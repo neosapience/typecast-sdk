@@ -408,6 +408,19 @@ class TypecastClientTest {
     }
 
     @Test
+    @DisplayName("Output should validate target LUFS range")
+    void output_validatesTargetLufsRange() {
+        assertThrows(IllegalArgumentException.class, () ->
+                new Output().setTargetLufs(-71.0));
+
+        assertThrows(IllegalArgumentException.class, () ->
+                new Output().setTargetLufs(1.0));
+
+        assertDoesNotThrow(() -> new Output().setTargetLufs(-70.0));
+        assertDoesNotThrow(() -> new Output().setTargetLufs(0.0));
+    }
+
+    @Test
     @DisplayName("Output should validate audio tempo range")
     void output_validatesAudioTempoRange() {
         assertThrows(IllegalArgumentException.class, () ->

@@ -5,6 +5,7 @@ package com.neosapience.models;
  */
 public class Output {
     private Integer volume;
+    private Double targetLufs;
     private Integer audioPitch;
     private Double audioTempo;
     private AudioFormat audioFormat;
@@ -40,6 +41,31 @@ public class Output {
             throw new IllegalArgumentException("Volume must be between 0 and 200");
         }
         this.volume = volume;
+        return this;
+    }
+
+    /**
+     * Gets the target loudness in LUFS.
+     *
+     * @return the target LUFS (-70 to 0)
+     */
+    public Double getTargetLufs() {
+        return targetLufs;
+    }
+
+    /**
+     * Sets the target loudness in LUFS for absolute loudness normalization.
+     * Cannot be used simultaneously with volume.
+     *
+     * @param targetLufs the target LUFS (-70 to 0)
+     * @return this Output for chaining
+     * @throws IllegalArgumentException if targetLufs is out of range
+     */
+    public Output setTargetLufs(Double targetLufs) {
+        if (targetLufs != null && (targetLufs < -70.0 || targetLufs > 0.0)) {
+            throw new IllegalArgumentException("Target LUFS must be between -70 and 0");
+        }
+        this.targetLufs = targetLufs;
         return this;
     }
 
@@ -125,6 +151,7 @@ public class Output {
      */
     public static class Builder {
         private Integer volume = 100;
+        private Double targetLufs;
         private Integer audioPitch = 0;
         private Double audioTempo = 1.0;
         private AudioFormat audioFormat = AudioFormat.WAV;
@@ -137,6 +164,17 @@ public class Output {
          */
         public Builder volume(Integer volume) {
             this.volume = volume;
+            return this;
+        }
+
+        /**
+         * Sets the target loudness in LUFS.
+         *
+         * @param targetLufs the target LUFS (-70 to 0)
+         * @return this Builder for chaining
+         */
+        public Builder targetLufs(Double targetLufs) {
+            this.targetLufs = targetLufs;
             return this;
         }
 
@@ -181,6 +219,7 @@ public class Output {
         public Output build() {
             Output output = new Output();
             output.setVolume(volume);
+            output.setTargetLufs(targetLufs);
             output.setAudioPitch(audioPitch);
             output.setAudioTempo(audioTempo);
             output.setAudioFormat(audioFormat);
@@ -192,6 +231,7 @@ public class Output {
     public String toString() {
         return "Output{" +
                 "volume=" + volume +
+                ", targetLufs=" + targetLufs +
                 ", audioPitch=" + audioPitch +
                 ", audioTempo=" + audioTempo +
                 ", audioFormat=" + audioFormat +
