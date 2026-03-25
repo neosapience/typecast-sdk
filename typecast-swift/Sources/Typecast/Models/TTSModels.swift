@@ -180,8 +180,11 @@ public enum TTSPrompt: Codable, Sendable {
 
 /// Audio output settings for controlling the final audio characteristics
 public struct OutputSettings: Codable, Sendable {
-    /// Output volume (0-200, default: 100)
+    /// Output volume (0-200, default: 100). Cannot be used simultaneously with targetLufs.
     public var volume: Int?
+    /// Target loudness in LUFS for absolute loudness normalization (-70 to 0).
+    /// Cannot be used simultaneously with volume.
+    public var targetLufs: Double?
     /// Audio pitch adjustment in semitones (-12 to +12, default: 0)
     public var audioPitch: Int?
     /// Audio tempo/speed multiplier (0.5 to 2.0, default: 1.0)
@@ -191,6 +194,7 @@ public struct OutputSettings: Codable, Sendable {
     
     enum CodingKeys: String, CodingKey {
         case volume
+        case targetLufs = "target_lufs"
         case audioPitch = "audio_pitch"
         case audioTempo = "audio_tempo"
         case audioFormat = "audio_format"
@@ -198,11 +202,13 @@ public struct OutputSettings: Codable, Sendable {
     
     public init(
         volume: Int? = nil,
+        targetLufs: Double? = nil,
         audioPitch: Int? = nil,
         audioTempo: Double? = nil,
         audioFormat: AudioFormat? = nil
     ) {
         self.volume = volume
+        self.targetLufs = targetLufs
         self.audioPitch = audioPitch
         self.audioTempo = audioTempo
         self.audioFormat = audioFormat
