@@ -112,6 +112,9 @@ func (c *Client) handleErrorResponse(resp *http.Response) error {
 
 // TextToSpeech converts text to speech using the Typecast API
 func (c *Client) TextToSpeech(ctx context.Context, request *TTSRequest) (*TTSResponse, error) {
+	if err := request.Output.Validate(); err != nil {
+		return nil, err
+	}
 	resp, err := c.doRequest(ctx, http.MethodPost, "/v1/text-to-speech", request)
 	if err != nil {
 		return nil, err

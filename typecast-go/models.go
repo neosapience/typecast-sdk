@@ -1,5 +1,7 @@
 package typecast
 
+import "fmt"
+
 // TTSModel represents the TTS model version
 type TTSModel string
 
@@ -83,6 +85,23 @@ type Output struct {
 	AudioTempo *float64 `json:"audio_tempo,omitempty"`
 	// AudioFormat is the output format (wav or mp3, default: wav)
 	AudioFormat AudioFormat `json:"audio_format,omitempty"`
+}
+
+// Validate checks the Output fields for invalid values.
+func (o *Output) Validate() error {
+	if o == nil {
+		return nil
+	}
+	if o.Volume != nil && o.TargetLUFS != nil {
+		return fmt.Errorf("volume and target_lufs are mutually exclusive")
+	}
+	if o.Volume != nil && (*o.Volume < 0 || *o.Volume > 200) {
+		return fmt.Errorf("volume must be between 0 and 200")
+	}
+	if o.TargetLUFS != nil && (*o.TargetLUFS < -70 || *o.TargetLUFS > 0) {
+		return fmt.Errorf("target_lufs must be between -70 and 0")
+	}
+	return nil
 }
 
 // Prompt represents emotion settings for ssfm-v21 model
