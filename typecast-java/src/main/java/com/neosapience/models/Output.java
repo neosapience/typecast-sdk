@@ -151,6 +151,7 @@ public class Output {
      */
     public static class Builder {
         private Integer volume = 100;
+        private boolean volumeExplicitlySet = false;
         private Double targetLufs;
         private Integer audioPitch = 0;
         private Double audioTempo = 1.0;
@@ -158,12 +159,13 @@ public class Output {
 
         /**
          * Sets the volume level.
-         * 
+         *
          * @param volume the volume level (0-200)
          * @return this Builder for chaining
          */
         public Builder volume(Integer volume) {
             this.volume = volume;
+            this.volumeExplicitlySet = true;
             return this;
         }
 
@@ -218,7 +220,8 @@ public class Output {
          */
         public Output build() {
             Output output = new Output();
-            output.setVolume(volume);
+            Integer effectiveVolume = (targetLufs != null && !volumeExplicitlySet) ? null : volume;
+            output.setVolume(effectiveVolume);
             output.setTargetLufs(targetLufs);
             output.setAudioPitch(audioPitch);
             output.setAudioTempo(audioTempo);

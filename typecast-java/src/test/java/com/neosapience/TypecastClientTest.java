@@ -421,6 +421,16 @@ class TypecastClientTest {
     }
 
     @Test
+    @DisplayName("Output builder should auto-clear volume when targetLufs is set")
+    void output_builderAutoClearsVolumeForTargetLufs() {
+        Output output = Output.builder()
+                .targetLufs(-14.0)
+                .build();
+        assertNull(output.getVolume());
+        assertEquals(-14.0, output.getTargetLufs());
+    }
+
+    @Test
     @DisplayName("Output should validate audio tempo range")
     void output_validatesAudioTempoRange() {
         assertThrows(IllegalArgumentException.class, () ->
