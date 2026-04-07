@@ -9,17 +9,18 @@ from .models import WebSocketMessage
 
 
 class TypecastWebSocket:
-    WS_URL = "wss://api.typecast.ai/v1/ws"
+    """WebSocket client for Typecast streaming TTS."""
 
-    def __init__(self, api_key: str):
+    DEFAULT_WS_URL = "wss://api.typecast.ai/v1/ws"
+
+    def __init__(self, api_key: str, ws_url: Optional[str] = None):
         self.api_key = api_key
+        self.ws_url = ws_url or self.DEFAULT_WS_URL
         self.ws: Optional[websockets.WebSocketClientProtocol] = None
         self.callbacks: dict[str, Callable] = {}
 
     async def connect(self):
-        self.ws = await websockets.connect(f"{self.WS_URL}?token={self.api_key}")
-
-        # Start message handler
+        self.ws = await websockets.connect(f"{self.ws_url}?token={self.api_key}")
         asyncio.create_task(self._message_handler())
 
     async def _message_handler(self):
@@ -34,7 +35,7 @@ class TypecastWebSocket:
                 await self.callbacks[msg.type](msg.payload)
 
     def on(self, event_type: str, callback: Callable):
-        """Register event callback"""
+        """Register event callback."""
         self.callbacks[event_type] = callback
 
     async def send(self, message: WebSocketMessage):
