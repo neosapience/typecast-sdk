@@ -84,6 +84,7 @@ CMakeCache.txt
 cmake_install.cmake
 Makefile
 !typecast-rust/Makefile
+!typecast-kotlin/Makefile
 *.cmake
 
 # Compiled objects
