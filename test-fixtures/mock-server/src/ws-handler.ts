@@ -13,22 +13,31 @@ export function parseWsScript(text: string): WsScriptFrame[] {
 }
 
 export async function streamWs(socket: WebSocket, scriptPath: string): Promise<void> {
-  const text = await readFile(scriptPath, 'utf8');
-  const frames = parseWsScript(text);
+  // streamWs is invoked fire-and-forget from the WS upgrade handler, so any
+  // thrown error here would surface as an unhandled rejection. Contain
+  // failures locally and close the socket with an internal-error code.
+  try {
+    const text = await readFile(scriptPath, 'utf8');
+    const frames = parseWsScript(text);
 
-  for (const frame of frames) {
-    if (frame.delayMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, frame.delayMs));
+    for (const frame of frames) {
+      if (frame.delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, frame.delayMs));
+      }
+      if (socket.readyState !== socket.OPEN) return;
+
+      if (frame.opcode === 'text') {
+        socket.send(frame.payload);
+      } else if (frame.opcode === 'binary') {
+        socket.send(Buffer.from(frame.payload, 'base64'));
+      } else {
+        socket.close(frame.closeCode ?? 1000);
+        return;
+      }
     }
-    if (socket.readyState !== socket.OPEN) return;
-
-    if (frame.opcode === 'text') {
-      socket.send(frame.payload);
-    } else if (frame.opcode === 'binary') {
-      socket.send(Buffer.from(frame.payload, 'base64'));
-    } else {
-      socket.close(frame.closeCode ?? 1000);
-      return;
+  } catch {
+    if (socket.readyState === socket.OPEN) {
+      socket.close(1011, 'stream failure');
     }
   }
 }
