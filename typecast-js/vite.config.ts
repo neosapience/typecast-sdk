@@ -13,8 +13,12 @@ export default defineConfig({
         'src/types/**',
         'src/**/*.d.ts',
       ],
-      // thresholds will be enabled in a later task once coverage actually
-      // reaches 100% — turning them on now would block every interim commit.
+      thresholds: {
+        lines: 100,
+        functions: 100,
+        branches: 100,
+        statements: 100,
+      },
     },
   },
 });
