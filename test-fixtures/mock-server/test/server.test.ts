@@ -15,6 +15,22 @@ async function emptyFixturesDir(): Promise<string> {
   return dir;
 }
 
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`timeout after ${ms}ms: ${label}`)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
 test('server: GET /__mock_health returns 200 ok', async () => {
   const dir = await emptyFixturesDir();
   const handle = await createServer({ port: 0, fixturesDir: dir });
@@ -130,12 +146,16 @@ test('server: WS connection at /__mock_ws/<name> replays frames', async () => {
   try {
     const wsUrl = handle.url.replace('http://', 'ws://') + '/__mock_ws/demo';
     const messages: string[] = [];
-    await new Promise<void>((resolve, reject) => {
-      const ws = new WebSocket(wsUrl);
-      ws.on('message', (data) => messages.push(data.toString()));
-      ws.on('close', () => resolve());
-      ws.on('error', reject);
-    });
+    await withTimeout(
+      new Promise<void>((resolve, reject) => {
+        const ws = new WebSocket(wsUrl);
+        ws.on('message', (data) => messages.push(data.toString()));
+        ws.on('close', () => resolve());
+        ws.on('error', reject);
+      }),
+      5000,
+      'ws replay close',
+    );
     assert.deepEqual(messages, ['hello', 'world']);
   } finally {
     await handle.close();
@@ -148,11 +168,15 @@ test('server: WS connection to unknown script closes immediately with 1008', asy
   const handle = await createServer({ port: 0, fixturesDir: dir });
   try {
     const wsUrl = handle.url.replace('http://', 'ws://') + '/__mock_ws/none';
-    const closeCode = await new Promise<number>((resolve, reject) => {
-      const ws = new WebSocket(wsUrl);
-      ws.on('close', (code) => resolve(code));
-      ws.on('error', reject);
-    });
+    const closeCode = await withTimeout(
+      new Promise<number>((resolve, reject) => {
+        const ws = new WebSocket(wsUrl);
+        ws.on('close', (code) => resolve(code));
+        ws.on('error', reject);
+      }),
+      5000,
+      'unknown ws close',
+    );
     assert.equal(closeCode, 1008);
   } finally {
     await handle.close();
