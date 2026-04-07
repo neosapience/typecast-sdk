@@ -83,6 +83,7 @@ CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 Makefile
+!typecast-go/Makefile
 !typecast-java/Makefile
 !typecast-rust/Makefile
 *.cmake
