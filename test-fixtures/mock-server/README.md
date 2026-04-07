@@ -82,7 +82,7 @@ include the SSE blank-line terminator (`\n\n`).
 
 Example:
 
-```
+```text
 # delay-ms: 0
 event: progress
 data: {"progress":0.1}

@@ -74,7 +74,7 @@ This PR introduces no SDK changes. It lands the foundations every subsequent PR 
 
 Located at `test-fixtures/mock-server/`. **Implementation language: Node.js + TypeScript**, with `tsx` (TypeScript runner) and `ws` (WebSocket server, no transitive deps) as the only runtime dependencies beyond the Node standard library. Node ≥20 has no built-in WebSocket server, so `ws` is unavoidable; we picked it because it has zero runtime dependencies of its own.
 
-```
+```text
 test-fixtures/mock-server/
   package.json              # name, deps: tsx + ws; node engines >= 20
   tsconfig.json
@@ -154,9 +154,11 @@ These categories are exactly where bugs hide, and excluding them defeats the pur
   if sys.platform == "win32":  # pragma: no cover  # category=platform reason="Windows-only fallback"
   ```
 - Each PR body declares a one-line budget summary:
-  ```
+
+  ```text
   Excluded: 7 lines (platform=4, unreachable=2, type-only=1)
   ```
+
 - **Maximum 30 excluded lines per SDK.** If a PR needs more, the policy must be revisited (separate discussion, not a unilateral PR change). The budget is set as a starting threshold and may be revisited after the first 1–2 SDK PRs land with real data.
 
 ## 7. Per-SDK PR Common Structure
@@ -165,7 +167,7 @@ Every SDK PR (steps 1–9) follows the same shape, modulo language-specific deta
 
 ### 7.1 Filesystem changes
 
-```
+```text
 typecast-{lang}/
   src/                      (mostly unchanged; minor refactors only where needed for testability)
   tests/
@@ -224,7 +226,7 @@ CI does not duplicate the gate — it just runs `make coverage` (or the equivale
 
 Each SDK README adds a shields.io badge at the top:
 
-```
+```text
 ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)
 ```
 

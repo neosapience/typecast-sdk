@@ -151,7 +151,7 @@ PR adjusting the budget with justification.
 Every per-SDK coverage PR includes a one-line summary of the budget use
 in its description, in this format:
 
-```
+```text
 Excluded: 7 lines (platform=4, unreachable=2, type-only=1)
 ```
 

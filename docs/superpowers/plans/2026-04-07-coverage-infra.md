@@ -29,7 +29,7 @@ All paths in this plan are relative to the repo root: `/Users/haminlee/Documents
 
 After this plan is complete, the repo will contain:
 
-```
+```text
 test-fixtures/
   mock-server/
     .gitignore
@@ -175,7 +175,7 @@ mkdir -p test-fixtures/mock-server/src test-fixtures/mock-server/test test-fixtu
 
 `test-fixtures/mock-server/.gitignore`:
 
-```
+```bash
 node_modules/
 *.log
 .DS_Store
@@ -905,7 +905,7 @@ git commit -m "feat(mock-server): serve REST fixtures from disk"
 
 The SSE script file is plain text. Each chunk is separated from the next by a line containing only `---` (three hyphens). An optional `# delay-ms: 50` comment line at the start of a chunk sets the pre-send delay; if absent the delay is 0. Example file:
 
-```
+```text
 # delay-ms: 0
 event: progress
 data: {"progress": 0.1}
@@ -1675,7 +1675,7 @@ Expected: `wc -c test-fixtures/mock-server/fixtures/tts/synthesis-200.bin` repor
 
 `test-fixtures/mock-server/fixtures/sse/ssfm-stream-1.txt`:
 
-```
+```text
 # delay-ms: 0
 event: progress
 data: {"progress":0.1,"stage":"prepare"}
@@ -1701,7 +1701,7 @@ data: [DONE]
 
 `test-fixtures/mock-server/fixtures/sse/ssfm-stream-error.txt`:
 
-```
+```text
 # delay-ms: 0
 event: progress
 data: {"progress":0.1,"stage":"prepare"}
