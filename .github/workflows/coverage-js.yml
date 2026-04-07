@@ -1,0 +1,71 @@
+name: coverage-js
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'typecast-js/**'
+      - 'test-fixtures/mock-server/**'
+      - '.github/workflows/coverage-js.yml'
+  pull_request:
+    paths:
+      - 'typecast-js/**'
+      - 'test-fixtures/mock-server/**'
+      - '.github/workflows/coverage-js.yml'
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install mock server deps
+        working-directory: test-fixtures/mock-server
+        run: npm ci
+
+      - name: Start mock server
+        working-directory: test-fixtures/mock-server
+        run: |
+          npx tsx src/index.ts --port 8765 > mock-server.log 2>&1 &
+          echo $! > mock-server.pid
+          for i in {1..30}; do
+            if curl -sf http://127.0.0.1:8765/__mock_health > /dev/null; then
+              echo "mock server ready (pid $(cat mock-server.pid))"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "mock server failed to start within 30s"
+          cat mock-server.log
+          exit 1
+
+      - name: Install typecast-js deps
+        working-directory: typecast-js
+        run: npm ci
+
+      - name: Run coverage (gate enforced by vitest threshold)
+        working-directory: typecast-js
+        env:
+          TYPECAST_MOCK_URL: http://127.0.0.1:8765
+        run: make coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-js
+          path: typecast-js/coverage/
+
+      - name: Stop mock server
+        if: always()
+        working-directory: test-fixtures/mock-server
+        run: |
+          if [ -f mock-server.pid ]; then
+            kill -TERM "$(cat mock-server.pid)" 2>/dev/null || true
+            rm -f mock-server.pid
+          fi
