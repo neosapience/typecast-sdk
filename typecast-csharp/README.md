@@ -4,6 +4,7 @@ Official C# SDK for the [Typecast](https://typecast.ai/?lang=en) Text-to-Speech 
 
 [![NuGet](https://img.shields.io/nuget/v/typecast-csharp.svg)](https://www.nuget.org/packages/typecast-csharp)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](../.github/workflows/coverage-csharp.yml)
 
 ## Features
 
