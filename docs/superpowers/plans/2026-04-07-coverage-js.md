@@ -1372,9 +1372,10 @@ jobs:
         working-directory: test-fixtures/mock-server
         run: |
           npx tsx src/index.ts --port 8765 > mock-server.log 2>&1 &
+          echo $! > mock-server.pid
           for i in {1..30}; do
             if curl -sf http://127.0.0.1:8765/__mock_health > /dev/null; then
-              echo "mock server ready"
+              echo "mock server ready (pid $(cat mock-server.pid))"
               exit 0
             fi
             sleep 1
@@ -1402,7 +1403,12 @@ jobs:
 
       - name: Stop mock server
         if: always()
-        run: pkill -f "tsx src/index.ts" || true
+        working-directory: test-fixtures/mock-server
+        run: |
+          if [ -f mock-server.pid ]; then
+            kill -TERM "$(cat mock-server.pid)" 2>/dev/null || true
+            rm -f mock-server.pid
+          fi
 ```
 
 - [ ] **Step 2: Lint the YAML**
