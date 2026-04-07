@@ -3,11 +3,13 @@ import type { ServerResponse } from 'node:http';
 import type { SseScriptChunk } from './types.ts';
 
 export function parseSseScript(text: string): SseScriptChunk[] {
-  const rawChunks = text.split(/\n---\n/);
+  // Accept both LF and CRLF line endings so fixtures authored on Windows
+  // (or files normalized by git's autocrlf) still parse correctly.
+  const rawChunks = text.split(/\r?\n---\r?\n/);
   const chunks: SseScriptChunk[] = [];
 
   for (const raw of rawChunks) {
-    const lines = raw.split('\n');
+    const lines = raw.split(/\r?\n/);
     let delayMs = 0;
     let startIdx = 0;
 

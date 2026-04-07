@@ -35,3 +35,14 @@ test('parseSseScript: ignores trailing whitespace and empty chunks', () => {
   const chunks = parseSseScript(text);
   assert.equal(chunks.length, 1);
 });
+
+test('parseSseScript: handles CRLF line endings', () => {
+  const text = 'event: a\r\ndata: 1\r\n\r\n---\r\nevent: b\r\ndata: 2\r\n\r\n';
+  const chunks = parseSseScript(text);
+  assert.equal(chunks.length, 2);
+  // Note: chunk text retains the \r characters from the source; clients are
+  // expected to handle either line ending. The important assertion is that
+  // chunk boundaries were recognized.
+  assert.match(chunks[0].chunk, /event: a/);
+  assert.match(chunks[1].chunk, /event: b/);
+});
