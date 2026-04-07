@@ -1,4 +1,5 @@
 #!/usr/bin/env -S tsx
+import { fileURLToPath } from 'node:url';
 import { createServer } from './server.ts';
 
 interface CliArgs {
@@ -8,7 +9,7 @@ interface CliArgs {
 
 function parseArgs(argv: string[]): CliArgs {
   let port = 8765;
-  let fixturesDir = new URL('../fixtures', import.meta.url).pathname;
+  let fixturesDir = fileURLToPath(new URL('../fixtures', import.meta.url));
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
