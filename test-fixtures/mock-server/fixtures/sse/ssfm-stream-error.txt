@@ -1,0 +1,9 @@
+# delay-ms: 0
+event: progress
+data: {"progress":0.1,"stage":"prepare"}
+
+---
+# delay-ms: 50
+event: error
+data: {"code":"synthesis_failed","message":"Mock failure mid-stream"}
+

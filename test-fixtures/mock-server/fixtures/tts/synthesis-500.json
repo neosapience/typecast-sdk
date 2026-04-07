@@ -1,0 +1,6 @@
+{
+  "error": {
+    "code": "internal_error",
+    "message": "Mock server-side failure"
+  }
+}

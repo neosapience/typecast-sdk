@@ -1,0 +1,24 @@
+{
+  "name": "@typecast-sdk/mock-server",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Shared mock HTTP/SSE/WebSocket server for typecast-sdk SDK coverage tests",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

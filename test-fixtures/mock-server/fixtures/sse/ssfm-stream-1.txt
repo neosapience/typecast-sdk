@@ -1,0 +1,19 @@
+# delay-ms: 0
+event: progress
+data: {"progress":0.1,"stage":"prepare"}
+
+---
+# delay-ms: 50
+event: progress
+data: {"progress":0.5,"stage":"synthesize"}
+
+---
+# delay-ms: 50
+event: progress
+data: {"progress":1.0,"stage":"complete"}
+
+---
+# delay-ms: 0
+event: done
+data: [DONE]
+

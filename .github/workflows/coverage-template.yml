@@ -1,0 +1,80 @@
+# Reference template for per-SDK coverage workflows.
+#
+# This file is intentionally NOT triggered (the `paths` filter targets a
+# non-existent file). Per-SDK PRs copy this file to
+# `.github/workflows/coverage-<lang>.yml` and:
+#
+#   1. Replace `<lang>` with the SDK directory name (js, python, ...)
+#   2. Replace the "Setup language toolchain" step with the language-
+#      specific setup action (setup-node, setup-python, setup-go, ...)
+#   3. Adjust paths in the `paths:` filter and `working-directory`
+#   4. Adjust the matrix if the SDK needs cross-OS coverage (typecast-c)
+#
+# See docs/coverage-policy.md for the policy this enforces and
+# docs/superpowers/specs/2026-04-07-100-percent-coverage-design.md §8
+# for the design.
+
+name: coverage-template
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/coverage-template.yml.never-triggered'
+  pull_request:
+    paths:
+      - '.github/workflows/coverage-template.yml.never-triggered'
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node (for mock server)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install mock server deps
+        working-directory: test-fixtures/mock-server
+        run: npm ci
+
+      - name: Start mock server
+        working-directory: test-fixtures/mock-server
+        run: |
+          npx tsx src/index.ts --port 8765 > mock-server.log 2>&1 &
+          for i in {1..30}; do
+            if curl -sf http://127.0.0.1:8765/__mock_health > /dev/null; then
+              echo "mock server ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "mock server failed to start within 30s"
+          cat mock-server.log
+          exit 1
+
+      # ----------------------------------------------------------------
+      # Replace this section with the language-specific toolchain setup
+      # in the per-SDK copy of this file.
+      # ----------------------------------------------------------------
+      - name: Setup language toolchain
+        run: echo "REPLACE ME with setup-node / setup-python / setup-go / ..."
+
+      - name: Run coverage (gate enforced by tool)
+        working-directory: typecast-<lang>
+        env:
+          TYPECAST_MOCK_URL: http://127.0.0.1:8765
+        run: make coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-<lang>
+          path: typecast-<lang>/coverage/
+
+      - name: Stop mock server
+        if: always()
+        run: pkill -f "tsx src/index.ts" || true
