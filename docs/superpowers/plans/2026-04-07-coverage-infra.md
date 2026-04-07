@@ -163,6 +163,7 @@ mkdir -p test-fixtures/mock-server/src test-fixtures/mock-server/test test-fixtu
     "noEmit": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "allowImportingTsExtensions": true,
     "lib": ["es2022"],
     "types": ["node"]
   },
