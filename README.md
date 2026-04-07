@@ -136,12 +136,7 @@ Made with ❤️ by [Typecast AI](https://typecast.ai/?lang=en)
 
 ## Code Coverage
 
-Every SDK in this monorepo targets **100% code coverage** (line + function
-+ branch where the toolchain supports branches; line + function only on
-Go and Swift). The exclusion policy is documented at
-[`docs/coverage-policy.md`](docs/coverage-policy.md). The shared mock
-server used by every SDK's coverage tests lives at
-[`test-fixtures/mock-server/`](test-fixtures/mock-server/).
+Every SDK in this monorepo targets **100% code coverage** (line + function + branch where the toolchain supports branches; line + function only on Go and Swift). The exclusion policy is documented at [`docs/coverage-policy.md`](docs/coverage-policy.md). The shared mock server used by every SDK's coverage tests lives at [`test-fixtures/mock-server/`](test-fixtures/mock-server/).
 
 | SDK | Coverage |
 |-----|----------|
