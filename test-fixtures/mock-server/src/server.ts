@@ -2,6 +2,7 @@ import { createServer as createHttpServer, IncomingMessage, ServerResponse } fro
 import type { AddressInfo } from 'node:net';
 import { loadFixtures } from './fixture-loader.ts';
 import { matchRest } from './rest-handler.ts';
+import { streamSse } from './sse-handler.ts';
 import type { FixtureSet, HttpMethod } from './types.ts';
 
 export interface ServerOptions {
@@ -45,6 +46,18 @@ function handleRequest(
   if (req.method === 'GET' && req.url === '/__mock_health') {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('ok');
+    return;
+  }
+
+  if (req.method === 'GET' && req.url?.startsWith('/__mock_sse/')) {
+    const name = req.url.slice('/__mock_sse/'.length);
+    const scriptPath = fixtures.sse.get(name);
+    if (!scriptPath) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'sse script not found', name }));
+      return;
+    }
+    void streamSse(res, scriptPath);
     return;
   }
 

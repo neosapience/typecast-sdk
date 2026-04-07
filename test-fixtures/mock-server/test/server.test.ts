@@ -82,3 +82,35 @@ test('server: serves a REST fixture matching ignores query string', async () => 
     await rm(dir, { recursive: true });
   }
 });
+
+test('server: GET /__mock_sse/<name> streams the named SSE script', async () => {
+  const dir = await emptyFixturesDir();
+  await writeFile(
+    join(dir, 'sse', 'demo.txt'),
+    'event: a\ndata: 1\n\n---\nevent: b\ndata: 2\n\n',
+  );
+  const handle = await createServer({ port: 0, fixturesDir: dir });
+  try {
+    const res = await fetch(`${handle.url}/__mock_sse/demo`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'text/event-stream');
+    const text = await res.text();
+    assert.match(text, /event: a/);
+    assert.match(text, /event: b/);
+  } finally {
+    await handle.close();
+    await rm(dir, { recursive: true });
+  }
+});
+
+test('server: GET /__mock_sse/<missing> returns 404', async () => {
+  const dir = await emptyFixturesDir();
+  const handle = await createServer({ port: 0, fixturesDir: dir });
+  try {
+    const res = await fetch(`${handle.url}/__mock_sse/none`);
+    assert.equal(res.status, 404);
+  } finally {
+    await handle.close();
+    await rm(dir, { recursive: true });
+  }
+});
