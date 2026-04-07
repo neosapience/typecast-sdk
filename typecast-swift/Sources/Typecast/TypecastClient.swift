@@ -21,14 +21,16 @@ public final class TypecastClient: Sendable {
     private let encoder: JSONEncoder
     
     /// Initialize the client with configuration
-    /// - Parameter configuration: Client configuration including API key
-    public init(configuration: TypecastConfiguration) {
+    /// - Parameters:
+    ///   - configuration: Client configuration including API key
+    ///   - session: Optional URLSession to use (default: URLSession.shared). Useful for injecting mocked sessions in tests.
+    public init(configuration: TypecastConfiguration, session: URLSession = .shared) {
         self.configuration = configuration
-        self.session = URLSession.shared
+        self.session = session
         self.decoder = JSONDecoder()
         self.encoder = JSONEncoder()
     }
-    
+
     /// Initialize the client with API key
     /// - Parameters:
     ///   - apiKey: API key for authentication
@@ -40,19 +42,18 @@ public final class TypecastClient: Sendable {
     // MARK: - Private Helpers
     
     private func buildURL(path: String, queryParams: [String: String]? = nil) throws -> URL {
-        guard var components = URLComponents(string: configuration.baseURL + path) else {
+        guard var components = URLComponents(string: configuration.baseURL + path),
+              let url = applyingQueryItems(components: &components, params: queryParams) else {
             throw TypecastError.invalidResponse("Invalid base URL")
         }
-        
-        if let params = queryParams, !params.isEmpty {
+        return url
+    }
+
+    private func applyingQueryItems(components: inout URLComponents, params: [String: String]?) -> URL? {
+        if let params = params, !params.isEmpty {
             components.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
         }
-        
-        guard let url = components.url else {
-            throw TypecastError.invalidResponse("Failed to build URL")
-        }
-        
-        return url
+        return components.url
     }
     
     private func createRequest(url: URL, method: String = "GET", body: Data? = nil) -> URLRequest {

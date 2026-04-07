@@ -112,21 +112,9 @@ public class TypecastClient {
             return apiKey;
         }
 
-        // Try .env file first
-        try {
-            Dotenv dotenv = Dotenv.configure()
-                    .ignoreIfMissing()
-                    .load();
-            String envKey = dotenv.get("TYPECAST_API_KEY");
-            if (envKey != null && !envKey.isEmpty()) {
-                return envKey;
-            }
-        } catch (Exception ignored) {
-            // Continue to system environment
-        }
-
-        // Try system environment variable
-        String envKey = System.getenv("TYPECAST_API_KEY");
+        // dotenv-java reads both .env and system environment variables.
+        Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
+        String envKey = dotenv.get("TYPECAST_API_KEY");
         if (envKey != null && !envKey.isEmpty()) {
             return envKey;
         }
@@ -137,29 +125,21 @@ public class TypecastClient {
 
     private String resolveBaseUrl(String baseUrl) {
         if (baseUrl != null && !baseUrl.isEmpty()) {
-            return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+            return stripTrailingSlash(baseUrl);
         }
 
-        // Try .env file first
-        try {
-            Dotenv dotenv = Dotenv.configure()
-                    .ignoreIfMissing()
-                    .load();
-            String envHost = dotenv.get("TYPECAST_API_HOST");
-            if (envHost != null && !envHost.isEmpty()) {
-                return envHost.endsWith("/") ? envHost.substring(0, envHost.length() - 1) : envHost;
-            }
-        } catch (Exception ignored) {
-            // Continue to system environment
-        }
-
-        // Try system environment variable
-        String envHost = System.getenv("TYPECAST_API_HOST");
+        // dotenv-java reads both .env and system environment variables.
+        Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
+        String envHost = dotenv.get("TYPECAST_API_HOST");
         if (envHost != null && !envHost.isEmpty()) {
-            return envHost.endsWith("/") ? envHost.substring(0, envHost.length() - 1) : envHost;
+            return stripTrailingSlash(envHost);
         }
 
         return DEFAULT_BASE_URL;
+    }
+
+    private static String stripTrailingSlash(String url) {
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
     /**
@@ -181,14 +161,9 @@ public class TypecastClient {
                 .build();
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
-            if (!response.isSuccessful()) {
-                String responseBody = response.body() != null ? response.body().string() : "";
-                handleError(response.code(), responseBody);
-            }
-
             ResponseBody body = response.body();
-            if (body == null) {
-                throw new TypecastException("Empty response body");
+            if (!response.isSuccessful()) {
+                throw createException(response.code(), body.string());
             }
 
             byte[] audioData = body.bytes();
@@ -255,7 +230,8 @@ public class TypecastClient {
                 if (p.getEmotionIntensity() != null) {
                     promptJson.addProperty("emotion_intensity", p.getEmotionIntensity());
                 }
-            } else if (prompt instanceof SmartPrompt) {
+            } else {
+                // Must be SmartPrompt — setPrompt only accepts Prompt/PresetPrompt/SmartPrompt
                 SmartPrompt p = (SmartPrompt) prompt;
                 promptJson.addProperty("emotion_type", p.getEmotionType());
                 if (p.getPreviousText() != null) {
@@ -330,10 +306,10 @@ public class TypecastClient {
                 .build();
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
-            String responseBody = response.body() != null ? response.body().string() : "";
-            
+            String responseBody = response.body().string();
+
             if (!response.isSuccessful()) {
-                handleError(response.code(), responseBody);
+                throw createException(response.code(), responseBody);
             }
 
             Type listType = new TypeToken<List<VoicesResponse>>(){}.getType();
@@ -380,10 +356,10 @@ public class TypecastClient {
                 .build();
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
-            String responseBody = response.body() != null ? response.body().string() : "";
-            
+            String responseBody = response.body().string();
+
             if (!response.isSuccessful()) {
-                handleError(response.code(), responseBody);
+                throw createException(response.code(), responseBody);
             }
 
             // V1 API returns an array, get the first element
@@ -441,10 +417,10 @@ public class TypecastClient {
                 .build();
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
-            String responseBody = response.body() != null ? response.body().string() : "";
-            
+            String responseBody = response.body().string();
+
             if (!response.isSuccessful()) {
-                handleError(response.code(), responseBody);
+                throw createException(response.code(), responseBody);
             }
 
             Type listType = new TypeToken<List<VoiceV2Response>>(){}.getType();
@@ -472,10 +448,10 @@ public class TypecastClient {
                 .build();
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
-            String responseBody = response.body() != null ? response.body().string() : "";
-            
+            String responseBody = response.body().string();
+
             if (!response.isSuccessful()) {
-                handleError(response.code(), responseBody);
+                throw createException(response.code(), responseBody);
             }
 
             return gson.fromJson(responseBody, VoiceV2Response.class);
@@ -484,33 +460,33 @@ public class TypecastClient {
         }
     }
 
-    private void handleError(int statusCode, String responseBody) {
+    private TypecastException createException(int statusCode, String responseBody) {
         String message = extractErrorMessage(responseBody);
-        
+
         switch (statusCode) {
             case 400:
-                throw new BadRequestException(message, responseBody);
+                return new BadRequestException(message, responseBody);
             case 401:
-                throw new UnauthorizedException(message, responseBody);
+                return new UnauthorizedException(message, responseBody);
             case 402:
-                throw new PaymentRequiredException(message, responseBody);
+                return new PaymentRequiredException(message, responseBody);
             case 403:
-                throw new ForbiddenException(message, responseBody);
+                return new ForbiddenException(message, responseBody);
             case 404:
-                throw new NotFoundException(message, responseBody);
+                return new NotFoundException(message, responseBody);
             case 422:
-                throw new UnprocessableEntityException(message, responseBody);
+                return new UnprocessableEntityException(message, responseBody);
             case 429:
-                throw new RateLimitException(message, responseBody);
+                return new RateLimitException(message, responseBody);
             case 500:
-                throw new InternalServerException(message, responseBody);
+                return new InternalServerException(message, responseBody);
             default:
-                throw new TypecastException(message, statusCode, responseBody);
+                return new TypecastException(message, statusCode, responseBody);
         }
     }
 
     private String extractErrorMessage(String responseBody) {
-        if (responseBody == null || responseBody.isEmpty()) {
+        if (responseBody.isEmpty()) {
             return "Unknown error";
         }
 

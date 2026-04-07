@@ -153,26 +153,27 @@ public enum TTSPrompt: Codable, Sendable {
         }
     }
     
+    /// Discriminator used to decide which concrete prompt type to decode.
+    private enum DiscriminatorKeys: String, CodingKey {
+        case emotionType = "emotion_type"
+    }
+
     public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        
-        // Try to decode as SmartPrompt first
-        if let smart = try? container.decode(SmartPrompt.self),
-           smart.emotionType == "smart" {
-            self = .smart(smart)
-            return
+        // Look at the `emotion_type` discriminator first to choose the right
+        // concrete shape. Falls back to the basic prompt when the field is
+        // absent (matching the v21 wire format).
+        let keyed = try decoder.container(keyedBy: DiscriminatorKeys.self)
+        let discriminator = try keyed.decodeIfPresent(String.self, forKey: .emotionType)
+
+        let single = try decoder.singleValueContainer()
+        switch discriminator {
+        case "smart":
+            self = .smart(try single.decode(SmartPrompt.self))
+        case "preset":
+            self = .preset(try single.decode(PresetPrompt.self))
+        default:
+            self = .basic(try single.decode(Prompt.self))
         }
-        
-        // Try PresetPrompt
-        if let preset = try? container.decode(PresetPrompt.self),
-           preset.emotionType == "preset" {
-            self = .preset(preset)
-            return
-        }
-        
-        // Default to basic Prompt
-        let basic = try container.decode(Prompt.self)
-        self = .basic(basic)
     }
 }
 

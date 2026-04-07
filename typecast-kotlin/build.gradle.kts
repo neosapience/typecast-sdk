@@ -6,10 +6,15 @@ plugins {
     signing
     id("com.gradleup.nmcp") version "1.4.4"
     id("com.gradleup.nmcp.aggregation") version "1.4.4"
+    jacoco
+}
+
+jacoco {
+    toolVersion = "0.8.12"
 }
 
 group = "com.neosapience"
-version = "1.0.1"
+version = "1.0.2"
 
 repositories {
     mavenCentral()
@@ -43,6 +48,12 @@ tasks.test {
     useJUnitPlatform()
     // Exclude E2E tests from regular test runs
     exclude("**/*E2ETest.class")
+    // Open java.lang to allow reflective env mutation in unit tests
+    jvmArgs(
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.base/java.util=ALL-UNNAMED"
+    )
+    finalizedBy(tasks.jacocoTestReport)
 }
 
 // Task for running E2E tests
@@ -51,6 +62,64 @@ tasks.register<Test>("e2eTest") {
     include("**/*E2ETest.class")
     description = "Run E2E tests against real API"
     group = "verification"
+}
+
+// Exclusions for kotlinx.serialization compiler-generated classes that
+// cannot be exercised through public API tests:
+//  - $$serializer:        synthetic KSerializer implementations
+//  - $Companion:          companion objects providing the serializer() factory
+//  - $Companion$1:        synthetic lambda inside companion (one per @Serializable type)
+// These are pure framework plumbing emitted by the kotlinx.serialization
+// compiler plugin and contain no project logic.
+val coverageExclusions = listOf(
+    "**/*\$\$serializer.*",
+    "**/*\$Companion.*",
+    "**/*\$Companion\$*.*"
+)
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+    classDirectories.setFrom(
+        files(classDirectories.files.map {
+            fileTree(it) { exclude(coverageExclusions) }
+        })
+    )
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.test)
+    classDirectories.setFrom(
+        files(classDirectories.files.map {
+            fileTree(it) { exclude(coverageExclusions) }
+        })
+    )
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "1.00".toBigDecimal()
+            }
+            limit {
+                counter = "BRANCH"
+                value = "COVEREDRATIO"
+                minimum = "1.00".toBigDecimal()
+            }
+            limit {
+                counter = "METHOD"
+                value = "COVEREDRATIO"
+                minimum = "1.00".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
 }
 
 kotlin {

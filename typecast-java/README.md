@@ -7,6 +7,7 @@
 [![Java](https://img.shields.io/badge/Java-8%2B-orange?style=flat-square&logo=openjdk)](https://www.java.com)
 [![Maven](https://img.shields.io/badge/Maven-3.6%2B-C71A36?style=flat-square&logo=apachemaven)](https://maven.apache.org)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
+[![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg?style=flat-square)](../docs/coverage-policy.md)
 
 [Getting Started](#quick-start) •
 [Documentation](#usage-examples) •
