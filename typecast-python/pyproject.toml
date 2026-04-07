@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "typecast-python"
-version = "0.1.8"
+version = "0.1.9"
 description = "Official Typecast Python SDK - Convert text to lifelike speech using AI-powered voices"
 authors = [
     {name = "Neosapience", email = "help@typecast.ai"}
@@ -115,11 +115,10 @@ omit = [
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
+fail_under = 100
 exclude_lines = [
     "pragma: no cover",
     "raise NotImplementedError",
     "if TYPE_CHECKING:",
     "\\.\\.\\.",
 ]
-# fail_under = 100 will be enabled in a later task once coverage actually
-# reaches 100% — turning it on now would block every interim commit.

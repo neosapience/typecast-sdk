@@ -7,6 +7,7 @@
 Convert text to lifelike speech using AI-powered voices
 
 [![PyPI version](https://img.shields.io/pypi/v/typecast-python.svg?style=flat-square)](https://pypi.org/project/typecast-python/)
+[![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg?style=flat-square)](../docs/coverage-policy.md)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg?style=flat-square)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.9+-3776ab.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 

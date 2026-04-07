@@ -1,0 +1,56 @@
+name: coverage-python
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'typecast-python/**'
+      - 'test-fixtures/mock-server/**'
+      - '.github/workflows/coverage-python.yml'
+  pull_request:
+    paths:
+      - 'typecast-python/**'
+      - 'test-fixtures/mock-server/**'
+      - '.github/workflows/coverage-python.yml'
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node (for mock server)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install mock server deps
+        working-directory: test-fixtures/mock-server
+        run: npm ci
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install typecast-python deps
+        working-directory: typecast-python
+        run: uv sync --extra dev
+
+      - name: Run coverage (gate enforced by pytest-cov fail_under)
+        working-directory: typecast-python
+        run: make coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-python
+          path: |
+            typecast-python/htmlcov/
+            typecast-python/coverage.xml
