@@ -7,6 +7,7 @@
 Convert text to lifelike speech using AI-powered voices
 
 [![npm version](https://img.shields.io/npm/v/@neosapience/typecast-js.svg?style=flat-square)](https://www.npmjs.com/package/@neosapience/typecast-js)
+[![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg?style=flat-square)](../docs/coverage-policy.md)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg?style=flat-square)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178c6.svg?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16.0.0-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
