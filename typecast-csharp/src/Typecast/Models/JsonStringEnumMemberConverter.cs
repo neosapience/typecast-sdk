@@ -31,10 +31,13 @@ public class JsonStringEnumMemberConverter : JsonConverterFactory
             foreach (var value in values)
             {
                 var enumValue = (T)value;
-                var memberInfo = type.GetMember(value.ToString()!).FirstOrDefault();
-                var attribute = memberInfo?.GetCustomAttribute<JsonPropertyNameAttribute>();
+                // Enum.GetValues only returns defined values, so
+                // GetMember(name) is guaranteed to return the field;
+                // First() avoids an unreachable null branch.
+                var memberInfo = type.GetMember(value.ToString()!).First();
+                var attribute = memberInfo.GetCustomAttribute<JsonPropertyNameAttribute>();
                 var name = attribute?.Name ?? value.ToString()!.ToLowerInvariant();
-                
+
                 _enumToString[enumValue] = name;
                 _stringToEnum[name] = enumValue;
             }

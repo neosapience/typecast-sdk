@@ -1,0 +1,857 @@
+//! Unit tests for the Typecast Rust SDK.
+//!
+//! These tests use `mockito` to spin up an in-process HTTP server for every
+//! test, so they never touch the real Typecast API and never require an API
+//! key. They are designed to give 100% line, function, and region coverage of
+//! the SDK source files.
+
+use mockito::Server;
+use std::time::Duration;
+use typecast_rust::{
+    Age, AudioFormat, ClientConfig, EmotionPreset, ErrorResponse, Gender, ModelInfo, Output,
+    PresetPrompt, Prompt, SmartPrompt, TTSModel, TTSPrompt, TTSRequest, TypecastClient,
+    TypecastError, UseCase, VoiceV2, VoicesV2Filter, DEFAULT_BASE_URL, DEFAULT_TIMEOUT_SECS,
+};
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+fn make_client(server: &Server) -> TypecastClient {
+    let config = ClientConfig::new("test-api-key")
+        .base_url(server.url())
+        .timeout(Duration::from_secs(5));
+    TypecastClient::new(config).expect("client builds")
+}
+
+// ---------------------------------------------------------------------------
+// errors.rs
+// ---------------------------------------------------------------------------
+
+#[test]
+fn error_from_response_maps_all_known_status_codes() {
+    let detail_resp = || {
+        Some(ErrorResponse {
+            detail: "boom".to_string(),
+        })
+    };
+
+    let cases = [
+        (400u16, "BadRequest"),
+        (401, "Unauthorized"),
+        (402, "PaymentRequired"),
+        (403, "Forbidden"),
+        (404, "NotFound"),
+        (422, "ValidationError"),
+        (429, "RateLimited"),
+        (500, "ServerError"),
+        (503, "ServerError"),
+        (599, "ServerError"),
+        (418, "Unknown"),
+    ];
+
+    for (code, name) in cases {
+        let err = TypecastError::from_response(code, detail_resp());
+        let variant_name = match err {
+            TypecastError::BadRequest { .. } => "BadRequest",
+            TypecastError::Unauthorized { .. } => "Unauthorized",
+            TypecastError::PaymentRequired { .. } => "PaymentRequired",
+            TypecastError::Forbidden { .. } => "Forbidden",
+            TypecastError::NotFound { .. } => "NotFound",
+            TypecastError::ValidationError { .. } => "ValidationError",
+            TypecastError::RateLimited { .. } => "RateLimited",
+            TypecastError::ServerError { .. } => "ServerError",
+            TypecastError::Unknown { .. } => "Unknown",
+            _ => "Other",
+        };
+        assert_eq!(variant_name, name, "for status {code}");
+    }
+}
+
+#[test]
+fn error_from_response_uses_default_detail_when_missing() {
+    let err = TypecastError::from_response(400, None);
+    match err {
+        TypecastError::BadRequest { detail } => assert_eq!(detail, "Unknown error"),
+        other => panic!("unexpected variant: {other:?}"),
+    }
+}
+
+#[test]
+fn error_predicate_methods_cover_every_variant() {
+    let bad = TypecastError::BadRequest {
+        detail: "x".into(),
+    };
+    let unauth = TypecastError::Unauthorized {
+        detail: "x".into(),
+    };
+    let pay = TypecastError::PaymentRequired {
+        detail: "x".into(),
+    };
+    let forbid = TypecastError::Forbidden {
+        detail: "x".into(),
+    };
+    let nf = TypecastError::NotFound {
+        detail: "x".into(),
+    };
+    let val = TypecastError::ValidationError {
+        detail: "x".into(),
+    };
+    let rate = TypecastError::RateLimited {
+        detail: "x".into(),
+    };
+    let server = TypecastError::ServerError {
+        detail: "x".into(),
+    };
+    let unknown = TypecastError::Unknown {
+        status_code: 418,
+        detail: "x".into(),
+    };
+
+    assert!(bad.is_bad_request());
+    assert!(!bad.is_unauthorized());
+    assert!(unauth.is_unauthorized());
+    assert!(pay.is_payment_required());
+    assert!(forbid.is_forbidden());
+    assert!(nf.is_not_found());
+    assert!(val.is_validation_error());
+    assert!(rate.is_rate_limited());
+    assert!(server.is_server_error());
+
+    assert_eq!(bad.status_code(), Some(400));
+    assert_eq!(unauth.status_code(), Some(401));
+    assert_eq!(pay.status_code(), Some(402));
+    assert_eq!(forbid.status_code(), Some(403));
+    assert_eq!(nf.status_code(), Some(404));
+    assert_eq!(val.status_code(), Some(422));
+    assert_eq!(rate.status_code(), Some(429));
+    assert_eq!(server.status_code(), Some(500));
+    assert_eq!(unknown.status_code(), Some(418));
+
+    // Display impls (covers `#[error("...")]` formatters)
+    assert!(bad.to_string().contains("Bad Request"));
+    assert!(unauth.to_string().contains("Unauthorized"));
+    assert!(pay.to_string().contains("Payment Required"));
+    assert!(forbid.to_string().contains("Forbidden"));
+    assert!(nf.to_string().contains("Not Found"));
+    assert!(val.to_string().contains("Validation Error"));
+    assert!(rate.to_string().contains("Too Many Requests"));
+    assert!(server.to_string().contains("Internal Server Error"));
+    assert!(unknown.to_string().contains("418"));
+}
+
+#[test]
+fn error_status_code_is_none_for_transport_errors() {
+    // serde_json::Error -> JsonError via From
+    let json_err: serde_json::Error = serde_json::from_str::<i32>("not a number").unwrap_err();
+    let err: TypecastError = json_err.into();
+    assert!(matches!(err, TypecastError::JsonError(_)));
+    assert_eq!(err.status_code(), None);
+    assert!(err.to_string().contains("JSON error"));
+    assert!(!err.is_bad_request());
+    assert!(!err.is_unauthorized());
+    assert!(!err.is_payment_required());
+    assert!(!err.is_forbidden());
+    assert!(!err.is_not_found());
+    assert!(!err.is_validation_error());
+    assert!(!err.is_rate_limited());
+    assert!(!err.is_server_error());
+}
+
+#[tokio::test]
+async fn error_status_code_is_none_for_http_errors() {
+    // Build a client with a 1ms timeout pointed at a server that never replies
+    // to force a reqwest::Error -> HttpError conversion.
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/v2/voices")
+        .with_status(200)
+        .with_body("[]")
+        // Long delay forces timeout.
+        .with_chunked_body(|w| {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            w.write_all(b"[]")
+        })
+        .create_async()
+        .await;
+
+    let config = ClientConfig::new("k")
+        .base_url(server.url())
+        .timeout(Duration::from_millis(20));
+    let client = TypecastClient::new(config).unwrap();
+    let err = client.get_voices_v2(None).await.unwrap_err();
+    assert!(matches!(err, TypecastError::HttpError(_)));
+    assert_eq!(err.status_code(), None);
+    assert!(err.to_string().contains("HTTP error"));
+}
+
+// ---------------------------------------------------------------------------
+// models.rs
+// ---------------------------------------------------------------------------
+
+#[test]
+fn defaults_for_enums_and_structs() {
+    assert_eq!(TTSModel::default(), TTSModel::SsfmV30);
+    assert_eq!(EmotionPreset::default(), EmotionPreset::Normal);
+    assert_eq!(AudioFormat::default(), AudioFormat::Wav);
+
+    let out = Output::default();
+    assert!(out.volume.is_none());
+    assert!(out.target_lufs.is_none());
+    assert!(out.audio_pitch.is_none());
+    assert!(out.audio_tempo.is_none());
+    assert!(out.audio_format.is_none());
+
+    let p = Prompt::default();
+    assert!(p.emotion_preset.is_none());
+    assert!(p.emotion_intensity.is_none());
+
+    let pp = PresetPrompt::default();
+    assert_eq!(pp.emotion_type, "preset");
+
+    let sp = SmartPrompt::default();
+    assert_eq!(sp.emotion_type, "smart");
+
+    let f = VoicesV2Filter::default();
+    assert!(f.model.is_none());
+}
+
+#[test]
+fn output_builder_clamps_values() {
+    let out = Output::new()
+        .volume(500)
+        .audio_pitch(20)
+        .audio_tempo(5.0)
+        .audio_format(AudioFormat::Mp3);
+    assert_eq!(out.volume, Some(200));
+    assert_eq!(out.audio_pitch, Some(12));
+    assert_eq!(out.audio_tempo, Some(2.0));
+    assert_eq!(out.audio_format, Some(AudioFormat::Mp3));
+
+    let out2 = Output::new()
+        .volume(-10)
+        .audio_pitch(-100)
+        .audio_tempo(0.1)
+        .target_lufs(-200.0);
+    assert_eq!(out2.volume, Some(0));
+    assert_eq!(out2.audio_pitch, Some(-12));
+    assert_eq!(out2.audio_tempo, Some(0.5));
+    assert_eq!(out2.target_lufs, Some(-70.0));
+
+    let out3 = Output::new().target_lufs(50.0);
+    assert_eq!(out3.target_lufs, Some(0.0));
+}
+
+#[test]
+fn prompt_builders_clamp_intensity() {
+    let p = Prompt::new()
+        .emotion_preset(EmotionPreset::Happy)
+        .emotion_intensity(5.0);
+    assert_eq!(p.emotion_preset, Some(EmotionPreset::Happy));
+    assert_eq!(p.emotion_intensity, Some(2.0));
+
+    let p2 = Prompt::new().emotion_intensity(-1.0);
+    assert_eq!(p2.emotion_intensity, Some(0.0));
+
+    let pp = PresetPrompt::new()
+        .emotion_preset(EmotionPreset::Sad)
+        .emotion_intensity(10.0);
+    assert_eq!(pp.emotion_preset, Some(EmotionPreset::Sad));
+    assert_eq!(pp.emotion_intensity, Some(2.0));
+
+    let sp = SmartPrompt::new()
+        .previous_text("before")
+        .next_text("after");
+    assert_eq!(sp.previous_text.as_deref(), Some("before"));
+    assert_eq!(sp.next_text.as_deref(), Some("after"));
+}
+
+#[test]
+fn tts_prompt_from_conversions() {
+    let basic: TTSPrompt = Prompt::new().into();
+    let preset: TTSPrompt = PresetPrompt::new().into();
+    let smart: TTSPrompt = SmartPrompt::new().into();
+    assert!(matches!(basic, TTSPrompt::Basic(_)));
+    assert!(matches!(preset, TTSPrompt::Preset(_)));
+    assert!(matches!(smart, TTSPrompt::Smart(_)));
+}
+
+#[test]
+fn tts_request_builder_sets_all_fields() {
+    let req = TTSRequest::new("tc_voice", "hello", TTSModel::SsfmV21)
+        .language("eng")
+        .prompt(Prompt::new().emotion_preset(EmotionPreset::Angry))
+        .output(Output::new().volume(100))
+        .seed(7);
+    assert_eq!(req.voice_id, "tc_voice");
+    assert_eq!(req.text, "hello");
+    assert_eq!(req.model, TTSModel::SsfmV21);
+    assert_eq!(req.language.as_deref(), Some("eng"));
+    assert!(req.prompt.is_some());
+    assert!(req.output.is_some());
+    assert_eq!(req.seed, Some(7));
+}
+
+#[test]
+fn voices_v2_filter_builder_sets_all_fields() {
+    let f = VoicesV2Filter::new()
+        .model(TTSModel::SsfmV30)
+        .gender(Gender::Female)
+        .age(Age::YoungAdult)
+        .use_cases(UseCase::Audiobook);
+    assert_eq!(f.model, Some(TTSModel::SsfmV30));
+    assert_eq!(f.gender, Some(Gender::Female));
+    assert_eq!(f.age, Some(Age::YoungAdult));
+    assert!(f.use_cases.is_some());
+}
+
+#[test]
+fn enums_serialize_with_expected_strings() {
+    // Cover serde rename / rename_all branches.
+    assert_eq!(
+        serde_json::to_string(&TTSModel::SsfmV30).unwrap(),
+        "\"ssfm-v30\""
+    );
+    assert_eq!(
+        serde_json::to_string(&TTSModel::SsfmV21).unwrap(),
+        "\"ssfm-v21\""
+    );
+
+    for emo in [
+        EmotionPreset::Normal,
+        EmotionPreset::Happy,
+        EmotionPreset::Sad,
+        EmotionPreset::Angry,
+        EmotionPreset::Whisper,
+        EmotionPreset::ToneUp,
+        EmotionPreset::ToneDown,
+    ] {
+        let _ = serde_json::to_string(&emo).unwrap();
+    }
+
+    for fmt in [AudioFormat::Wav, AudioFormat::Mp3] {
+        let _ = serde_json::to_string(&fmt).unwrap();
+    }
+
+    for g in [Gender::Male, Gender::Female] {
+        let _ = serde_json::to_string(&g).unwrap();
+    }
+
+    for a in [
+        Age::Child,
+        Age::Teenager,
+        Age::YoungAdult,
+        Age::MiddleAge,
+        Age::Elder,
+    ] {
+        let _ = serde_json::to_string(&a).unwrap();
+    }
+
+    for uc in [
+        UseCase::Announcer,
+        UseCase::Anime,
+        UseCase::Audiobook,
+        UseCase::Conversational,
+        UseCase::Documentary,
+        UseCase::ELearning,
+        UseCase::Rapper,
+        UseCase::Game,
+        UseCase::TikTokReels,
+        UseCase::News,
+        UseCase::Podcast,
+        UseCase::Voicemail,
+        UseCase::Ads,
+    ] {
+        let _ = serde_json::to_string(&uc).unwrap();
+    }
+
+    let mi = ModelInfo {
+        version: TTSModel::SsfmV30,
+        emotions: vec!["happy".into()],
+    };
+    let _ = serde_json::to_string(&mi).unwrap();
+
+    let voice = VoiceV2 {
+        voice_id: "tc_x".into(),
+        voice_name: "name".into(),
+        models: vec![mi],
+        gender: Some(Gender::Male),
+        age: Some(Age::Elder),
+        use_cases: Some(vec!["news".into()]),
+    };
+    let _ = serde_json::to_string(&voice).unwrap();
+
+    // Cover Clone/Debug for ErrorResponse and TTSRequest.
+    let er = ErrorResponse {
+        detail: "x".into(),
+    };
+    let _ = format!("{er:?}");
+    let _ = er.clone();
+}
+
+// ---------------------------------------------------------------------------
+// client.rs - construction and accessors
+// ---------------------------------------------------------------------------
+
+#[test]
+fn client_config_default_reads_env_or_default() {
+    // Don't set env to anything specific - just exercise the path.
+    let cfg = ClientConfig::default();
+    // Either env-driven or fallback default; we only assert it parses.
+    assert!(!cfg.base_url.is_empty());
+    assert_eq!(cfg.timeout, Duration::from_secs(DEFAULT_TIMEOUT_SECS));
+}
+
+#[test]
+fn client_config_new_and_builders() {
+    let cfg = ClientConfig::new("k")
+        .base_url("http://example.com")
+        .timeout(Duration::from_secs(10));
+    assert_eq!(cfg.api_key, "k");
+    assert_eq!(cfg.base_url, "http://example.com");
+    assert_eq!(cfg.timeout, Duration::from_secs(10));
+    let _ = format!("{cfg:?}"); // Debug
+    let _ = cfg.clone();
+}
+
+#[test]
+fn client_with_api_key_and_accessors() {
+    let client = TypecastClient::with_api_key("abcdefghij").unwrap();
+    assert_eq!(client.api_key_masked(), "abcd...ghij");
+    let _ = client.base_url();
+    let _ = format!("{client:?}");
+    let _ = client.clone();
+}
+
+#[test]
+fn client_api_key_masked_short_key() {
+    let client = TypecastClient::with_api_key("short").unwrap();
+    assert_eq!(client.api_key_masked(), "****");
+}
+
+#[test]
+fn client_new_rejects_invalid_api_key_header() {
+    // Newline characters are not valid in HTTP header values.
+    let result = TypecastClient::with_api_key("bad\nkey");
+    let err = result.unwrap_err();
+    assert!(err.is_bad_request());
+    assert!(err.to_string().contains("Invalid API key format"));
+}
+
+#[test]
+fn client_from_env_uses_default_config() {
+    // Even with no env, default api key may be empty - just validate it parses
+    // when we set a value. We rely on the existing value (or empty) being a
+    // valid header string; empty string is acceptable for HeaderValue.
+    let prev = std::env::var("TYPECAST_API_KEY").ok();
+    std::env::set_var("TYPECAST_API_KEY", "env-key");
+    let client = TypecastClient::from_env().expect("from_env should succeed");
+    assert!(client.base_url().starts_with("http"));
+    // Restore
+    match prev {
+        Some(v) => std::env::set_var("TYPECAST_API_KEY", v),
+        None => std::env::remove_var("TYPECAST_API_KEY"),
+    }
+
+    // Sanity-check that DEFAULT_BASE_URL is the public re-export.
+    assert!(DEFAULT_BASE_URL.starts_with("http"));
+}
+
+// ---------------------------------------------------------------------------
+// client.rs - text_to_speech
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn text_to_speech_returns_wav_with_duration_header() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_header("X-Audio-Duration", "1.25")
+        .with_body(b"RIFFwavfakebody")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let req = TTSRequest::new("tc_x", "hello", TTSModel::SsfmV30);
+    let resp = client.text_to_speech(&req).await.unwrap();
+    assert_eq!(resp.format, AudioFormat::Wav);
+    assert!((resp.duration - 1.25).abs() < f64::EPSILON);
+    assert_eq!(&resp.audio_data[..4], b"RIFF");
+    let _ = format!("{resp:?}");
+    let _ = resp.clone();
+}
+
+#[tokio::test]
+async fn text_to_speech_returns_mp3_when_content_type_says_mp3() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/mp3")
+        .with_body(b"mp3data")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let req = TTSRequest::new("tc_x", "hi", TTSModel::SsfmV30);
+    let resp = client.text_to_speech(&req).await.unwrap();
+    assert_eq!(resp.format, AudioFormat::Mp3);
+    assert_eq!(resp.duration, 0.0);
+}
+
+#[tokio::test]
+async fn text_to_speech_returns_mp3_for_audio_mpeg() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/mpeg")
+        .with_body(b"mpegdata")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let req = TTSRequest::new("tc_x", "hi", TTSModel::SsfmV30)
+        .language("eng")
+        .prompt(SmartPrompt::new().previous_text("a"))
+        .output(Output::new().audio_format(AudioFormat::Mp3))
+        .seed(11);
+    let resp = client.text_to_speech(&req).await.unwrap();
+    assert_eq!(resp.format, AudioFormat::Mp3);
+}
+
+#[tokio::test]
+async fn text_to_speech_propagates_api_errors() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(401)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"detail":"bad key"}"#)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let req = TTSRequest::new("tc_x", "hi", TTSModel::SsfmV30);
+    let err = client.text_to_speech(&req).await.unwrap_err();
+    assert!(err.is_unauthorized());
+}
+
+#[tokio::test]
+async fn text_to_speech_handles_error_with_unparseable_body() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(500)
+        .with_header("content-type", "text/plain")
+        .with_body("internal boom")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let req = TTSRequest::new("tc_x", "hi", TTSModel::SsfmV30);
+    let err = client.text_to_speech(&req).await.unwrap_err();
+    assert!(err.is_server_error());
+}
+
+// ---------------------------------------------------------------------------
+// client.rs - get_voices_v2
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn get_voices_v2_no_filter_returns_list() {
+    let mut server = Server::new_async().await;
+    let body = r#"[{
+        "voice_id":"tc_a",
+        "voice_name":"Alice",
+        "models":[{"version":"ssfm-v30","emotions":["normal"]}],
+        "gender":"female",
+        "age":"young_adult",
+        "use_cases":["news"]
+    }]"#;
+    let _m = server
+        .mock("GET", "/v2/voices")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let voices = client.get_voices_v2(None).await.unwrap();
+    assert_eq!(voices.len(), 1);
+    assert_eq!(voices[0].voice_id, "tc_a");
+}
+
+#[tokio::test]
+async fn get_voices_v2_with_full_filter_appends_query_params() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/v2/voices")
+        .match_query(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::UrlEncoded("model".into(), "ssfm-v30".into()),
+            mockito::Matcher::UrlEncoded("gender".into(), "male".into()),
+            mockito::Matcher::UrlEncoded("age".into(), "elder".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body("[]")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let filter = VoicesV2Filter::new()
+        .model(TTSModel::SsfmV30)
+        .gender(Gender::Male)
+        .age(Age::Elder)
+        .use_cases(UseCase::News);
+    let voices = client.get_voices_v2(Some(filter)).await.unwrap();
+    assert!(voices.is_empty());
+}
+
+#[tokio::test]
+async fn get_voices_v2_propagates_api_errors() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/v2/voices")
+        .with_status(429)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"detail":"slow down"}"#)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let err = client.get_voices_v2(None).await.unwrap_err();
+    assert!(err.is_rate_limited());
+}
+
+// ---------------------------------------------------------------------------
+// client.rs - get_voice_v2
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn get_voice_v2_returns_voice() {
+    let mut server = Server::new_async().await;
+    let body = r#"{
+        "voice_id":"tc_a",
+        "voice_name":"Alice",
+        "models":[{"version":"ssfm-v21","emotions":[]}]
+    }"#;
+    let _m = server
+        .mock("GET", "/v2/voices/tc_a")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let voice = client.get_voice_v2("tc_a").await.unwrap();
+    assert_eq!(voice.voice_id, "tc_a");
+}
+
+#[tokio::test]
+async fn get_voice_v2_propagates_404() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/v2/voices/missing")
+        .with_status(404)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"detail":"not found"}"#)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let err = client.get_voice_v2("missing").await.unwrap_err();
+    assert!(err.is_not_found());
+}
+
+// ---------------------------------------------------------------------------
+// client.rs - urlencoding helper
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn get_voices_v2_filter_covers_every_enum_variant() {
+    // Each filter call must hit a fresh mock; use a regex matcher that
+    // accepts any query string so we can iterate through every enum value
+    // and exercise every helper match arm.
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", mockito::Matcher::Regex("^/v2/voices".into()))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body("[]")
+        .expect_at_least(1)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+
+    // Models
+    for model in [TTSModel::SsfmV30, TTSModel::SsfmV21] {
+        let f = VoicesV2Filter::new().model(model);
+        client.get_voices_v2(Some(f)).await.unwrap();
+    }
+    // Genders
+    for g in [Gender::Male, Gender::Female] {
+        let f = VoicesV2Filter::new().gender(g);
+        client.get_voices_v2(Some(f)).await.unwrap();
+    }
+    // Ages
+    for a in [
+        Age::Child,
+        Age::Teenager,
+        Age::YoungAdult,
+        Age::MiddleAge,
+        Age::Elder,
+    ] {
+        let f = VoicesV2Filter::new().age(a);
+        client.get_voices_v2(Some(f)).await.unwrap();
+    }
+    // Use cases
+    for uc in [
+        UseCase::Announcer,
+        UseCase::Anime,
+        UseCase::Audiobook,
+        UseCase::Conversational,
+        UseCase::Documentary,
+        UseCase::ELearning,
+        UseCase::Rapper,
+        UseCase::Game,
+        UseCase::TikTokReels,
+        UseCase::News,
+        UseCase::Podcast,
+        UseCase::Voicemail,
+        UseCase::Ads,
+    ] {
+        let f = VoicesV2Filter::new().use_cases(uc);
+        client.get_voices_v2(Some(f)).await.unwrap();
+    }
+}
+
+/// Bind a TCP listener and immediately drop it to obtain a port that is
+/// almost certainly free. Connecting to it will produce a connection-refused
+/// error, which lets us hit `.send().await?` failure paths.
+fn dead_base_url() -> String {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    drop(listener);
+    format!("http://{}", addr)
+}
+
+#[tokio::test]
+async fn text_to_speech_send_error_when_connection_refused() {
+    let config = ClientConfig::new("k")
+        .base_url(dead_base_url())
+        .timeout(Duration::from_secs(2));
+    let client = TypecastClient::new(config).unwrap();
+    let req = TTSRequest::new("tc_x", "hi", TTSModel::SsfmV30);
+    let err = client.text_to_speech(&req).await.unwrap_err();
+    assert!(matches!(err, TypecastError::HttpError(_)));
+}
+
+#[tokio::test]
+async fn get_voices_v2_send_error_when_connection_refused() {
+    let config = ClientConfig::new("k")
+        .base_url(dead_base_url())
+        .timeout(Duration::from_secs(2));
+    let client = TypecastClient::new(config).unwrap();
+    let err = client.get_voices_v2(None).await.unwrap_err();
+    assert!(matches!(err, TypecastError::HttpError(_)));
+}
+
+#[tokio::test]
+async fn get_voice_v2_send_error_when_connection_refused() {
+    let config = ClientConfig::new("k")
+        .base_url(dead_base_url())
+        .timeout(Duration::from_secs(2));
+    let client = TypecastClient::new(config).unwrap();
+    let err = client.get_voice_v2("tc_a").await.unwrap_err();
+    assert!(matches!(err, TypecastError::HttpError(_)));
+}
+
+#[tokio::test]
+async fn text_to_speech_send_error_on_timeout() {
+    // Force a transport-level error from `.send().await?` by giving the
+    // client a sub-millisecond timeout against a server that delays.
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_chunked_body(|w| {
+            std::thread::sleep(Duration::from_millis(500));
+            w.write_all(b"x")
+        })
+        .create_async()
+        .await;
+
+    let config = ClientConfig::new("k")
+        .base_url(server.url())
+        .timeout(Duration::from_millis(20));
+    let client = TypecastClient::new(config).unwrap();
+    let req = TTSRequest::new("tc_x", "hi", TTSModel::SsfmV30);
+    let err = client.text_to_speech(&req).await.unwrap_err();
+    assert!(matches!(err, TypecastError::HttpError(_)));
+}
+
+#[tokio::test]
+async fn get_voice_v2_send_error_on_timeout() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/v2/voices/tc_a")
+        .with_status(200)
+        .with_chunked_body(|w| {
+            std::thread::sleep(Duration::from_millis(500));
+            w.write_all(b"{}")
+        })
+        .create_async()
+        .await;
+
+    let config = ClientConfig::new("k")
+        .base_url(server.url())
+        .timeout(Duration::from_millis(20));
+    let client = TypecastClient::new(config).unwrap();
+    let err = client.get_voice_v2("tc_a").await.unwrap_err();
+    assert!(matches!(err, TypecastError::HttpError(_)));
+}
+
+#[tokio::test]
+async fn get_voice_v2_propagates_invalid_json_body() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/v2/voices/tc_a")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body("not json at all")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let err = client.get_voice_v2("tc_a").await.unwrap_err();
+    // reqwest converts JSON parse failures into reqwest::Error.
+    assert!(matches!(err, TypecastError::HttpError(_)));
+}
+
+#[tokio::test]
+async fn url_encoding_handles_special_characters_in_filter_values() {
+    // Force the urlencoding helper's escape branch by going through a filter
+    // value that contains characters outside the unreserved set. We can't pass
+    // arbitrary strings to filters, but the helper is exercised by the
+    // `use_cases=Tiktok/Reels` value (slash needs encoding) below.
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/v2/voices")
+        .match_query(mockito::Matcher::Regex("use_cases=Tiktok%2FReels".into()))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body("[]")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let filter = VoicesV2Filter::new().use_cases(UseCase::TikTokReels);
+    let voices = client.get_voices_v2(Some(filter)).await.unwrap();
+    assert!(voices.is_empty());
+}

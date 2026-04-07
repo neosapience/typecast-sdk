@@ -84,6 +84,7 @@ CMakeCache.txt
 cmake_install.cmake
 Makefile
 !typecast-go/Makefile
+!typecast-rust/Makefile
 *.cmake
 
 # Compiled objects

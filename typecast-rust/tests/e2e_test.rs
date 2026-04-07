@@ -1,7 +1,12 @@
-//! Integration tests for Typecast Rust SDK
+#![cfg(feature = "e2e")]
+//! End-to-end tests for Typecast Rust SDK
 //!
-//! These tests require a valid TYPECAST_API_KEY environment variable.
-//! Run with: TYPECAST_API_KEY=your_key cargo test --test integration_test
+//! These tests hit the real Typecast API and require a valid TYPECAST_API_KEY
+//! environment variable. They are gated behind the `e2e` cargo feature so that
+//! the default `cargo test` (and `cargo llvm-cov`) only runs unit tests with
+//! mocked HTTP and never requires network access or credentials.
+//!
+//! Run with: TYPECAST_API_KEY=your_key cargo test --features e2e
 
 use typecast_rust::{
     AudioFormat, ClientConfig, EmotionPreset, Gender, Output, PresetPrompt, SmartPrompt,

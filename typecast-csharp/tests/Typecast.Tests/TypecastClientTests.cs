@@ -319,4 +319,342 @@ public class TypecastClientTests : IDisposable
             ex.StatusCode.Should().Be(statusCode);
         }
     }
+
+    // ----- V1 voice methods (deprecated, but still under coverage) -----
+
+#pragma warning disable CS0618 // suppress obsolete warnings on deprecated GetVoices/GetVoice
+
+    [Fact]
+    public async Task GetVoicesAsync_V1_ShouldReturnVoices()
+    {
+        var voicesJson = "[{\"voice_id\":\"v1\",\"voice_name\":\"V1\",\"model\":\"ssfm-v21\",\"emotions\":[\"normal\"]}]";
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(voicesJson, Encoding.UTF8, "application/json")
+        };
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(req => req.RequestUri!.ToString().Contains("/v1/voices")),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        var voices = await _client.GetVoicesAsync();
+
+        voices.Should().HaveCount(1);
+        voices[0].VoiceId.Should().Be("v1");
+    }
+
+    [Fact]
+    public async Task GetVoicesAsync_V1_WithModelFilter_ShouldIncludeQuery()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("[]", Encoding.UTF8, "application/json")
+        };
+        Uri? capturedUri = null;
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) => capturedUri = req.RequestUri)
+            .ReturnsAsync(response);
+
+        await _client.GetVoicesAsync("ssfm-v21");
+
+        capturedUri.Should().NotBeNull();
+        capturedUri!.ToString().Should().Contain("model=ssfm-v21");
+    }
+
+    [Fact]
+    public async Task GetVoicesAsync_V1_OnError_ShouldThrow()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.Unauthorized)
+        {
+            Content = new StringContent("{\"error\":\"unauthorized\"}", Encoding.UTF8, "application/json")
+        };
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        await Assert.ThrowsAsync<UnauthorizedException>(() => _client.GetVoicesAsync());
+    }
+
+    [Fact]
+    public async Task GetVoiceAsync_V1_ShouldReturnVoice()
+    {
+        var voiceJson = "{\"voice_id\":\"v1\",\"voice_name\":\"V1\",\"model\":\"ssfm-v21\",\"emotions\":[\"normal\"]}";
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(voiceJson, Encoding.UTF8, "application/json")
+        };
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(req => req.RequestUri!.ToString().Contains("/v1/voices/v1")),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        var voice = await _client.GetVoiceAsync("v1");
+
+        voice.VoiceId.Should().Be("v1");
+        voice.VoiceName.Should().Be("V1");
+    }
+
+    [Fact]
+    public async Task GetVoiceAsync_V1_WithEmptyVoiceId_ShouldThrow()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _client.GetVoiceAsync(""));
+        await Assert.ThrowsAsync<ArgumentException>(() => _client.GetVoiceAsync("   "));
+    }
+
+    [Fact]
+    public async Task GetVoiceAsync_V1_OnNotFound_ShouldThrow()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.NotFound)
+        {
+            Content = new StringContent("{\"error\":\"not found\"}", Encoding.UTF8, "application/json")
+        };
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => _client.GetVoiceAsync("missing"));
+    }
+
+#pragma warning restore CS0618
+
+    // ----- Sync wrapper methods + parameterless ctor + private helpers -----
+
+    [Fact]
+    public void Constructor_Parameterless_ShouldUseEnvDefaults()
+    {
+        // Set the API key via env so the parameterless ctor's effective config
+        // doesn't fail validation.
+        var prevKey = Environment.GetEnvironmentVariable("TYPECAST_API_KEY");
+        try
+        {
+            Environment.SetEnvironmentVariable("TYPECAST_API_KEY", "env-key");
+            using var client = new TypecastClient();
+            client.Should().NotBeNull();
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("TYPECAST_API_KEY", prevKey);
+        }
+    }
+
+    [Fact]
+    public void TextToSpeech_Sync_ShouldReturnResponse()
+    {
+        var audio = new byte[] { 1, 2, 3 };
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(audio)
+        };
+        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+        response.Headers.Add("x-audio-duration", "1.0");
+
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        var request = new TTSRequest
+        {
+            Text = "Hello",
+            VoiceId = "v1",
+            Model = TTSModel.SsfmV21,
+        };
+
+        var result = _client.TextToSpeech(request);
+        result.AudioData.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public void GetVoicesV2_Sync_ShouldReturnList()
+    {
+        var json = "[{\"voice_id\":\"v1\",\"voice_name\":\"V1\",\"models\":[{\"version\":\"ssfm-v30\",\"emotions\":[\"normal\"]}]}]";
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        var voices = _client.GetVoicesV2();
+        voices.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public void GetVoiceV2_Sync_ShouldReturnVoice()
+    {
+        var json = "{\"voice_id\":\"v1\",\"voice_name\":\"V1\",\"models\":[{\"version\":\"ssfm-v30\",\"emotions\":[\"normal\"]}]}";
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        var voice = _client.GetVoiceV2("v1");
+        voice.VoiceId.Should().Be("v1");
+    }
+
+    [Fact]
+    public async Task TextToSpeechAsync_WithBasicPrompt_ShouldSerializeRequest()
+    {
+        // Cover SerializeRequest + SerializePrompt for the Prompt branch
+        string? capturedBody = null;
+        var audio = new byte[] { 1 };
+        var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(audio) };
+        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) =>
+            {
+                capturedBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            })
+            .ReturnsAsync(response);
+
+        var request = new TTSRequest
+        {
+            Text = "Hello",
+            VoiceId = "v1",
+            Model = TTSModel.SsfmV21,
+            Language = LanguageCode.English,
+            Prompt = new Prompt { EmotionPreset = EmotionPreset.Happy, EmotionIntensity = 1.5 },
+            Output = new Output(volume: 80, audioPitch: 0, audioTempo: 1.0, audioFormat: AudioFormat.Wav),
+            Seed = 42,
+        };
+
+        await _client.TextToSpeechAsync(request);
+
+        capturedBody.Should().NotBeNull();
+        capturedBody!.Should().Contain("\"text\":\"Hello\"");
+        capturedBody.Should().Contain("\"voice_id\":\"v1\"");
+        capturedBody.Should().Contain("\"emotion_preset\":\"happy\"");
+    }
+
+    [Fact]
+    public async Task TextToSpeechAsync_WithPresetPrompt_ShouldSerializeRequest()
+    {
+        var audio = new byte[] { 1 };
+        var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(audio) };
+        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+        string? capturedBody = null;
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) =>
+            {
+                capturedBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            })
+            .ReturnsAsync(response);
+
+        var request = new TTSRequest
+        {
+            Text = "Hi",
+            VoiceId = "v1",
+            Model = TTSModel.SsfmV30,
+            Prompt = new PresetPrompt { EmotionPreset = EmotionPreset.Sad, EmotionIntensity = 0.8 },
+        };
+
+        await _client.TextToSpeechAsync(request);
+
+        capturedBody.Should().NotBeNull();
+        capturedBody!.Should().Contain("\"emotion_type\":\"preset\"");
+    }
+
+    [Fact]
+    public async Task TextToSpeechAsync_WithSmartPrompt_ShouldSerializeRequest()
+    {
+        var audio = new byte[] { 1 };
+        var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(audio) };
+        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+        string? capturedBody = null;
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) =>
+            {
+                capturedBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            })
+            .ReturnsAsync(response);
+
+        var request = new TTSRequest
+        {
+            Text = "Hi",
+            VoiceId = "v1",
+            Model = TTSModel.SsfmV30,
+            Prompt = new SmartPrompt { PreviousText = "Earlier", NextText = "Later" },
+        };
+
+        await _client.TextToSpeechAsync(request);
+
+        capturedBody.Should().NotBeNull();
+        capturedBody!.Should().Contain("\"emotion_type\":\"smart\"");
+        capturedBody.Should().Contain("\"previous_text\":\"Earlier\"");
+        capturedBody.Should().Contain("\"next_text\":\"Later\"");
+    }
+
+    [Fact]
+    public async Task TextToSpeechAsync_WithMinimalRequest_NoPromptNoOutput()
+    {
+        var audio = new byte[] { 1 };
+        var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(audio) };
+        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        var request = new TTSRequest
+        {
+            Text = "Hi",
+            VoiceId = "v1",
+            Model = TTSModel.SsfmV21,
+        };
+
+        var result = await _client.TextToSpeechAsync(request);
+        result.AudioData.Should().HaveCount(1);
+    }
 }
