@@ -363,17 +363,20 @@ public class TypecastClient : IDisposable
     /// <summary>
     /// Disposes the client and releases resources.
     /// </summary>
-    /// <param name="disposing">Whether to dispose managed resources</param>
+    /// <param name="disposing">Whether to dispose managed resources.
+    /// This class has no finalizer so <paramref name="disposing"/> is
+    /// always <c>true</c> in practice; the parameter is kept for the
+    /// standard dispose pattern in case derived classes add one.</param>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA1816", Justification = "Standard dispose pattern.")]
     protected virtual void Dispose(bool disposing)
     {
-        if (!_disposed)
+        if (_disposed) return;
+
+        if (_ownsHttpClient)
         {
-            if (disposing && _ownsHttpClient)
-            {
-                _httpClient.Dispose();
-            }
-            _disposed = true;
+            _httpClient.Dispose();
         }
+        _disposed = true;
     }
 
     #endregion
