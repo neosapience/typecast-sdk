@@ -145,7 +145,7 @@ Every SDK in this monorepo targets **100% code coverage** (line + function + bra
 | typecast-go | _coming soon_ |
 | typecast-java | _coming soon_ |
 | typecast-js | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
-| typecast-kotlin | _coming soon_ |
+| typecast-kotlin | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
 | typecast-python | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
 | typecast-rust | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
 | typecast-swift | _coming soon_ |
