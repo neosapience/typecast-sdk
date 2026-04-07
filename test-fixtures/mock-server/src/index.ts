@@ -13,9 +13,24 @@ function parseArgs(argv: string[]): CliArgs {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--port') {
-      port = Number(argv[++i]);
+      const raw = argv[++i];
+      if (raw === undefined) {
+        console.error('--port requires a value');
+        process.exit(2);
+      }
+      const parsed = Number(raw);
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+        console.error(`invalid --port: ${raw} (must be an integer in 1..65535)`);
+        process.exit(2);
+      }
+      port = parsed;
     } else if (arg === '--fixtures-dir') {
-      fixturesDir = argv[++i];
+      const dir = argv[++i];
+      if (dir === undefined || dir.length === 0) {
+        console.error('--fixtures-dir requires a value');
+        process.exit(2);
+      }
+      fixturesDir = dir;
     } else if (arg === '--help' || arg === '-h') {
       printHelp();
       process.exit(0);
@@ -43,12 +58,20 @@ async function main(): Promise<void> {
 
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`received ${signal}, shutting down...`);
-    await handle.close();
-    process.exit(0);
+    try {
+      await handle.close();
+      process.exit(0);
+    } catch (err) {
+      console.error('shutdown failed:', err);
+      process.exit(1);
+    }
   };
 
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
 }
 
-void main();
+void main().catch((err) => {
+  console.error('mock server failed to start:', err);
+  process.exit(1);
+});
