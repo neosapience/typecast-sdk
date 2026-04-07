@@ -86,3 +86,19 @@ test('loadFixtures: WS files indexed by basename', async () => {
     await rm(dir, { recursive: true });
   }
 });
+
+test('loadFixtures: when two REST fixtures collide, the lexicographically last filename wins', async () => {
+  const dir = await makeFixturesDir();
+  try {
+    // 200 and 401 collide on the same (GET, /voices/list) key. After sorting,
+    // `list-401.json` is processed last and must win on every OS.
+    await writeFile(join(dir, 'voices', 'list-200.json'), JSON.stringify({ ok: true }));
+    await writeFile(join(dir, 'voices', 'list-401.json'), JSON.stringify({ error: 'unauthorized' }));
+    const set = await loadFixtures(dir);
+    const fixture = set.rest.get('GET /voices/list');
+    assert.ok(fixture);
+    assert.equal(fixture.status, 401);
+  } finally {
+    await rm(dir, { recursive: true });
+  }
+});

@@ -37,6 +37,10 @@ async function loadRestDir(
   } catch {
     return;
   }
+  // Sort so that when two filenames map to the same REST key (e.g.,
+  // `list-200.json` and `list-401.json`), the higher-status variant
+  // wins deterministically across operating systems.
+  entries.sort((a, b) => a.localeCompare(b));
   for (const entry of entries) {
     const parsed = parse(entry);
     const match = parsed.name.match(/^(.+)-(\d{3})$/);
@@ -66,6 +70,7 @@ async function loadStreamDir(
   } catch {
     return;
   }
+  entries.sort((a, b) => a.localeCompare(b));
   for (const entry of entries) {
     const parsed = parse(entry);
     target.set(parsed.name, join(dir, entry));
