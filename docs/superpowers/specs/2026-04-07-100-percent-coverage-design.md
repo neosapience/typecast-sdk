@@ -72,11 +72,11 @@ This PR introduces no SDK changes. It lands the foundations every subsequent PR 
 
 ### 5.1 Mock server
 
-Located at `test-fixtures/mock-server/`. **Implementation language: Node.js + TypeScript**, with `tsx` as the only runtime dependency beyond the Node standard library.
+Located at `test-fixtures/mock-server/`. **Implementation language: Node.js + TypeScript**, with `tsx` (TypeScript runner) and `ws` (WebSocket server, no transitive deps) as the only runtime dependencies beyond the Node standard library. Node ≥20 has no built-in WebSocket server, so `ws` is unavoidable; we picked it because it has zero runtime dependencies of its own.
 
 ```
 test-fixtures/mock-server/
-  package.json              # name, single dep: tsx; node engines >= 18
+  package.json              # name, deps: tsx + ws; node engines >= 20
   tsconfig.json
   src/
     index.ts                # CLI entry: --port (default 8765), --fixtures-dir
