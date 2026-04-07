@@ -1,0 +1,3 @@
+{"delayMs":0,"opcode":"text","payload":"{\"type\":\"start\",\"request_id\":\"mock-002\"}"}
+{"delayMs":20,"opcode":"binary","payload":"VFlQRUNBU1RfTU9DS19BVURJT19DSFVOS18x"}
+{"delayMs":0,"opcode":"close","payload":"","closeCode":1011}

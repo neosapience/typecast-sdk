@@ -1,0 +1,5 @@
+{"delayMs":0,"opcode":"text","payload":"{\"type\":\"start\",\"request_id\":\"mock-001\"}"}
+{"delayMs":20,"opcode":"binary","payload":"VFlQRUNBU1RfTU9DS19BVURJT19DSFVOS18x"}
+{"delayMs":20,"opcode":"binary","payload":"VFlQRUNBU1RfTU9DS19BVURJT19DSFVOS18y"}
+{"delayMs":0,"opcode":"text","payload":"{\"type\":\"end\",\"request_id\":\"mock-001\"}"}
+{"delayMs":0,"opcode":"close","payload":"","closeCode":1000}

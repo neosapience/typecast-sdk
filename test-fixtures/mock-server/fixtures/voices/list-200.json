@@ -1,0 +1,19 @@
+{
+  "voices": [
+    {
+      "voice_id": "tc_mock_001",
+      "voice_name": "Mock Voice 1",
+      "model": "ssfm-v30",
+      "language": "en",
+      "gender": "male"
+    },
+    {
+      "voice_id": "tc_mock_002",
+      "voice_name": "Mock Voice 2",
+      "model": "ssfm-v21",
+      "language": "ko",
+      "gender": "female"
+    }
+  ],
+  "next_cursor": null
+}
