@@ -1,6 +1,6 @@
 [package]
 name = "typecast-rust"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Neosapience <help@typecast.ai>"]
 description = "Official Rust SDK for Typecast Text-to-Speech API"
@@ -12,6 +12,12 @@ keywords = ["tts", "text-to-speech", "typecast", "voice", "ai"]
 categories = ["api-bindings", "multimedia::audio"]
 readme = "README.md"
 
+[features]
+default = []
+# Enable end-to-end tests that hit the real Typecast API
+# (requires TYPECAST_API_KEY). Default `cargo test` skips these.
+e2e = []
+
 [dependencies]
 reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -22,3 +28,4 @@ tokio = { version = "1", features = ["full"] }
 [dev-dependencies]
 tokio-test = "0.4"
 dotenvy = "0.15"
+mockito = "1.5"
