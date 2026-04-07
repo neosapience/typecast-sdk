@@ -33,6 +33,16 @@ class TestOutputValidation:
         assert output.volume is None
         assert output.target_lufs == -14.0
 
+    def test_validator_passthrough_with_non_dict_input(self):
+        """The check_volume_and_target_lufs validator must return non-dict
+        input unchanged. Covers the falsy branch of `isinstance(data, dict)`.
+        Pydantic before-mode validators are invoked with raw input which is
+        not always a dict — when pydantic passes a model instance directly
+        (e.g. during revalidation), the validator must pass it through."""
+        sentinel = "not-a-dict"
+        result = Output.check_volume_and_target_lufs(sentinel)
+        assert result == sentinel
+
 
 class TestMockTTS:
     def test_mock_tts(self, typecast_client, mocker):

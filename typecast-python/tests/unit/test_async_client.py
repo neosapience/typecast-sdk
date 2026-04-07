@@ -223,3 +223,19 @@ class TestAsyncContextManager:
     async def test_init_without_api_key_still_constructs(self):
         client = AsyncTypecast(host=HOST, api_key="some-key")
         assert client.api_key == "some-key"
+
+    async def test_aenter_without_api_key_omits_x_api_key_header(self, monkeypatch):
+        """When no api_key is provided (and no env var), __aenter__ skips
+        the X-API-KEY header — covers the falsy branch of the if guard."""
+        monkeypatch.delenv("TYPECAST_API_KEY", raising=False)
+        async with AsyncTypecast(host=HOST) as client:
+            assert client.session is not None
+            # The session was created without the X-API-KEY header
+            assert "X-API-KEY" not in client.session._default_headers
+
+    async def test_aexit_without_session_is_noop(self):
+        """Calling __aexit__ without ever calling __aenter__ should not
+        raise — covers the falsy branch of the if self.session: guard."""
+        client = AsyncTypecast(host=HOST, api_key="key")
+        assert client.session is None
+        await client.__aexit__(None, None, None)
