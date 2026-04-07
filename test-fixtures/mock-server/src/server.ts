@@ -1,6 +1,8 @@
 import { createServer as createHttpServer, IncomingMessage, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { loadFixtures } from './fixture-loader.ts';
+import { matchRest } from './rest-handler.ts';
+import type { FixtureSet, HttpMethod } from './types.ts';
 
 export interface ServerOptions {
   port: number;
@@ -13,10 +15,10 @@ export interface ServerHandle {
 }
 
 export async function createServer(options: ServerOptions): Promise<ServerHandle> {
-  await loadFixtures(options.fixturesDir);
+  const fixtures = await loadFixtures(options.fixturesDir);
 
   const httpServer = createHttpServer((req, res) => {
-    handleRequest(req, res);
+    handleRequest(req, res, fixtures);
   });
 
   await new Promise<void>((resolve) => {
@@ -35,12 +37,25 @@ export async function createServer(options: ServerOptions): Promise<ServerHandle
   };
 }
 
-function handleRequest(req: IncomingMessage, res: ServerResponse): void {
+function handleRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  fixtures: FixtureSet,
+): void {
   if (req.method === 'GET' && req.url === '/__mock_health') {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('ok');
     return;
   }
+
+  const method = (req.method ?? 'GET') as HttpMethod;
+  const fixture = matchRest(method, req.url ?? '/', fixtures);
+  if (fixture) {
+    res.writeHead(fixture.status, { 'Content-Type': fixture.contentType });
+    res.end(Buffer.from(fixture.body));
+    return;
+  }
+
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'no fixture matched', method: req.method, path: req.url }));
 }
