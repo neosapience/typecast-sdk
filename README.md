@@ -140,7 +140,7 @@ Every SDK in this monorepo targets **100% code coverage** (line + function + bra
 
 | SDK | Coverage |
 |-----|----------|
-| typecast-c | _coming soon_ |
+| typecast-c | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
 | typecast-csharp | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
 | typecast-go | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
 | typecast-java | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
