@@ -1,0 +1,4 @@
+{"delayMs":0,"opcode":"text","payload":"{\"type\":\"start\",\"payload\":{\"request_id\":\"mock-text-001\"}}"}
+{"delayMs":20,"opcode":"text","payload":"{\"type\":\"progress\",\"payload\":{\"value\":0.5}}"}
+{"delayMs":20,"opcode":"text","payload":"{\"type\":\"end\",\"payload\":{\"request_id\":\"mock-text-001\"}}"}
+{"delayMs":0,"opcode":"close","payload":"","closeCode":1000}
