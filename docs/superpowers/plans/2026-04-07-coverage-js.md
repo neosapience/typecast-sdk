@@ -141,10 +141,12 @@ After this step, the relevant slice of `typecast-js/package.json` should look li
 Use the Edit tool with the existing `package.json` text. The exact lines to change:
 
 1. After `"test:coverage": "vitest run --coverage",` insert:
-   ```
+
+   ```json
        "coverage": "vitest run --coverage --exclude 'test/e2e/**'",
        "test:e2e": "vitest run test/e2e",
    ```
+
 2. In `devDependencies`, after `"@typescript-eslint/parser": "^7.3.1",` insert `"@vitest/coverage-v8": "^3.0.9",`.
 
 - [ ] **Step 3: Replace `vite.config.ts` with the coverage-aware version**
@@ -1153,7 +1155,7 @@ Use the Edit tool to replace those four lines with the same code plus a c8-ignor
 
 The exact `old_string` for the Edit tool should be:
 
-```
+```text
     // Maintains proper stack trace for where our error was thrown (only available on V8)
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, TypecastAPIError);
@@ -1162,7 +1164,7 @@ The exact `old_string` for the Edit tool should be:
 
 And the `new_string`:
 
-```
+```text
     // Maintains proper stack trace for where our error was thrown (only available on V8)
     /* v8 ignore next 3 -- category=platform reason="Error.captureStackTrace is V8-only and is always defined on Node >=16; the false branch is unreachable on supported runtimes" */
     if (Error.captureStackTrace) {
@@ -1455,14 +1457,14 @@ You should see a `<div align="center">` block with several `[![...]](...)` badge
 
 Use Edit to add the new badge. Replace:
 
-```
+```jsonc
 [![npm version](https://img.shields.io/npm/v/@neosapience/typecast-js.svg?style=flat-square)](https://www.npmjs.com/package/@neosapience/typecast-js)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg?style=flat-square)](LICENSE)
 ```
 
 with:
 
-```
+```jsonc
 [![npm version](https://img.shields.io/npm/v/@neosapience/typecast-js.svg?style=flat-square)](https://www.npmjs.com/package/@neosapience/typecast-js)
 [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg?style=flat-square)](../docs/coverage-policy.md)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg?style=flat-square)](LICENSE)
@@ -1493,13 +1495,13 @@ Step 0 added a placeholder table with "_coming soon_" for every SDK. Replace the
 
 Use Edit. Replace:
 
-```
+```text
 | typecast-js | _coming soon_ |
 ```
 
 with:
 
-```
+```text
 | typecast-js | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
 ```
 

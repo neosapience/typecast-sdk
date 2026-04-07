@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import dotenv from 'dotenv';
 import { TypecastClient } from '../../src/client.js';
-import { TypecastAPIError } from '../../src/errors.js';
 
 dotenv.config();
 
@@ -38,14 +37,9 @@ describe.skipIf(!hasApiKey)('TypecastClient e2e: voices', () => {
   }, 30000);
 
   it('should throw TypecastAPIError for non-existent model', async () => {
-    try {
-      await client.getVoices('non-existent-model');
-      expect.fail('Expected an error to be thrown');
-    } catch (error: unknown) {
-      expect(error).toBeInstanceOf(TypecastAPIError);
-      if (error instanceof TypecastAPIError) {
-        expect(error.statusCode).toBe(422);
-      }
-    }
+    await expect(client.getVoices('non-existent-model')).rejects.toMatchObject({
+      name: 'TypecastAPIError',
+      statusCode: 422,
+    });
   }, 30000);
 });
