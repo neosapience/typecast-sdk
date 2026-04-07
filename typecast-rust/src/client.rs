@@ -4,11 +4,58 @@
 
 use crate::errors::{Result, TypecastError};
 use crate::models::{
-    AudioFormat, ErrorResponse, TTSRequest, TTSResponse, VoiceV2, VoicesV2Filter,
+    Age, AudioFormat, ErrorResponse, Gender, TTSModel, TTSRequest, TTSResponse, UseCase, VoiceV2,
+    VoicesV2Filter,
 };
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use std::env;
 use std::time::Duration;
+
+/// Convert a [`TTSModel`] into the wire format string used in query parameters.
+fn model_query_value(model: TTSModel) -> &'static str {
+    match model {
+        TTSModel::SsfmV30 => "ssfm-v30",
+        TTSModel::SsfmV21 => "ssfm-v21",
+    }
+}
+
+/// Convert a [`Gender`] into the wire format string used in query parameters.
+fn gender_query_value(gender: Gender) -> &'static str {
+    match gender {
+        Gender::Male => "male",
+        Gender::Female => "female",
+    }
+}
+
+/// Convert an [`Age`] into the wire format string used in query parameters.
+fn age_query_value(age: Age) -> &'static str {
+    match age {
+        Age::Child => "child",
+        Age::Teenager => "teenager",
+        Age::YoungAdult => "young_adult",
+        Age::MiddleAge => "middle_age",
+        Age::Elder => "elder",
+    }
+}
+
+/// Convert a [`UseCase`] into the wire format string used in query parameters.
+fn use_case_query_value(use_case: UseCase) -> &'static str {
+    match use_case {
+        UseCase::Announcer => "Announcer",
+        UseCase::Anime => "Anime",
+        UseCase::Audiobook => "Audiobook",
+        UseCase::Conversational => "Conversational",
+        UseCase::Documentary => "Documentary",
+        UseCase::ELearning => "E-learning",
+        UseCase::Rapper => "Rapper",
+        UseCase::Game => "Game",
+        UseCase::TikTokReels => "Tiktok/Reels",
+        UseCase::News => "News",
+        UseCase::Podcast => "Podcast",
+        UseCase::Voicemail => "Voicemail",
+        UseCase::Ads => "Ads",
+    }
+}
 
 /// Default API base URL
 pub const DEFAULT_BASE_URL: &str = "https://api.typecast.ai";
@@ -80,10 +127,13 @@ impl TypecastClient {
                 })?,
         );
 
+        // `reqwest::Client::builder().build()` only fails if TLS init fails,
+        // which is not something we can usefully recover from at this layer.
         let client = reqwest::Client::builder()
             .default_headers(headers)
             .timeout(config.timeout)
-            .build()?;
+            .build()
+            .expect("reqwest client builder should not fail");
 
         Ok(Self {
             client,
@@ -118,19 +168,22 @@ impl TypecastClient {
         }
     }
 
-    /// Build a URL with optional query parameters
+    /// Build a URL with optional query parameters.
+    ///
+    /// Callers must pass `None` when there are no query parameters; passing
+    /// `Some(vec![])` is not supported and will produce a trailing `?`.
     fn build_url(&self, path: &str, params: Option<Vec<(&str, String)>>) -> String {
-        let mut url = format!("{}{}", self.base_url, path);
-        if let Some(params) = params {
-            let query: Vec<String> = params
-                .into_iter()
-                .map(|(k, v)| format!("{}={}", k, urlencoding::encode(&v)))
-                .collect();
-            if !query.is_empty() {
-                url = format!("{}?{}", url, query.join("&"));
+        let base = format!("{}{}", self.base_url, path);
+        match params {
+            Some(params) => {
+                let query: Vec<String> = params
+                    .into_iter()
+                    .map(|(k, v)| format!("{}={}", k, urlencoding::encode(&v)))
+                    .collect();
+                format!("{}?{}", base, query.join("&"))
             }
+            None => base,
         }
-        url
     }
 
     /// Handle an error response
@@ -244,16 +297,16 @@ impl TypecastClient {
 
         if let Some(f) = filter {
             if let Some(model) = f.model {
-                params.push(("model", serde_json::to_string(&model)?.trim_matches('"').to_string()));
+                params.push(("model", model_query_value(model).to_string()));
             }
             if let Some(gender) = f.gender {
-                params.push(("gender", serde_json::to_string(&gender)?.trim_matches('"').to_string()));
+                params.push(("gender", gender_query_value(gender).to_string()));
             }
             if let Some(age) = f.age {
-                params.push(("age", serde_json::to_string(&age)?.trim_matches('"').to_string()));
+                params.push(("age", age_query_value(age).to_string()));
             }
             if let Some(use_cases) = f.use_cases {
-                params.push(("use_cases", serde_json::to_string(&use_cases)?.trim_matches('"').to_string()));
+                params.push(("use_cases", use_case_query_value(use_cases).to_string()));
             }
         }
 

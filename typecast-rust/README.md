@@ -1,5 +1,7 @@
 # Typecast Rust SDK
 
+[![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg?style=flat-square)](../docs/coverage-policy.md)
+
 Official Rust SDK for the [Typecast](https://typecast.ai/?lang=en) Text-to-Speech API.
 
 ## Installation

@@ -141,13 +141,13 @@ Every SDK in this monorepo targets **100% code coverage** (line + function + bra
 | SDK | Coverage |
 |-----|----------|
 | typecast-c | _coming soon_ |
-| typecast-csharp | _coming soon_ |
+| typecast-csharp | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
 | typecast-go | _coming soon_ |
 | typecast-java | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
 | typecast-js | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
 | typecast-kotlin | _coming soon_ |
 | typecast-python | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
-| typecast-rust | _coming soon_ |
+| typecast-rust | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
 | typecast-swift | _coming soon_ |
 
 Each `_coming soon_` cell is replaced with a
