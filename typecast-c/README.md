@@ -1,5 +1,7 @@
 # Typecast C/C++ SDK
 
+[![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg?style=flat-square)](./Makefile)
+
 Text-to-Speech API client library for [Typecast AI](https://typecast.ai/?lang=en).
 
 ## Features

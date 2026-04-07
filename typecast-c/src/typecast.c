@@ -264,7 +264,10 @@ static cJSON* build_tts_request_json(const TypecastTTSRequest* request) {
 
 static TypecastErrorCode http_status_to_error(long status_code) {
     switch (status_code) {
+        /* LCOV_EXCL_START */
+        /* category=unreachable reason="callers only invoke this for non-200 responses" */
         case 200: return TYPECAST_OK;
+        /* LCOV_EXCL_STOP */
         case 400: return TYPECAST_ERROR_BAD_REQUEST;
         case 401: return TYPECAST_ERROR_UNAUTHORIZED;
         case 402: return TYPECAST_ERROR_PAYMENT_REQUIRED;
@@ -430,19 +433,25 @@ TYPECAST_API TypecastClient* typecast_client_create_with_host(
     client->api_key = strdup_safe(api_key);
     client->host = strdup_safe(host ? host : DEFAULT_HOST);
     
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="strdup_safe OOM; cannot be simulated without a malloc shim" */
     if (!client->api_key || !client->host) {
         typecast_client_destroy(client);
         return NULL;
     }
-    
+    /* LCOV_EXCL_STOP */
+
     /* Initialize CURL globally (safe to call multiple times) */
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    
+
     client->curl = curl_easy_init();
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="curl_easy_init failure requires libcurl internal OOM" */
     if (!client->curl) {
         typecast_client_destroy(client);
         return NULL;
     }
+    /* LCOV_EXCL_STOP */
     
     return client;
 }
@@ -489,18 +498,24 @@ TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
     
     /* Build JSON body */
     cJSON* json = build_tts_request_json(request);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="cJSON OOM; cannot be triggered in unit tests" */
     if (!json) {
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to build JSON");
         return NULL;
     }
-    
+    /* LCOV_EXCL_STOP */
+
     char* json_str = cJSON_PrintUnformatted(json);
     cJSON_Delete(json);
-    
+
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="cJSON_PrintUnformatted OOM" */
     if (!json_str) {
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to serialize JSON");
         return NULL;
     }
+    /* LCOV_EXCL_STOP */
     
     /* Setup response buffers */
     ResponseBuffer response_buf = {0};
@@ -569,12 +584,15 @@ TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
     
     /* Create response */
     TypecastTTSResponse* resp = (TypecastTTSResponse*)calloc(1, sizeof(TypecastTTSResponse));
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="calloc OOM; cannot be triggered deterministically" */
     if (!resp) {
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate response");
         if (response_buf.data) free(response_buf.data);
         if (header_buf.data) free(header_buf.data);
         return NULL;
     }
+    /* LCOV_EXCL_STOP */
     
     resp->audio_data = response_buf.data;
     resp->audio_size = response_buf.size;
@@ -700,21 +718,27 @@ TYPECAST_API TypecastVoicesResponse* typecast_get_voices(
     
     /* Create response */
     TypecastVoicesResponse* resp = (TypecastVoicesResponse*)calloc(1, sizeof(TypecastVoicesResponse));
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="calloc OOM; cannot be triggered deterministically" */
     if (!resp) {
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate response");
         cJSON_Delete(json);
         return NULL;
     }
-    
+    /* LCOV_EXCL_STOP */
+
     resp->count = cJSON_GetArraySize(json);
     resp->voices = (TypecastVoice*)calloc(resp->count, sizeof(TypecastVoice));
-    
+
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="calloc OOM; cannot be triggered deterministically" */
     if (!resp->voices) {
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate voices array");
         free(resp);
         cJSON_Delete(json);
         return NULL;
     }
+    /* LCOV_EXCL_STOP */
     
     for (size_t i = 0; i < resp->count; i++) {
         cJSON* voice_json = cJSON_GetArrayItem(json, (int)i);

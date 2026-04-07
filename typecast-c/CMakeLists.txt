@@ -13,17 +13,34 @@
 #   cmake --build .
 
 cmake_minimum_required(VERSION 3.14)
-project(typecast VERSION 1.0.2 LANGUAGES C)
+project(typecast VERSION 1.0.3 LANGUAGES C)
 
 # Options
 option(TYPECAST_BUILD_SHARED "Build shared library" ON)
 option(TYPECAST_BUILD_STATIC "Build static library" OFF)
 option(TYPECAST_BUILD_EXAMPLES "Build examples" ON)
 option(TYPECAST_BUILD_TESTS "Build tests" ON)
+option(TYPECAST_COVERAGE "Build with coverage instrumentation" OFF)
 
 # C standard
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+
+# Coverage instrumentation (GCC/Clang only)
+if(TYPECAST_COVERAGE)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+        message(STATUS "Coverage instrumentation enabled")
+        add_compile_options(-O0 -g --coverage -fprofile-arcs -ftest-coverage)
+        add_link_options(--coverage)
+        # Force static build only when coverage is enabled to ensure
+        # gcov data files are co-located with the test binary build dir.
+        set(TYPECAST_BUILD_SHARED OFF CACHE BOOL "Build shared library" FORCE)
+        set(TYPECAST_BUILD_STATIC ON CACHE BOOL "Build static library" FORCE)
+        set(TYPECAST_BUILD_EXAMPLES OFF CACHE BOOL "Build examples" FORCE)
+    else()
+        message(FATAL_ERROR "TYPECAST_COVERAGE requires GCC or Clang")
+    endif()
+endif()
 
 # Find CURL
 find_package(CURL REQUIRED)
@@ -120,11 +137,27 @@ if(TYPECAST_BUILD_TESTS)
     endif()
     
     add_test(NAME typecast_tests COMMAND test_typecast)
-    
+
+    # Mock-server-driven coverage test (no API key required)
+    add_executable(test_mock tests/test_mock.c)
+    target_include_directories(test_mock PRIVATE include)
+
+    if(TYPECAST_BUILD_SHARED)
+        target_link_libraries(test_mock PRIVATE typecast)
+    elseif(TYPECAST_BUILD_STATIC)
+        target_link_libraries(test_mock PRIVATE typecast_static CURL::libcurl)
+    endif()
+    if(NOT WIN32)
+        find_package(Threads REQUIRED)
+        target_link_libraries(test_mock PRIVATE Threads::Threads)
+    endif()
+
+    add_test(NAME typecast_mock_tests COMMAND test_mock)
+
     # Integration test (requires API key)
     add_executable(test_integration tests/test_integration.c)
     target_include_directories(test_integration PRIVATE include)
-    
+
     if(TYPECAST_BUILD_SHARED)
         target_link_libraries(test_integration PRIVATE typecast)
     elseif(TYPECAST_BUILD_STATIC)

@@ -75,7 +75,7 @@ static int tests_failed = 0;
 TEST(version) {
     const char* version = typecast_version();
     ASSERT_NOT_NULL(version);
-    ASSERT_STREQ(version, "1.0.0");
+    ASSERT_STREQ(version, TYPECAST_VERSION);
     TEST_PASS();
 }
 
