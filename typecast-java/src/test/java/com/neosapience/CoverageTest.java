@@ -215,7 +215,7 @@ class CoverageTest {
         try {
             assertEquals("https://x.example", c.getBaseUrl());
         } finally {
-            // Don't close shared http client
+            c.close();
         }
     }
 
@@ -403,13 +403,21 @@ class CoverageTest {
     }
 
     @Test
-    void textToSpeech_emptyResponseBody_throws() {
+    void textToSpeech_emptyResponseBody_returnsZeroLengthAudio() throws Exception {
+        // OkHttp always provides a non-null body, so an empty 200 response
+        // should succeed with zero-length audio data. This verifies the
+        // happy-path branch when the server returns no payload but valid
+        // headers.
         mockServer.enqueue(new MockResponse()
                 .setResponseCode(200)
-                .setHeader("Content-Length", "0"));
-        // Empty response body should still be parseable as zero-length bytes (not null body),
-        // so we test the IOException path by closing the server early instead.
-        // (skipping null-body test since okhttp always provides a non-null body for 200)
+                .setHeader("Content-Type", "audio/wav")
+                .setHeader("X-Audio-Duration", "0"));
+
+        TTSResponse res = client.textToSpeech(buildBasic());
+        assertNotNull(res.getAudioData());
+        assertEquals(0, res.getAudioData().length);
+        assertEquals("wav", res.getFormat());
+        assertEquals(0.0, res.getDuration());
     }
 
     @Test
