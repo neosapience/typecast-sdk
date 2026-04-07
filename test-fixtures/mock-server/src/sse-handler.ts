@@ -62,9 +62,12 @@ export async function streamSse(
 
     res.end();
   } catch (err) {
+    // Log the full error server-side for debugging, but keep the client-facing
+    // payload generic so internal paths/stack details don't leak.
+    console.error('streamSse failed:', err);
     if (!res.headersSent) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'sse stream failed', message: String(err) }));
+      res.end(JSON.stringify({ error: 'sse stream failed' }));
       return;
     }
     if (!res.writableEnded) {
