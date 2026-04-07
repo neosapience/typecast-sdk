@@ -256,6 +256,7 @@ DerivedData/
 .swiftpm/
 Packages/
 Package.resolved
+typecast-swift/coverage-summary.txt
 
 # CocoaPods
 Pods/
