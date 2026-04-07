@@ -9,6 +9,7 @@ Convert text to lifelike speech using AI-powered voices
 [![Go Version](https://img.shields.io/badge/Go-%3E%3D1.21-00ADD8.svg?style=flat-square&logo=go&logoColor=white)](https://go.dev/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Go Reference](https://img.shields.io/badge/Go-Reference-00ADD8.svg?style=flat-square&logo=go&logoColor=white)](https://pkg.go.dev/github.com/neosapience/typecast-sdk/typecast-go)
+[![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg?style=flat-square)](./Makefile)
 
 [Documentation](https://typecast.ai/docs) | [API Reference](https://typecast.ai/docs/api-reference) | [Get API Key](https://typecast.ai/developers/api/api-key)
 
