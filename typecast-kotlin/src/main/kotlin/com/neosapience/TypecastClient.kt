@@ -95,12 +95,12 @@ class TypecastClient private constructor(
             .build()
 
         httpClient.newCall(httpRequest).execute().use { response ->
+            // OkHttp 4.x always returns a non-null ResponseBody from execute().
+            val body = response.body!!
             if (!response.isSuccessful) {
-                val responseBody = response.body?.string() ?: ""
-                handleError(response.code, responseBody)
+                throw buildError(response.code, body.string())
             }
 
-            val body = response.body ?: throw TypecastException("Empty response body")
             val audioData = body.bytes()
 
             // Extract duration from header
@@ -219,19 +219,19 @@ class TypecastClient private constructor(
     private inline fun <reified T> executeRequest(request: Request): T {
         httpClient.newCall(request).execute().use { response ->
             val responseBody = response.body?.string() ?: ""
-            
+
             if (!response.isSuccessful) {
-                handleError(response.code, responseBody)
+                throw buildError(response.code, responseBody)
             }
 
             return json.decodeFromString(responseBody)
         }
     }
 
-    private fun handleError(statusCode: Int, responseBody: String): Nothing {
+    private fun buildError(statusCode: Int, responseBody: String): TypecastException {
         val message = extractErrorMessage(responseBody)
-        
-        throw when (statusCode) {
+
+        return when (statusCode) {
             400 -> BadRequestException(message, responseBody)
             401 -> UnauthorizedException(message, responseBody)
             402 -> PaymentRequiredException(message, responseBody)
@@ -250,11 +250,10 @@ class TypecastClient private constructor(
         return try {
             val jsonElement = json.parseToJsonElement(responseBody)
             val jsonObject = jsonElement as? kotlinx.serialization.json.JsonObject
-            
-            jsonObject?.get("detail")?.toString()?.trim('"')
-                ?: jsonObject?.get("message")?.toString()?.trim('"')
-                ?: jsonObject?.get("error")?.toString()?.trim('"')
-                ?: responseBody
+                ?: return responseBody
+
+            val field = jsonObject["detail"] ?: jsonObject["message"] ?: jsonObject["error"]
+            if (field != null) field.toString().trim('"') else responseBody
         } catch (e: Exception) {
             responseBody
         }

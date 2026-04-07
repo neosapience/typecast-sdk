@@ -86,6 +86,7 @@ Makefile
 !typecast-go/Makefile
 !typecast-java/Makefile
 !typecast-rust/Makefile
+!typecast-kotlin/Makefile
 *.cmake
 
 # Compiled objects

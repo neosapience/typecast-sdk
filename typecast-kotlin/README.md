@@ -1,5 +1,8 @@
 # Typecast Kotlin SDK
 
+[![coverage-kotlin](https://github.com/neosapience/typecast-sdk/actions/workflows/coverage-kotlin.yml/badge.svg)](https://github.com/neosapience/typecast-sdk/actions/workflows/coverage-kotlin.yml)
+[![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](https://github.com/neosapience/typecast-sdk/actions/workflows/coverage-kotlin.yml)
+
 Official Kotlin SDK for the [Typecast](https://typecast.ai/?lang=en) Text-to-Speech API.
 
 ## Installation
