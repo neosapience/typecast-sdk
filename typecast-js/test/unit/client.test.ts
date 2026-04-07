@@ -320,4 +320,51 @@ describe('TypecastClient', () => {
       });
     });
   });
+
+  describe('constructor defaults', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('falls back to env vars when no config is provided', async () => {
+      vi.stubEnv('TYPECAST_API_HOST', 'https://env-host.example');
+      vi.stubEnv('TYPECAST_API_KEY', 'env-api-key');
+
+      const envClient = new TypecastClient();
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([]),
+      });
+
+      await envClient.getVoices();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://env-host.example/v1/voices',
+        expect.objectContaining({
+          headers: {
+            'X-API-KEY': 'env-api-key',
+            'Content-Type': 'application/json',
+          },
+        }),
+      );
+    });
+
+    it('falls back to the production host when no env var is set', async () => {
+      vi.stubEnv('TYPECAST_API_HOST', '');
+      vi.stubEnv('TYPECAST_API_KEY', '');
+
+      const envClient = new TypecastClient();
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([]),
+      });
+
+      await envClient.getVoices();
+
+      const [calledUrl] = mockFetch.mock.calls[0];
+      expect(calledUrl).toBe('https://api.typecast.ai/v1/voices');
+    });
+  });
 });
