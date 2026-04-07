@@ -183,3 +183,51 @@ test('server: WS connection to unknown script closes immediately with 1008', asy
     await rm(dir, { recursive: true });
   }
 });
+
+test('server: WS upgrade strips ?token query string before script lookup', async () => {
+  const dir = await emptyFixturesDir();
+  await writeFile(
+    join(dir, 'ws', 'demo.jsonl'),
+    [
+      '{"delayMs":0,"opcode":"text","payload":"ok"}',
+      '{"delayMs":0,"opcode":"close","payload":"","closeCode":1000}',
+    ].join('\n'),
+  );
+  const handle = await createServer({ port: 0, fixturesDir: dir });
+  try {
+    const wsUrl = handle.url.replace('http://', 'ws://') + '/__mock_ws/demo?token=secret';
+    const messages: string[] = [];
+    await withTimeout(
+      new Promise<void>((resolve, reject) => {
+        const ws = new WebSocket(wsUrl);
+        ws.on('message', (data) => messages.push(data.toString()));
+        ws.on('close', () => resolve());
+        ws.on('error', reject);
+      }),
+      5000,
+      'ws with query close',
+    );
+    assert.deepEqual(messages, ['ok']);
+  } finally {
+    await handle.close();
+    await rm(dir, { recursive: true });
+  }
+});
+
+test('server: SSE strips ?token query string before script lookup', async () => {
+  const dir = await emptyFixturesDir();
+  await writeFile(
+    join(dir, 'sse', 'demo.txt'),
+    'event: a\ndata: 1\n\n',
+  );
+  const handle = await createServer({ port: 0, fixturesDir: dir });
+  try {
+    const res = await fetch(`${handle.url}/__mock_sse/demo?token=secret`);
+    assert.equal(res.status, 200);
+    const text = await res.text();
+    assert.match(text, /event: a/);
+  } finally {
+    await handle.close();
+    await rm(dir, { recursive: true });
+  }
+});
