@@ -37,22 +37,36 @@ export async function streamSse(
   res: ServerResponse,
   scriptPath: string,
 ): Promise<void> {
-  const text = await readFile(scriptPath, 'utf8');
-  const chunks = parseSseScript(text);
+  // streamSse is invoked fire-and-forget from the HTTP route, so any thrown
+  // error here would surface as an unhandled rejection. Contain failures
+  // locally and always close the response cleanly.
+  try {
+    const text = await readFile(scriptPath, 'utf8');
+    const chunks = parseSseScript(text);
 
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-  });
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
 
-  for (const chunk of chunks) {
-    if (chunk.delayMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, chunk.delayMs));
+    for (const chunk of chunks) {
+      if (chunk.delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, chunk.delayMs));
+      }
+      if (res.writableEnded) return;
+      res.write(chunk.chunk);
     }
-    if (res.writableEnded) return;
-    res.write(chunk.chunk);
-  }
 
-  res.end();
+    res.end();
+  } catch (err) {
+    if (!res.headersSent) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'sse stream failed', message: String(err) }));
+      return;
+    }
+    if (!res.writableEnded) {
+      res.end();
+    }
+  }
 }
