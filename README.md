@@ -133,3 +133,28 @@ This script automatically collects license information from all SDK implementati
 Made with ❤️ by [Typecast AI](https://typecast.ai/?lang=en)
 
 </div>
+
+## Code Coverage
+
+Every SDK in this monorepo targets **100% code coverage** (line + function
++ branch where the toolchain supports branches; line + function only on
+Go and Swift). The exclusion policy is documented at
+[`docs/coverage-policy.md`](docs/coverage-policy.md). The shared mock
+server used by every SDK's coverage tests lives at
+[`test-fixtures/mock-server/`](test-fixtures/mock-server/).
+
+| SDK | Coverage |
+|-----|----------|
+| typecast-c | _coming soon_ |
+| typecast-csharp | _coming soon_ |
+| typecast-go | _coming soon_ |
+| typecast-java | _coming soon_ |
+| typecast-js | _coming soon_ |
+| typecast-kotlin | _coming soon_ |
+| typecast-python | _coming soon_ |
+| typecast-rust | _coming soon_ |
+| typecast-swift | _coming soon_ |
+
+Each `_coming soon_` cell is replaced with a
+`![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)`
+badge as that SDK's per-SDK coverage PR (steps 1–9 of the rollout) lands.
