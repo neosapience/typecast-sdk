@@ -10,6 +10,7 @@ Convert text to lifelike speech using AI-powered voices
 [![Platforms](https://img.shields.io/badge/Platforms-iOS%20|%20macOS%20|%20tvOS%20|%20watchOS%20|%20visionOS-blue.svg?style=flat-square)](https://developer.apple.com/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg?style=flat-square)](LICENSE)
 [![Swift Package Manager](https://img.shields.io/badge/SPM-compatible-4BC51D.svg?style=flat-square)](https://swift.org/package-manager/)
+[![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./Makefile)
 
 [Documentation](https://typecast.ai/docs) | [API Reference](https://typecast.ai/docs/api-reference) | [Get API Key](https://typecast.ai/developers/api/api-key)
 
