@@ -196,12 +196,11 @@ class AsyncTypecast:
         params = {}
         if filter:
             filter_dict = filter.model_dump(exclude_none=True)
-            # Convert enum values to strings
+            # Convert enum values to their underlying str representation.
+            # Every VoicesV2Filter field is an Optional[Enum], so getattr
+            # falls back only if a future non-enum field is added.
             for key, value in filter_dict.items():
-                if hasattr(value, "value"):
-                    params[key] = value.value
-                else:
-                    params[key] = value
+                params[key] = getattr(value, "value", value)
 
         async with self.session.get(
             f"{self.host}{endpoint}", params=params

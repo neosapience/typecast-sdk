@@ -32,7 +32,11 @@ export async function createServer(options: ServerOptions): Promise<ServerHandle
       socket.destroy();
       return;
     }
-    const name = url.slice('/__mock_ws/'.length);
+    // Strip query string before looking up the script name — clients
+    // routinely append `?token=...` etc. to authenticate.
+    const nameWithQuery = url.slice('/__mock_ws/'.length);
+    const queryStart = nameWithQuery.indexOf('?');
+    const name = queryStart === -1 ? nameWithQuery : nameWithQuery.slice(0, queryStart);
     const scriptPath = fixtures.ws.get(name);
     wsServer.handleUpgrade(req, socket, head, (ws) => {
       if (!scriptPath) {
@@ -72,7 +76,11 @@ function handleRequest(
   }
 
   if (req.method === 'GET' && req.url?.startsWith('/__mock_sse/')) {
-    const name = req.url.slice('/__mock_sse/'.length);
+    // Strip query string before looking up the script name — clients
+    // may append `?token=...` etc. to authenticate.
+    const nameWithQuery = req.url.slice('/__mock_sse/'.length);
+    const queryStart = nameWithQuery.indexOf('?');
+    const name = queryStart === -1 ? nameWithQuery : nameWithQuery.slice(0, queryStart);
     const scriptPath = fixtures.sse.get(name);
     if (!scriptPath) {
       res.writeHead(404, { 'Content-Type': 'application/json' });

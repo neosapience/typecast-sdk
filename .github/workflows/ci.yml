@@ -34,7 +34,7 @@ jobs:
         run: uv sync --group dev
 
       - name: Run tests
-        run: uv run pytest tests/ -v --ignore=tests/integration_smoke_test.py --ignore=tests/test_integration_tts.py --ignore=tests/test_integration_voices.py
+        run: uv run pytest tests/unit tests/smoke_test.py -v
 
   # ============================================
   # JavaScript/TypeScript SDK

@@ -18,14 +18,20 @@ help: ## Show this help message
 install: ## Install dependencies with uv
 	uv sync --all-extras
 
-test: ## Run all tests (skip integration tests without API key)
-	uv run pytest tests/ -v
+test: ## Run unit tests
+	uv run pytest tests/unit tests/smoke_test.py -v
 
 test-integration: ## Run all tests including integration tests (requires API key)
 	uv run pytest tests/ -v --run-integration
 
 test-watch: ## Run tests in watch mode
 	uv run pytest-watch tests/
+
+coverage: ## Run unit tests with 100% coverage gate
+	uv run pytest tests/unit --cov=src/typecast --cov-report=term-missing --cov-report=html --cov-report=xml
+
+e2e: ## Run e2e tests (requires TYPECAST_API_KEY)
+	uv run pytest tests/e2e -v
 
 lint: ## Run all linters (ruff check + mypy)
 	uv run ruff check src/ tests/ examples/
