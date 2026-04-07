@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { WebSocket } from 'ws';
 import { createServer } from '../src/server.ts';
 
 async function emptyFixturesDir(): Promise<string> {
@@ -109,6 +110,50 @@ test('server: GET /__mock_sse/<missing> returns 404', async () => {
   try {
     const res = await fetch(`${handle.url}/__mock_sse/none`);
     assert.equal(res.status, 404);
+  } finally {
+    await handle.close();
+    await rm(dir, { recursive: true });
+  }
+});
+
+test('server: WS connection at /__mock_ws/<name> replays frames', async () => {
+  const dir = await emptyFixturesDir();
+  await writeFile(
+    join(dir, 'ws', 'demo.jsonl'),
+    [
+      '{"delayMs":0,"opcode":"text","payload":"hello"}',
+      '{"delayMs":0,"opcode":"text","payload":"world"}',
+      '{"delayMs":0,"opcode":"close","payload":"","closeCode":1000}',
+    ].join('\n'),
+  );
+  const handle = await createServer({ port: 0, fixturesDir: dir });
+  try {
+    const wsUrl = handle.url.replace('http://', 'ws://') + '/__mock_ws/demo';
+    const messages: string[] = [];
+    await new Promise<void>((resolve, reject) => {
+      const ws = new WebSocket(wsUrl);
+      ws.on('message', (data) => messages.push(data.toString()));
+      ws.on('close', () => resolve());
+      ws.on('error', reject);
+    });
+    assert.deepEqual(messages, ['hello', 'world']);
+  } finally {
+    await handle.close();
+    await rm(dir, { recursive: true });
+  }
+});
+
+test('server: WS connection to unknown script closes immediately with 1008', async () => {
+  const dir = await emptyFixturesDir();
+  const handle = await createServer({ port: 0, fixturesDir: dir });
+  try {
+    const wsUrl = handle.url.replace('http://', 'ws://') + '/__mock_ws/none';
+    const closeCode = await new Promise<number>((resolve, reject) => {
+      const ws = new WebSocket(wsUrl);
+      ws.on('close', (code) => resolve(code));
+      ws.on('error', reject);
+    });
+    assert.equal(closeCode, 1008);
   } finally {
     await handle.close();
     await rm(dir, { recursive: true });
