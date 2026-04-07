@@ -1,7 +1,9 @@
-.PHONY: help install test coverage e2e clean
+.PHONY: help install test coverage e2e clean all
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+
+all: coverage ## Default target -- run coverage gate
 
 install: ## Restore deps
 	dotnet restore
