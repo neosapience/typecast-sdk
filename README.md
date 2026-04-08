@@ -140,16 +140,15 @@ Every SDK in this monorepo targets **100% code coverage** (line + function + bra
 
 | SDK | Coverage |
 |-----|----------|
-| typecast-c | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
-| typecast-csharp | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
-| typecast-go | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
-| typecast-java | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
-| typecast-js | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
-| typecast-kotlin | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
-| typecast-python | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
-| typecast-rust | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
-| typecast-swift | ![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen) |
+| [typecast-c](./typecast-c) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-c) |
+| [typecast-csharp](./typecast-csharp) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-csharp) |
+| [typecast-go](./typecast-go) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-go) |
+| [typecast-java](./typecast-java) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-java) |
+| [typecast-js](./typecast-js) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-js) |
+| [typecast-kotlin](./typecast-kotlin) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-kotlin) |
+| [typecast-python](./typecast-python) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-python) |
+| [typecast-rust](./typecast-rust) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-rust) |
+| [typecast-swift](./typecast-swift) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-swift) |
 
-Each `_coming soon_` cell is replaced with a
-`![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)`
-badge as that SDK's per-SDK coverage PR (steps 1–9 of the rollout) lands.
+Click any SDK name or badge to jump to that SDK's directory. Each SDK's
+README documents its installation, usage, and coverage workflow.

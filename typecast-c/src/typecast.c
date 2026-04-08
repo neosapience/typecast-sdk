@@ -535,6 +535,10 @@ TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_str);
+    /* Explicit body size — without this libcurl uses strlen() which can
+     * walk past the end of cJSON's print buffer on some platforms/glibc
+     * heap layouts and include stale bytes in the request body. */
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(json_str));
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_buf);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);

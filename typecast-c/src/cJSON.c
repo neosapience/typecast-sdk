@@ -740,18 +740,33 @@ static char *print(const cJSON *item, int format)
     printbuffer buffer = { 0 };
     buffer.buffer = (unsigned char*)global_malloc(256);
     if (buffer.buffer == NULL) return NULL;
-    
+    /* Zero the initial buffer so any bytes past what print_value writes
+     * are guaranteed null. Without this, malloc returns uninitialized
+     * heap memory and callers that strlen() the returned string can
+     * walk past the actual JSON content into stale heap data. */
+    memset(buffer.buffer, 0, 256);
+
     buffer.length = 256;
     buffer.offset = 0;
     buffer.depth = 0;
     buffer.format = format;
-    
+
     if (!print_value(item, &buffer))
     {
         global_free(buffer.buffer);
         return NULL;
     }
-    
+
+    /* Defensive: explicitly null-terminate at the current write offset.
+     * print_value's individual writers do not always emit a trailing
+     * '\0', and ensure() (the buffer-grow helper) realloc()s without
+     * zeroing the new bytes — so a buffer that was grown mid-print can
+     * contain stale heap data after offset. */
+    if (buffer.offset < buffer.length)
+    {
+        buffer.buffer[buffer.offset] = 0;
+    }
+
     return (char*)buffer.buffer;
 }
 
