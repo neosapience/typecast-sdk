@@ -11,6 +11,7 @@ import com.neosapience.models.*;
 import okhttp3.*;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -193,6 +194,120 @@ public class TypecastClient {
         } catch (IOException e) {
             throw new TypecastException("Failed to make API request", e);
         }
+    }
+
+    /**
+     * Streams synthesized audio from {@code POST /v1/text-to-speech/stream}.
+     *
+     * <p>Returns the raw response body as an {@link InputStream}. The caller is
+     * responsible for closing the returned stream; closing it will also release
+     * the underlying HTTP connection.</p>
+     *
+     * <p>For WAV the first chunk contains a WAV header (declared with size
+     * {@code 0xFFFFFFFF} for streaming) followed by PCM data; subsequent reads
+     * return PCM only. For MP3 the stream contains independently-decodable MP3
+     * frames.</p>
+     *
+     * @param request the streaming TTS request parameters
+     * @return an InputStream over the audio bytes (caller must close)
+     * @throws IOException if the underlying HTTP call fails with an I/O error
+     * @throws TypecastException if the API returns a non-200 status
+     */
+    public InputStream textToSpeechStream(TTSRequestStream request) throws IOException {
+        String url = baseUrl + "/v1/text-to-speech/stream";
+        String jsonBody = buildTTSRequestStreamJson(request);
+
+        Request httpRequest = new Request.Builder()
+                .url(url)
+                .addHeader(API_KEY_HEADER, apiKey)
+                .addHeader("Content-Type", CONTENT_TYPE_JSON)
+                .post(RequestBody.create(jsonBody, JSON_MEDIA_TYPE))
+                .build();
+
+        Response response = httpClient.newCall(httpRequest).execute();
+        if (!response.isSuccessful()) {
+            String errorBody;
+            try {
+                errorBody = response.body().string();
+            } finally {
+                response.close();
+            }
+            throw createException(response.code(), errorBody);
+        }
+
+        // Caller is responsible for closing the returned stream, which will
+        // also close the underlying Response/connection.
+        return response.body().byteStream();
+    }
+
+    private String buildTTSRequestStreamJson(TTSRequestStream request) {
+        JsonObject json = new JsonObject();
+        json.addProperty("voice_id", request.getVoiceId());
+        json.addProperty("text", request.getText());
+        json.addProperty("model", request.getModel().getValue());
+
+        if (request.getLanguage() != null) {
+            json.addProperty("language", request.getLanguage().getValue());
+        }
+
+        if (request.getSeed() != null) {
+            json.addProperty("seed", request.getSeed());
+        }
+
+        if (request.getPrompt() != null) {
+            Object prompt = request.getPrompt();
+            JsonObject promptJson = new JsonObject();
+
+            if (prompt instanceof Prompt) {
+                Prompt p = (Prompt) prompt;
+                if (p.getEmotionPreset() != null) {
+                    promptJson.addProperty("emotion_preset", p.getEmotionPreset().getValue());
+                }
+                if (p.getEmotionIntensity() != null) {
+                    promptJson.addProperty("emotion_intensity", p.getEmotionIntensity());
+                }
+            } else if (prompt instanceof PresetPrompt) {
+                PresetPrompt p = (PresetPrompt) prompt;
+                promptJson.addProperty("emotion_type", p.getEmotionType());
+                if (p.getEmotionPreset() != null) {
+                    promptJson.addProperty("emotion_preset", p.getEmotionPreset().getValue());
+                }
+                if (p.getEmotionIntensity() != null) {
+                    promptJson.addProperty("emotion_intensity", p.getEmotionIntensity());
+                }
+            } else {
+                // Must be SmartPrompt — setPrompt only accepts Prompt/PresetPrompt/SmartPrompt
+                SmartPrompt p = (SmartPrompt) prompt;
+                promptJson.addProperty("emotion_type", p.getEmotionType());
+                if (p.getPreviousText() != null) {
+                    promptJson.addProperty("previous_text", p.getPreviousText());
+                }
+                if (p.getNextText() != null) {
+                    promptJson.addProperty("next_text", p.getNextText());
+                }
+            }
+
+            json.add("prompt", promptJson);
+        }
+
+        if (request.getOutput() != null) {
+            OutputStream output = request.getOutput();
+            JsonObject outputJson = new JsonObject();
+
+            if (output.getAudioPitch() != null) {
+                outputJson.addProperty("audio_pitch", output.getAudioPitch());
+            }
+            if (output.getAudioTempo() != null) {
+                outputJson.addProperty("audio_tempo", output.getAudioTempo());
+            }
+            if (output.getAudioFormat() != null) {
+                outputJson.addProperty("audio_format", output.getAudioFormat().getValue());
+            }
+
+            json.add("output", outputJson);
+        }
+
+        return json.toString();
     }
 
     private String buildTTSRequestJson(TTSRequest request) {

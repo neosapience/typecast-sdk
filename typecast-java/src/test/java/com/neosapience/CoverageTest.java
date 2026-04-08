@@ -10,6 +10,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.function.Executable;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -1091,5 +1092,390 @@ class CoverageTest {
     private static void restoreEnv(String key, String prev) throws Exception {
         if (prev == null) removeEnv(key);
         else setEnv(key, prev);
+    }
+
+    // ==================== Text-to-Speech Stream ====================
+
+    private TTSRequestStream buildBasicStream() {
+        return TTSRequestStream.builder()
+                .voiceId("tc_test")
+                .text("Hello, world!")
+                .model(TTSModel.SSFM_V30)
+                .build();
+    }
+
+    @Test
+    void textToSpeechStream_success_readsBytesAndVerifiesRequest() throws Exception {
+        byte[] audioBytes = new byte[]{0x52, 0x49, 0x46, 0x46, 0x10, 0x20, 0x30};
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(new okio.Buffer().write(audioBytes)));
+
+        TTSRequestStream req = buildBasicStream();
+        InputStream is = client.textToSpeechStream(req);
+        try {
+            byte[] read = is.readAllBytes();
+            assertArrayEquals(audioBytes, read);
+        } finally {
+            is.close();
+        }
+
+        RecordedRequest rr = mockServer.takeRequest();
+        assertEquals("POST", rr.getMethod());
+        assertEquals("/v1/text-to-speech/stream", rr.getPath());
+        assertEquals("test-api-key", rr.getHeader("X-API-KEY"));
+        String body = rr.getBody().readUtf8();
+        assertTrue(body.contains("\"voice_id\":\"tc_test\""));
+        assertTrue(body.contains("\"text\":\"Hello, world!\""));
+        assertTrue(body.contains("\"model\":\"ssfm-v30\""));
+    }
+
+    @Test
+    void textToSpeechStream_withAllOptionalFields_serializesBody() throws Exception {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/mp3")
+                .setBody(new okio.Buffer().write(new byte[]{0})));
+
+        TTSRequestStream req = TTSRequestStream.builder()
+                .voiceId("tc_test")
+                .text("Hi")
+                .model(TTSModel.SSFM_V30)
+                .language(LanguageCode.ENG)
+                .seed(42)
+                .prompt(PresetPrompt.builder()
+                        .emotionPreset(EmotionPreset.HAPPY)
+                        .emotionIntensity(1.5)
+                        .build())
+                .output(OutputStream.builder()
+                        .audioPitch(2)
+                        .audioTempo(1.2)
+                        .audioFormat(AudioFormat.MP3)
+                        .build())
+                .build();
+
+        InputStream is = client.textToSpeechStream(req);
+        is.close();
+
+        RecordedRequest rr = mockServer.takeRequest();
+        String body = rr.getBody().readUtf8();
+        assertTrue(body.contains("\"language\":\"eng\""));
+        assertTrue(body.contains("\"seed\":42"));
+        assertTrue(body.contains("\"emotion_type\":\"preset\""));
+        assertTrue(body.contains("\"emotion_preset\":\"happy\""));
+        assertTrue(body.contains("\"emotion_intensity\":1.5"));
+        assertTrue(body.contains("\"audio_pitch\":2"));
+        assertTrue(body.contains("\"audio_tempo\":1.2"));
+        assertTrue(body.contains("\"audio_format\":\"mp3\""));
+        assertFalse(body.contains("volume"));
+        assertFalse(body.contains("target_lufs"));
+    }
+
+    @Test
+    void textToSpeechStream_promptObjectBranch() throws Exception {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(new okio.Buffer().write(new byte[]{0})));
+        TTSRequestStream req = TTSRequestStream.builder()
+                .voiceId("tc").text("x").model(TTSModel.SSFM_V21)
+                .prompt(new Prompt(EmotionPreset.SAD, 0.5))
+                .build();
+        client.textToSpeechStream(req).close();
+        RecordedRequest rr = mockServer.takeRequest();
+        String body = rr.getBody().readUtf8();
+        assertTrue(body.contains("\"emotion_preset\":\"sad\""));
+        assertTrue(body.contains("\"emotion_intensity\":0.5"));
+    }
+
+    @Test
+    void textToSpeechStream_promptObjectWithNullsBranch() throws Exception {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(new okio.Buffer().write(new byte[]{0})));
+        Prompt p = new Prompt();
+        p.setEmotionPreset(null);
+        p.setEmotionIntensity(null);
+        TTSRequestStream req = TTSRequestStream.builder()
+                .voiceId("tc").text("x").model(TTSModel.SSFM_V21)
+                .prompt(p).build();
+        client.textToSpeechStream(req).close();
+        RecordedRequest rr = mockServer.takeRequest();
+        String body = rr.getBody().readUtf8();
+        assertTrue(body.contains("\"prompt\":{}"));
+    }
+
+    @Test
+    void textToSpeechStream_presetPromptWithNullsBranch() throws Exception {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(new okio.Buffer().write(new byte[]{0})));
+        PresetPrompt p = new PresetPrompt();
+        p.setEmotionPreset(null);
+        p.setEmotionIntensity(null);
+        TTSRequestStream req = TTSRequestStream.builder()
+                .voiceId("tc").text("x").model(TTSModel.SSFM_V30)
+                .prompt(p).build();
+        client.textToSpeechStream(req).close();
+        RecordedRequest rr = mockServer.takeRequest();
+        String body = rr.getBody().readUtf8();
+        assertTrue(body.contains("\"emotion_type\":\"preset\""));
+        assertFalse(body.contains("emotion_preset"));
+        assertFalse(body.contains("emotion_intensity"));
+    }
+
+    @Test
+    void textToSpeechStream_smartPromptWithoutNextText() throws Exception {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(new okio.Buffer().write(new byte[]{0})));
+        TTSRequestStream req = TTSRequestStream.builder()
+                .voiceId("tc").text("x").model(TTSModel.SSFM_V30)
+                .prompt(SmartPrompt.builder().previousText("only previous").build())
+                .build();
+        client.textToSpeechStream(req).close();
+        RecordedRequest rr = mockServer.takeRequest();
+        String body = rr.getBody().readUtf8();
+        assertTrue(body.contains("\"previous_text\":\"only previous\""));
+        assertFalse(body.contains("next_text"));
+    }
+
+    @Test
+    void textToSpeechStream_smartPromptWithoutPreviousText() throws Exception {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(new okio.Buffer().write(new byte[]{0})));
+        TTSRequestStream req = TTSRequestStream.builder()
+                .voiceId("tc").text("x").model(TTSModel.SSFM_V30)
+                .prompt(SmartPrompt.builder().nextText("only next").build())
+                .build();
+        client.textToSpeechStream(req).close();
+        RecordedRequest rr = mockServer.takeRequest();
+        String body = rr.getBody().readUtf8();
+        assertTrue(body.contains("\"next_text\":\"only next\""));
+        assertFalse(body.contains("previous_text"));
+    }
+
+    @Test
+    void textToSpeechStream_outputAllNullsEmptyObject() throws Exception {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(new okio.Buffer().write(new byte[]{0})));
+        OutputStream o = new OutputStream();
+        o.setAudioPitch(null);
+        o.setAudioTempo(null);
+        o.setAudioFormat(null);
+        TTSRequestStream req = TTSRequestStream.builder()
+                .voiceId("tc").text("x").model(TTSModel.SSFM_V30).output(o).build();
+        client.textToSpeechStream(req).close();
+        RecordedRequest rr = mockServer.takeRequest();
+        String body = rr.getBody().readUtf8();
+        assertTrue(body.contains("\"output\":{}"));
+    }
+
+    @Test
+    void textToSpeechStream_badRequest_400() {
+        mockServer.enqueue(new MockResponse().setResponseCode(400)
+                .setBody("{\"detail\":\"bad\"}"));
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> client.textToSpeechStream(buildBasicStream()));
+        assertEquals(400, ex.getStatusCode());
+    }
+
+    @Test
+    void textToSpeechStream_unauthorized_401() {
+        mockServer.enqueue(new MockResponse().setResponseCode(401)
+                .setBody("{\"detail\":\"nope\"}"));
+        UnauthorizedException ex = assertThrows(UnauthorizedException.class,
+                () -> client.textToSpeechStream(buildBasicStream()));
+        assertEquals(401, ex.getStatusCode());
+    }
+
+    @Test
+    void textToSpeechStream_paymentRequired_402() {
+        mockServer.enqueue(new MockResponse().setResponseCode(402)
+                .setBody("{\"detail\":\"pay\"}"));
+        PaymentRequiredException ex = assertThrows(PaymentRequiredException.class,
+                () -> client.textToSpeechStream(buildBasicStream()));
+        assertEquals(402, ex.getStatusCode());
+    }
+
+    @Test
+    void textToSpeechStream_notFound_404() {
+        mockServer.enqueue(new MockResponse().setResponseCode(404)
+                .setBody("{\"detail\":\"missing\"}"));
+        NotFoundException ex = assertThrows(NotFoundException.class,
+                () -> client.textToSpeechStream(buildBasicStream()));
+        assertEquals(404, ex.getStatusCode());
+    }
+
+    @Test
+    void textToSpeechStream_unprocessableEntity_422() {
+        mockServer.enqueue(new MockResponse().setResponseCode(422)
+                .setBody("{\"detail\":\"bad shape\"}"));
+        UnprocessableEntityException ex = assertThrows(UnprocessableEntityException.class,
+                () -> client.textToSpeechStream(buildBasicStream()));
+        assertEquals(422, ex.getStatusCode());
+    }
+
+    @Test
+    void textToSpeechStream_rateLimit_429() {
+        mockServer.enqueue(new MockResponse().setResponseCode(429)
+                .setBody("{\"detail\":\"slow\"}"));
+        RateLimitException ex = assertThrows(RateLimitException.class,
+                () -> client.textToSpeechStream(buildBasicStream()));
+        assertEquals(429, ex.getStatusCode());
+    }
+
+    @Test
+    void textToSpeechStream_internalServerError_500() {
+        mockServer.enqueue(new MockResponse().setResponseCode(500)
+                .setBody("{\"detail\":\"oops\"}"));
+        InternalServerException ex = assertThrows(InternalServerException.class,
+                () -> client.textToSpeechStream(buildBasicStream()));
+        assertEquals(500, ex.getStatusCode());
+    }
+
+    @Test
+    void textToSpeechStream_ioException() throws IOException {
+        mockServer.shutdown();
+        assertThrows(IOException.class, () -> client.textToSpeechStream(buildBasicStream()));
+    }
+
+    // ==================== Models: OutputStream ====================
+
+    @Test
+    void outputStream_defaultsAndGetters() {
+        OutputStream o = new OutputStream();
+        assertEquals(Integer.valueOf(0), o.getAudioPitch());
+        assertEquals(Double.valueOf(1.0), o.getAudioTempo());
+        assertEquals(AudioFormat.WAV, o.getAudioFormat());
+        assertNotNull(o.toString());
+    }
+
+    @Test
+    void outputStream_settersChain() {
+        OutputStream o = new OutputStream();
+        assertSame(o, o.setAudioPitch(null));
+        assertSame(o, o.setAudioTempo(null));
+        assertSame(o, o.setAudioFormat(AudioFormat.MP3));
+        assertNull(o.getAudioPitch());
+        assertNull(o.getAudioTempo());
+        assertEquals(AudioFormat.MP3, o.getAudioFormat());
+    }
+
+    @Test
+    void outputStream_validatesAudioPitchRange() {
+        assertThrows(IllegalArgumentException.class, () -> new OutputStream().setAudioPitch(-13));
+        assertThrows(IllegalArgumentException.class, () -> new OutputStream().setAudioPitch(13));
+        assertDoesNotThrow(() -> new OutputStream().setAudioPitch(-12));
+        assertDoesNotThrow(() -> new OutputStream().setAudioPitch(12));
+    }
+
+    @Test
+    void outputStream_validatesAudioTempoRange() {
+        assertThrows(IllegalArgumentException.class, () -> new OutputStream().setAudioTempo(0.49));
+        assertThrows(IllegalArgumentException.class, () -> new OutputStream().setAudioTempo(2.01));
+        assertDoesNotThrow(() -> new OutputStream().setAudioTempo(0.5));
+        assertDoesNotThrow(() -> new OutputStream().setAudioTempo(2.0));
+    }
+
+    @Test
+    void outputStream_builderAllFields() {
+        OutputStream o = OutputStream.builder()
+                .audioPitch(3)
+                .audioTempo(1.25)
+                .audioFormat(AudioFormat.MP3)
+                .build();
+        assertEquals(Integer.valueOf(3), o.getAudioPitch());
+        assertEquals(Double.valueOf(1.25), o.getAudioTempo());
+        assertEquals(AudioFormat.MP3, o.getAudioFormat());
+    }
+
+    // ==================== Models: TTSRequestStream ====================
+
+    @Test
+    void ttsRequestStream_constructor_validatesRequiredFields() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new TTSRequestStream(null, "hi", TTSModel.SSFM_V30));
+        assertThrows(IllegalArgumentException.class,
+                () -> new TTSRequestStream("", "hi", TTSModel.SSFM_V30));
+        assertThrows(IllegalArgumentException.class,
+                () -> new TTSRequestStream("tc", null, TTSModel.SSFM_V30));
+        assertThrows(IllegalArgumentException.class,
+                () -> new TTSRequestStream("tc", "", TTSModel.SSFM_V30));
+        assertThrows(IllegalArgumentException.class,
+                () -> new TTSRequestStream("tc", "hi", null));
+    }
+
+    @Test
+    void ttsRequestStream_validatesTextLength() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 5001; i++) sb.append("a");
+        assertThrows(IllegalArgumentException.class,
+                () -> new TTSRequestStream("tc", sb.toString(), TTSModel.SSFM_V30));
+    }
+
+    @Test
+    void ttsRequestStream_settersChainAndGetters() {
+        TTSRequestStream r = new TTSRequestStream("tc", "hello", TTSModel.SSFM_V21);
+        assertEquals("tc", r.getVoiceId());
+        assertEquals("hello", r.getText());
+        assertEquals(TTSModel.SSFM_V21, r.getModel());
+        assertSame(r, r.setLanguage(LanguageCode.KOR));
+        assertSame(r, r.setSeed(7));
+        assertSame(r, r.setOutput(new OutputStream()));
+        assertSame(r, r.setPrompt(new Prompt()));
+        assertSame(r, r.setPrompt(new PresetPrompt()));
+        assertSame(r, r.setPrompt(new SmartPrompt()));
+        assertEquals(LanguageCode.KOR, r.getLanguage());
+        assertEquals(Integer.valueOf(7), r.getSeed());
+        assertNotNull(r.getOutput());
+        assertNotNull(r.getPrompt());
+        assertNotNull(r.toString());
+    }
+
+    @Test
+    void ttsRequestStream_toString_truncatesLongText() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 100; i++) sb.append("a");
+        TTSRequestStream r = new TTSRequestStream("tc", sb.toString(), TTSModel.SSFM_V30);
+        assertTrue(r.toString().contains("..."));
+    }
+
+    @Test
+    void ttsRequestStream_builderAllFields_promptOverloads() {
+        // Prompt overload
+        TTSRequestStream r1 = TTSRequestStream.builder()
+                .voiceId("tc").text("x").model(TTSModel.SSFM_V21)
+                .language(LanguageCode.ENG)
+                .seed(1)
+                .output(OutputStream.builder().build())
+                .prompt(new Prompt())
+                .build();
+        assertNotNull(r1.getPrompt());
+        assertEquals(LanguageCode.ENG, r1.getLanguage());
+        assertEquals(Integer.valueOf(1), r1.getSeed());
+        assertNotNull(r1.getOutput());
+
+        // PresetPrompt overload
+        TTSRequestStream r2 = TTSRequestStream.builder()
+                .voiceId("tc").text("x").model(TTSModel.SSFM_V30)
+                .prompt(new PresetPrompt())
+                .build();
+        assertTrue(r2.getPrompt() instanceof PresetPrompt);
+
+        // SmartPrompt overload
+        TTSRequestStream r3 = TTSRequestStream.builder()
+                .voiceId("tc").text("x").model(TTSModel.SSFM_V30)
+                .prompt(new SmartPrompt())
+                .build();
+        assertTrue(r3.getPrompt() instanceof SmartPrompt);
     }
 }
