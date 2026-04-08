@@ -321,6 +321,59 @@ describe('TypecastClient', () => {
     });
   });
 
+  describe('subscription', () => {
+    const subscriptionPayload = {
+      plan: 'plus' as const,
+      credits: { plan_credits: 100000, used_credits: 1234 },
+      limits: { concurrency_limit: 5 },
+    };
+
+    it('getMySubscription returns the parsed subscription payload', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(subscriptionPayload),
+      });
+
+      const sub = await client.getMySubscription();
+
+      expect(sub.plan).toBe('plus');
+      expect(sub.credits.plan_credits).toBe(100000);
+      expect(sub.credits.used_credits).toBe(1234);
+      expect(sub.limits.concurrency_limit).toBe(5);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://dummy-api.ai/v1/users/me/subscription',
+        expect.objectContaining({
+          headers: {
+            'X-API-KEY': 'test-api-key',
+            'Content-Type': 'application/json',
+          },
+        }),
+      );
+    });
+
+    it.each([
+      [401, 'Unauthorized'],
+      [429, 'Too Many Requests'],
+      [500, 'Internal Server Error'],
+    ])(
+      'getMySubscription throws TypecastAPIError on %i',
+      async (status, statusText) => {
+        mockFetch.mockResolvedValue({
+          ok: false,
+          status,
+          statusText,
+          json: () => Promise.resolve({ detail: `err ${status}` }),
+        });
+
+        await expect(client.getMySubscription()).rejects.toMatchObject({
+          name: 'TypecastAPIError',
+          statusCode: status,
+        });
+      },
+    );
+  });
+
   describe('constructor defaults', () => {
     afterEach(() => {
       vi.unstubAllEnvs();

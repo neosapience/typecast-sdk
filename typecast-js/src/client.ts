@@ -1,4 +1,5 @@
 import { ClientConfig, TTSRequest, TTSResponse, ApiErrorResponse } from './types';
+import { SubscriptionResponse } from './types/Subscription';
 import { VoicesResponse, VoiceV2Response, VoicesV2Filter } from './types/Voices';
 import { TypecastAPIError } from './errors';
 
@@ -149,5 +150,18 @@ export class TypecastClient {
       { headers: this.headers }
     );
     return this.handleResponse<VoiceV2Response>(response);
+  }
+
+  /**
+   * Get the authenticated user's current subscription information.
+   * Returns plan tier, credit usage, and concurrency limits. Use this to
+   * check remaining credits or verify your plan before making TTS calls.
+   */
+  async getMySubscription(): Promise<SubscriptionResponse> {
+    const response = await fetch(
+      this.buildUrl('/v1/users/me/subscription'),
+      { headers: this.headers }
+    );
+    return this.handleResponse<SubscriptionResponse>(response);
   }
 }
