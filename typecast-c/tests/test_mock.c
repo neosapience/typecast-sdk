@@ -91,6 +91,7 @@ typedef struct {
     uint8_t* body;
     size_t body_len;
     int close_immediately; /* Drop connection after accept (network error) */
+    int chunked;           /* Send body using HTTP chunked transfer in 2 chunks */
 } MockResponse;
 
 static struct {
@@ -284,17 +285,59 @@ static void* server_thread(void* arg) {
         }
 
         char header[2048];
-        int hl = snprintf(header, sizeof(header),
-            "HTTP/1.1 %d %s\r\n"
-            "Content-Length: %zu\r\n"
-            "Connection: close\r\n"
-            "%s"
-            "\r\n",
-            resp.status, status_text(resp.status), resp.body_len,
-            resp.headers);
-        send_all(fd, header, (size_t)hl);
-        if (resp.body && resp.body_len > 0) {
-            send_all(fd, resp.body, resp.body_len);
+        int hl;
+        if (resp.chunked) {
+            hl = snprintf(header, sizeof(header),
+                "HTTP/1.1 %d %s\r\n"
+                "Transfer-Encoding: chunked\r\n"
+                "Connection: close\r\n"
+                "%s"
+                "\r\n",
+                resp.status, status_text(resp.status),
+                resp.headers);
+            send_all(fd, header, (size_t)hl);
+            /* Split body into two chunks. We deliberately send each
+             * chunk in its own send() and pause briefly so libcurl
+             * delivers them to WRITEFUNCTION as separate calls. */
+            if (resp.body && resp.body_len > 0) {
+                size_t half = resp.body_len / 2;
+                if (half == 0) half = resp.body_len;
+                size_t rest = resp.body_len - half;
+                char chunk_hdr[32];
+                int chl;
+
+                chl = snprintf(chunk_hdr, sizeof(chunk_hdr), "%zx\r\n", half);
+                send_all(fd, chunk_hdr, (size_t)chl);
+                send_all(fd, resp.body, half);
+                send_all(fd, "\r\n", 2);
+
+                /* Brief delay so the second chunk arrives in a separate
+                 * WRITEFUNCTION callback rather than being coalesced. */
+                usleep(50 * 1000);
+
+                if (rest > 0) {
+                    chl = snprintf(chunk_hdr, sizeof(chunk_hdr), "%zx\r\n", rest);
+                    send_all(fd, chunk_hdr, (size_t)chl);
+                    send_all(fd, resp.body + half, rest);
+                    send_all(fd, "\r\n", 2);
+                }
+                send_all(fd, "0\r\n\r\n", 5);
+            } else {
+                send_all(fd, "0\r\n\r\n", 5);
+            }
+        } else {
+            hl = snprintf(header, sizeof(header),
+                "HTTP/1.1 %d %s\r\n"
+                "Content-Length: %zu\r\n"
+                "Connection: close\r\n"
+                "%s"
+                "\r\n",
+                resp.status, status_text(resp.status), resp.body_len,
+                resp.headers);
+            send_all(fd, header, (size_t)hl);
+            if (resp.body && resp.body_len > 0) {
+                send_all(fd, resp.body, resp.body_len);
+            }
         }
         if (resp.body) free(resp.body);
         close(fd);
@@ -390,6 +433,23 @@ static void mock_enqueue_close(void) {
 
 static void mock_enqueue_text(int status, const char* extra_headers, const char* body) {
     mock_enqueue(status, extra_headers, (const uint8_t*)body, body ? strlen(body) : 0);
+}
+
+static void mock_enqueue_chunked(int status, const uint8_t* body, size_t body_len) {
+    pthread_mutex_lock(&g_server.lock);
+    MockResponse* r = &g_server.queue[g_server.tail];
+    memset(r, 0, sizeof(*r));
+    r->status = status;
+    r->chunked = 1;
+    if (body && body_len > 0) {
+        r->body = (uint8_t*)malloc(body_len);
+        memcpy(r->body, body, body_len);
+        r->body_len = body_len;
+    }
+    g_server.tail = (g_server.tail + 1) % MAX_QUEUED;
+    g_server.count++;
+    pthread_cond_signal(&g_server.cond);
+    pthread_mutex_unlock(&g_server.lock);
 }
 
 /* ============================================
@@ -775,6 +835,307 @@ static void test_tts_curl_network_error(void) {
     ASSERT_NULL(r);
     const TypecastError* e = typecast_client_get_error(c);
     ASSERT_EQ(e->code, TYPECAST_ERROR_NETWORK);
+    typecast_client_destroy(c);
+}
+
+/* ============================================
+ * TTS Streaming
+ * ============================================ */
+
+typedef struct {
+    uint8_t* data;
+    size_t size;
+    size_t capacity;
+    int call_count;
+    int abort_after; /* Abort after Nth call (1-based). 0 = never abort. */
+} StreamSink;
+
+static int stream_sink_cb(const uint8_t* data, size_t len, void* ud) {
+    StreamSink* s = (StreamSink*)ud;
+    s->call_count++;
+    if (s->abort_after > 0 && s->call_count >= s->abort_after) {
+        return 1;
+    }
+    if (s->size + len > s->capacity) {
+        size_t new_cap = s->capacity == 0 ? 4096 : s->capacity * 2;
+        while (new_cap < s->size + len) new_cap *= 2;
+        s->data = (uint8_t*)realloc(s->data, new_cap);
+        s->capacity = new_cap;
+    }
+    memcpy(s->data + s->size, data, len);
+    s->size += len;
+    return 0;
+}
+
+static void test_tts_stream_null_client(void) {
+    TypecastTTSRequestStream req = {0};
+    req.text = "hi"; req.voice_id = "v"; req.model = TYPECAST_MODEL_SSFM_V30;
+    StreamSink s = {0};
+    ASSERT_EQ(typecast_text_to_speech_stream(NULL, &req, stream_sink_cb, &s),
+              TYPECAST_ERROR_INVALID_PARAM);
+}
+
+static void test_tts_stream_null_request(void) {
+    TypecastClient* c = new_client();
+    StreamSink s = {0};
+    ASSERT_EQ(typecast_text_to_speech_stream(c, NULL, stream_sink_cb, &s),
+              TYPECAST_ERROR_INVALID_PARAM);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_INVALID_PARAM);
+    typecast_client_destroy(c);
+}
+
+static void test_tts_stream_null_callback(void) {
+    TypecastClient* c = new_client();
+    TypecastTTSRequestStream req = {0};
+    req.text = "hi"; req.voice_id = "v"; req.model = TYPECAST_MODEL_SSFM_V30;
+    ASSERT_EQ(typecast_text_to_speech_stream(c, &req, NULL, NULL),
+              TYPECAST_ERROR_INVALID_PARAM);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_INVALID_PARAM);
+    typecast_client_destroy(c);
+}
+
+static void test_tts_stream_missing_text(void) {
+    TypecastClient* c = new_client();
+    TypecastTTSRequestStream req = {0};
+    req.voice_id = "v"; req.model = TYPECAST_MODEL_SSFM_V30;
+    StreamSink s = {0};
+    ASSERT_EQ(typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s),
+              TYPECAST_ERROR_INVALID_PARAM);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_INVALID_PARAM);
+    typecast_client_destroy(c);
+}
+
+static void test_tts_stream_missing_voice_id(void) {
+    TypecastClient* c = new_client();
+    TypecastTTSRequestStream req = {0};
+    req.text = "hi"; req.model = TYPECAST_MODEL_SSFM_V30;
+    StreamSink s = {0};
+    ASSERT_EQ(typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s),
+              TYPECAST_ERROR_INVALID_PARAM);
+    typecast_client_destroy(c);
+}
+
+static void test_tts_stream_basic(void) {
+    TypecastClient* c = new_client();
+
+    size_t body_len = 4096;
+    uint8_t* body = (uint8_t*)malloc(body_len);
+    for (size_t i = 0; i < body_len; i++) body[i] = (uint8_t)((i * 7 + 3) & 0xff);
+
+    mock_enqueue(200, NULL, body, body_len);
+
+    TypecastTTSRequestStream req = {0};
+    req.text = "hello stream"; req.voice_id = "tc_xx"; req.model = TYPECAST_MODEL_SSFM_V21;
+
+    StreamSink s = {0};
+    TypecastErrorCode rc = typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s);
+    ASSERT_EQ(rc, TYPECAST_OK);
+    ASSERT_EQ(s.size, body_len);
+    for (size_t i = 0; i < body_len; i++) {
+        ASSERT_EQ(s.data[i], body[i]);
+    }
+
+    /* Verify request properties */
+    ASSERT_STREQ(g_server.last_method, "POST");
+    ASSERT(strstr(g_server.last_path, "/v1/text-to-speech/stream") != NULL);
+    ASSERT(strstr(g_server.last_headers, "X-API-KEY:") != NULL ||
+           strstr(g_server.last_headers, "x-api-key:") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"text\":\"hello stream\"") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"voice_id\":\"tc_xx\"") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"model\":\"ssfm-v21\"") != NULL);
+
+    free(body);
+    free(s.data);
+    typecast_client_destroy(c);
+}
+
+static void test_tts_stream_with_output_mp3(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL, "MP3DATA");
+
+    TypecastOutputStream out = {0};
+    out.audio_pitch = 4;
+    out.audio_tempo = 1.1f;
+    out.audio_format = TYPECAST_AUDIO_FORMAT_MP3;
+
+    TypecastTTSRequestStream req = {0};
+    req.text = "hi"; req.voice_id = "tc_y"; req.model = TYPECAST_MODEL_SSFM_V30;
+    req.language = "kor"; req.output = &out; req.seed = 7;
+
+    StreamSink s = {0};
+    TypecastErrorCode rc = typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s);
+    ASSERT_EQ(rc, TYPECAST_OK);
+    ASSERT_EQ(s.size, 7);
+
+    ASSERT(strstr(g_server.last_body, "\"language\":\"kor\"") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"audio_format\":\"mp3\"") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"audio_pitch\":4") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"seed\":7") != NULL);
+    /* CRITICAL: streaming endpoint must NOT receive volume / target_lufs */
+    ASSERT(strstr(g_server.last_body, "\"volume\"") == NULL);
+    ASSERT(strstr(g_server.last_body, "\"target_lufs\"") == NULL);
+
+    free(s.data);
+    typecast_client_destroy(c);
+}
+
+static void test_tts_stream_prompt_preset(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL, "AUDIO");
+
+    TypecastPrompt p = TYPECAST_PROMPT_DEFAULT();
+    p.emotion_type = TYPECAST_EMOTION_TYPE_PRESET;
+    p.emotion_preset = TYPECAST_EMOTION_HAPPY;
+    p.emotion_intensity = 1.5f;
+
+    TypecastTTSRequestStream req = {0};
+    req.text = "hi"; req.voice_id = "v"; req.model = TYPECAST_MODEL_SSFM_V30;
+    req.prompt = &p;
+
+    StreamSink s = {0};
+    ASSERT_EQ(typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s), TYPECAST_OK);
+    ASSERT(strstr(g_server.last_body, "\"emotion_type\":\"preset\"") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"emotion_preset\":\"happy\"") != NULL);
+    free(s.data);
+    typecast_client_destroy(c);
+}
+
+static void test_tts_stream_prompt_smart(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL, "AUDIO");
+
+    TypecastPrompt p = TYPECAST_PROMPT_DEFAULT();
+    p.emotion_type = TYPECAST_EMOTION_TYPE_SMART;
+    p.previous_text = "Once upon a time";
+    p.next_text = "The end.";
+
+    TypecastTTSRequestStream req = {0};
+    req.text = "hi"; req.voice_id = "v"; req.model = TYPECAST_MODEL_SSFM_V30;
+    req.prompt = &p;
+
+    StreamSink s = {0};
+    ASSERT_EQ(typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s), TYPECAST_OK);
+    ASSERT(strstr(g_server.last_body, "\"emotion_type\":\"smart\"") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"previous_text\":") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"next_text\":") != NULL);
+    free(s.data);
+    typecast_client_destroy(c);
+}
+
+static void test_tts_stream_prompt_smart_no_context(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL, "AUDIO");
+
+    TypecastPrompt p;
+    memset(&p, 0, sizeof(p));
+    p.emotion_type = TYPECAST_EMOTION_TYPE_SMART;
+    p.emotion_preset = TYPECAST_EMOTION_NORMAL;
+    p.emotion_intensity = 1.0f;
+
+    TypecastTTSRequestStream req = {0};
+    req.text = "hi"; req.voice_id = "v"; req.model = TYPECAST_MODEL_SSFM_V30;
+    req.prompt = &p;
+
+    StreamSink s = {0};
+    ASSERT_EQ(typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s), TYPECAST_OK);
+    ASSERT(g_server.last_body_len > 0);
+    {
+        char body[8192];
+        size_t n = g_server.last_body_len < sizeof(body) - 1
+                       ? g_server.last_body_len
+                       : sizeof(body) - 1;
+        memcpy(body, g_server.last_body, n);
+        body[n] = 0;
+        ASSERT(strstr(body, "\"previous_text\"") == NULL);
+        ASSERT(strstr(body, "\"next_text\"") == NULL);
+    }
+    free(s.data);
+    typecast_client_destroy(c);
+}
+
+static void test_tts_stream_prompt_none_basic(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL, "AUDIO");
+
+    TypecastPrompt p = TYPECAST_PROMPT_DEFAULT();
+    /* emotion_type stays NONE -> default branch */
+
+    TypecastTTSRequestStream req = {0};
+    req.text = "hi"; req.voice_id = "v"; req.model = TYPECAST_MODEL_SSFM_V21;
+    req.prompt = &p;
+
+    StreamSink s = {0};
+    ASSERT_EQ(typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s), TYPECAST_OK);
+    ASSERT(strstr(g_server.last_body, "\"emotion_preset\":\"normal\"") != NULL);
+    free(s.data);
+    typecast_client_destroy(c);
+}
+
+static void check_tts_stream_error(int http_status, TypecastErrorCode want) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(http_status, NULL, "{\"detail\":\"err\"}");
+
+    TypecastTTSRequestStream req = {0};
+    req.text = "hi"; req.voice_id = "v"; req.model = TYPECAST_MODEL_SSFM_V30;
+
+    StreamSink s = {0};
+    TypecastErrorCode rc = typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s);
+    ASSERT_EQ(rc, want);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, want);
+    free(s.data);
+    typecast_client_destroy(c);
+}
+
+static void test_tts_stream_400(void) { check_tts_stream_error(400, TYPECAST_ERROR_BAD_REQUEST); }
+static void test_tts_stream_401(void) { check_tts_stream_error(401, TYPECAST_ERROR_UNAUTHORIZED); }
+static void test_tts_stream_402(void) { check_tts_stream_error(402, TYPECAST_ERROR_PAYMENT_REQUIRED); }
+static void test_tts_stream_404(void) { check_tts_stream_error(404, TYPECAST_ERROR_NOT_FOUND); }
+static void test_tts_stream_422(void) { check_tts_stream_error(422, TYPECAST_ERROR_UNPROCESSABLE_ENTITY); }
+static void test_tts_stream_429(void) { check_tts_stream_error(429, TYPECAST_ERROR_RATE_LIMIT); }
+static void test_tts_stream_500(void) { check_tts_stream_error(500, TYPECAST_ERROR_INTERNAL_SERVER); }
+
+static void test_tts_stream_network_error(void) {
+    TypecastClient* c = typecast_client_create_with_host("key", "http://127.0.0.1:1");
+    ASSERT_NOT_NULL(c);
+    TypecastTTSRequestStream req = {0};
+    req.text = "hi"; req.voice_id = "v"; req.model = TYPECAST_MODEL_SSFM_V30;
+    StreamSink s = {0};
+    TypecastErrorCode rc = typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s);
+    ASSERT_EQ(rc, TYPECAST_ERROR_NETWORK);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_NETWORK);
+    typecast_client_destroy(c);
+}
+
+static void test_tts_stream_callback_abort(void) {
+    TypecastClient* c = new_client();
+
+    /* 4 KiB chunked body, sent as two separate HTTP chunks. */
+    size_t body_len = 4096;
+    uint8_t* body = (uint8_t*)malloc(body_len);
+    for (size_t i = 0; i < body_len; i++) body[i] = (uint8_t)(i & 0xff);
+    mock_enqueue_chunked(200, body, body_len);
+    free(body);
+
+    TypecastTTSRequestStream req = {0};
+    req.text = "hi"; req.voice_id = "v"; req.model = TYPECAST_MODEL_SSFM_V30;
+
+    StreamSink s = {0};
+    s.abort_after = 2; /* Abort on the second callback invocation */
+
+    TypecastErrorCode rc = typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s);
+    ASSERT_EQ(rc, TYPECAST_ERROR_NETWORK);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_NETWORK);
+    /* Callback should have been invoked at least twice (once accepted,
+     * once aborted), but never more than that. */
+    ASSERT(s.call_count >= 2);
+
+    free(s.data);
     typecast_client_destroy(c);
 }
 
@@ -1313,6 +1674,28 @@ int main(void) {
     RUN(tts_500);
     RUN(tts_503);
     RUN(tts_curl_network_error);
+
+    /* TTS streaming */
+    RUN(tts_stream_null_client);
+    RUN(tts_stream_null_request);
+    RUN(tts_stream_null_callback);
+    RUN(tts_stream_missing_text);
+    RUN(tts_stream_missing_voice_id);
+    RUN(tts_stream_basic);
+    RUN(tts_stream_with_output_mp3);
+    RUN(tts_stream_prompt_preset);
+    RUN(tts_stream_prompt_smart);
+    RUN(tts_stream_prompt_smart_no_context);
+    RUN(tts_stream_prompt_none_basic);
+    RUN(tts_stream_400);
+    RUN(tts_stream_401);
+    RUN(tts_stream_402);
+    RUN(tts_stream_404);
+    RUN(tts_stream_422);
+    RUN(tts_stream_429);
+    RUN(tts_stream_500);
+    RUN(tts_stream_network_error);
+    RUN(tts_stream_callback_abort);
 
     /* Voices V2 list */
     RUN(voices_full_filter);

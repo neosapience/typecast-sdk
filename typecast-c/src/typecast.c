@@ -628,6 +628,198 @@ TYPECAST_API void typecast_tts_response_free(TypecastTTSResponse* response) {
 }
 
 /* ============================================
+ * Text-to-Speech Streaming Implementation
+ * ============================================ */
+
+typedef struct {
+    typecast_stream_callback_t cb;
+    void* user_data;
+    int aborted;
+} StreamCallbackCtx;
+
+static size_t stream_write_callback(void* contents, size_t size, size_t nmemb, void* userp) {
+    size_t realsize = size * nmemb;
+    StreamCallbackCtx* ctx = (StreamCallbackCtx*)userp;
+
+    if (ctx->cb((const uint8_t*)contents, realsize, ctx->user_data) != 0) {
+        ctx->aborted = 1;
+        /* Returning a value different from realsize signals an error to
+         * libcurl, which will abort the transfer with CURLE_WRITE_ERROR. */
+        return 0;
+    }
+    return realsize;
+}
+
+/* Build the streaming JSON body. Mirrors build_tts_request_json but the
+ * output object intentionally omits volume / target_lufs (rejected by
+ * /v1/text-to-speech/stream). */
+static cJSON* build_tts_stream_request_json(const TypecastTTSRequestStream* request) {
+    cJSON* root = cJSON_CreateObject();
+    if (!root) return NULL;
+
+    cJSON_AddStringToObject(root, "text", request->text);
+    cJSON_AddStringToObject(root, "voice_id", request->voice_id);
+    cJSON_AddStringToObject(root, "model", typecast_model_to_string(request->model));
+
+    if (request->language) {
+        cJSON_AddStringToObject(root, "language", request->language);
+    }
+
+    if (request->prompt) {
+        cJSON* prompt = cJSON_CreateObject();
+        if (prompt) {
+            switch (request->prompt->emotion_type) {
+                case TYPECAST_EMOTION_TYPE_SMART:
+                    cJSON_AddStringToObject(prompt, "emotion_type", "smart");
+                    if (request->prompt->previous_text) {
+                        cJSON_AddStringToObject(prompt, "previous_text", request->prompt->previous_text);
+                    }
+                    if (request->prompt->next_text) {
+                        cJSON_AddStringToObject(prompt, "next_text", request->prompt->next_text);
+                    }
+                    break;
+
+                case TYPECAST_EMOTION_TYPE_PRESET:
+                    cJSON_AddStringToObject(prompt, "emotion_type", "preset");
+                    cJSON_AddStringToObject(prompt, "emotion_preset",
+                        typecast_emotion_to_string(request->prompt->emotion_preset));
+                    cJSON_AddNumberToObject(prompt, "emotion_intensity",
+                        request->prompt->emotion_intensity);
+                    break;
+
+                case TYPECAST_EMOTION_TYPE_NONE:
+                default:
+                    cJSON_AddStringToObject(prompt, "emotion_preset",
+                        typecast_emotion_to_string(request->prompt->emotion_preset));
+                    cJSON_AddNumberToObject(prompt, "emotion_intensity",
+                        request->prompt->emotion_intensity);
+                    break;
+            }
+            cJSON_AddItemToObject(root, "prompt", prompt);
+        }
+    }
+
+    if (request->output) {
+        cJSON* output = cJSON_CreateObject();
+        if (output) {
+            /* NOTE: volume and target_lufs are deliberately omitted - the
+             * streaming endpoint rejects them. */
+            cJSON_AddNumberToObject(output, "audio_pitch", request->output->audio_pitch);
+            cJSON_AddNumberToObject(output, "audio_tempo", request->output->audio_tempo);
+            cJSON_AddStringToObject(output, "audio_format",
+                typecast_audio_format_to_string(request->output->audio_format));
+            cJSON_AddItemToObject(root, "output", output);
+        }
+    }
+
+    if (request->seed != 0) {
+        cJSON_AddNumberToObject(root, "seed", request->seed);
+    }
+
+    return root;
+}
+
+TYPECAST_API TypecastErrorCode typecast_text_to_speech_stream(
+    TypecastClient* client,
+    const TypecastTTSRequestStream* request,
+    typecast_stream_callback_t on_chunk,
+    void* user_data
+) {
+    if (!client || !request || !on_chunk) {
+        if (client) set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Invalid parameters");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+
+    if (!request->text || !request->voice_id) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "text and voice_id are required");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+
+    clear_error(client);
+
+    /* Build URL */
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/text-to-speech/stream", client->host);
+
+    /* Build JSON body */
+    cJSON* json = build_tts_stream_request_json(request);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="cJSON OOM; cannot be triggered in unit tests" */
+    if (!json) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to build JSON");
+        return TYPECAST_ERROR_OUT_OF_MEMORY;
+    }
+    /* LCOV_EXCL_STOP */
+
+    char* json_str = cJSON_PrintUnformatted(json);
+    cJSON_Delete(json);
+
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="cJSON_PrintUnformatted OOM" */
+    if (!json_str) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to serialize JSON");
+        return TYPECAST_ERROR_OUT_OF_MEMORY;
+    }
+    /* LCOV_EXCL_STOP */
+
+    /* Setup CURL */
+    CURL* curl = client->curl;
+    curl_easy_reset(curl);
+
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+    char api_key_header[256];
+    snprintf(api_key_header, sizeof(api_key_header), "X-API-KEY: %s", client->api_key);
+    headers = curl_slist_append(headers, api_key_header);
+
+    StreamCallbackCtx ctx;
+    ctx.cb = on_chunk;
+    ctx.user_data = user_data;
+    ctx.aborted = 0;
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_str);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(json_str));
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, stream_write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ctx);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+
+    /* Perform request */
+    CURLcode res = curl_easy_perform(curl);
+
+    cJSON_free(json_str);
+    curl_slist_free_all(headers);
+
+    if (res != CURLE_OK) {
+        if (ctx.aborted) {
+            set_error(client, TYPECAST_ERROR_NETWORK, "Stream aborted by callback");
+        } else {
+            set_error(client, TYPECAST_ERROR_NETWORK, curl_easy_strerror(res));
+        }
+        return TYPECAST_ERROR_NETWORK;
+    }
+
+    /* Check HTTP status. On non-200 the body went to the user callback,
+     * which is not ideal but matches the streaming model: the SDK has
+     * already started forwarding chunks before the status is known.
+     * For our purposes the body has been consumed; we still need to
+     * surface the proper error code. */
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+    if (http_code != 200) {
+        TypecastErrorCode err_code = http_status_to_error(http_code);
+        set_error(client, err_code, typecast_error_message(err_code));
+        return err_code;
+    }
+
+    return TYPECAST_OK;
+}
+
+/* ============================================
  * Voices API Implementation
  * ============================================ */
 

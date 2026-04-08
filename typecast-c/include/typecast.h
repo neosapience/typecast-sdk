@@ -227,6 +227,34 @@ typedef struct {
     int seed;                /* Optional: Random seed (0 = not set) */
 } TypecastTTSRequest;
 
+/**
+ * Output settings for streaming TTS request.
+ *
+ * The streaming endpoint (/v1/text-to-speech/stream) does NOT accept
+ * `volume` or `target_lufs`, so they are deliberately absent here.
+ */
+typedef struct {
+    int audio_pitch;                    /* -12 to 12, default 0 */
+    float audio_tempo;                  /* 0.5 to 2.0, default 1.0 */
+    TypecastAudioFormat audio_format;   /* wav or mp3, default wav */
+} TypecastOutputStream;
+
+/**
+ * Streaming TTS Request structure (for text-to-speech/stream).
+ *
+ * Mirrors TypecastTTSRequest but uses TypecastOutputStream which omits
+ * the volume / target_lufs fields rejected by the streaming endpoint.
+ */
+typedef struct {
+    const char* text;                /* Required: Text to convert (max 2000 chars) */
+    const char* voice_id;            /* Required: Voice ID (e.g., "tc_xxx") */
+    TypecastModel model;             /* Required: ssfm-v21 or ssfm-v30 */
+    const char* language;            /* Optional: ISO 639-3 code */
+    TypecastPrompt* prompt;          /* Optional: Emotion settings */
+    TypecastOutputStream* output;    /* Optional: Audio output settings (no volume / lufs) */
+    int seed;                        /* Optional: Random seed (0 = not set) */
+} TypecastTTSRequestStream;
+
 /* ============================================
  * TTS Response
  * ============================================ */
@@ -384,6 +412,46 @@ TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
  * @param response Pointer to TTSResponse
  */
 TYPECAST_API void typecast_tts_response_free(TypecastTTSResponse* response);
+
+/**
+ * Streaming TTS chunk callback.
+ *
+ * Invoked once per chunk produced by the server while streaming
+ * audio bytes. Return 0 to continue receiving more chunks; return
+ * any non-zero value to abort the transfer (the request will fail
+ * with TYPECAST_ERROR_NETWORK).
+ *
+ * @param data    Pointer to chunk bytes (not NUL-terminated)
+ * @param len     Number of bytes in this chunk
+ * @param user_data Opaque pointer forwarded from the call site
+ * @return 0 to continue, non-zero to abort
+ */
+typedef int (*typecast_stream_callback_t)(
+    const uint8_t* data,
+    size_t len,
+    void* user_data
+);
+
+/**
+ * Convert text to speech via the streaming endpoint.
+ *
+ * Calls POST /v1/text-to-speech/stream and forwards each chunk of
+ * the response body to `on_chunk` as it arrives. The callback is
+ * invoked one or more times before the function returns.
+ *
+ * @param client    Pointer to TypecastClient (required)
+ * @param request   Streaming TTS request (required)
+ * @param on_chunk  Callback invoked per response chunk (required)
+ * @param user_data Opaque pointer forwarded to the callback
+ * @return TYPECAST_OK on success, otherwise an error code. On error,
+ *         additional details are available via typecast_client_get_error().
+ */
+TYPECAST_API TypecastErrorCode typecast_text_to_speech_stream(
+    TypecastClient* client,
+    const TypecastTTSRequestStream* request,
+    typecast_stream_callback_t on_chunk,
+    void* user_data
+);
 
 /* ============================================
  * Voices API
