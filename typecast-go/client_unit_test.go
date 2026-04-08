@@ -638,6 +638,95 @@ func TestGetVoice_RequestError(t *testing.T) {
 	}
 }
 
+// ---------- GetMySubscription ----------
+
+func TestGetMySubscription_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/users/me/subscription" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET")
+		}
+		if r.Header.Get("X-API-KEY") != "k" {
+			t.Errorf("missing api key header")
+		}
+		json.NewEncoder(w).Encode(SubscriptionResponse{
+			Plan:    PlanTierPlus,
+			Credits: Credits{PlanCredits: 1000, UsedCredits: 250},
+			Limits:  Limits{ConcurrencyLimit: 5},
+		})
+	}))
+	defer srv.Close()
+	c := newTestClient(srv, "k")
+	sub, err := c.GetMySubscription(context.Background())
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if sub.Plan != PlanTierPlus {
+		t.Errorf("expected plus, got %s", sub.Plan)
+	}
+	if sub.Credits.PlanCredits != 1000 || sub.Credits.UsedCredits != 250 {
+		t.Errorf("unexpected credits: %+v", sub.Credits)
+	}
+	if sub.Limits.ConcurrencyLimit != 5 {
+		t.Errorf("unexpected limits: %+v", sub.Limits)
+	}
+}
+
+func TestGetMySubscription_ErrorStatuses(t *testing.T) {
+	cases := []struct {
+		code int
+		pred func(*APIError) bool
+	}{
+		{401, (*APIError).IsUnauthorized},
+		{429, (*APIError).IsRateLimited},
+		{500, (*APIError).IsServerError},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(http.StatusText(tc.code), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.code)
+				json.NewEncoder(w).Encode(ErrorResponse{Detail: "boom"})
+			}))
+			defer srv.Close()
+			c := newTestClient(srv, "k")
+			_, err := c.GetMySubscription(context.Background())
+			var apiErr *APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("expected APIError, got %T", err)
+			}
+			if apiErr.StatusCode != tc.code {
+				t.Errorf("expected status %d, got %d", tc.code, apiErr.StatusCode)
+			}
+			if !tc.pred(apiErr) {
+				t.Errorf("predicate failed for code %d", tc.code)
+			}
+		})
+	}
+}
+
+func TestGetMySubscription_DecodeError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("not json"))
+	}))
+	defer srv.Close()
+	c := newTestClient(srv, "k")
+	_, err := c.GetMySubscription(context.Background())
+	if err == nil {
+		t.Fatal("expected decode error")
+	}
+}
+
+func TestGetMySubscription_RequestError(t *testing.T) {
+	c := NewClient(&ClientConfig{APIKey: "k", BaseURL: "http://[::1]:bad"})
+	_, err := c.GetMySubscription(context.Background())
+	if err == nil {
+		t.Fatal("expected request error")
+	}
+}
+
 // ---------- doRequest body marshal failure ----------
 
 type badBody struct{}

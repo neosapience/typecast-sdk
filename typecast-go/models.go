@@ -221,3 +221,37 @@ type VoicesV2Filter struct {
 type ErrorResponse struct {
 	Detail string `json:"detail"`
 }
+
+// PlanTier represents the subscription plan tier
+type PlanTier string
+
+const (
+	PlanTierFree   PlanTier = "free"
+	PlanTierLite   PlanTier = "lite"
+	PlanTierPlus   PlanTier = "plus"
+	PlanTierCustom PlanTier = "custom"
+)
+
+// Credits represents subscription credit usage
+type Credits struct {
+	// PlanCredits is the total credits provided by the plan
+	PlanCredits int `json:"plan_credits"`
+	// UsedCredits is the number of credits used
+	UsedCredits int `json:"used_credits"`
+}
+
+// Limits represents subscription usage limits
+type Limits struct {
+	// ConcurrencyLimit is the maximum number of concurrent requests
+	ConcurrencyLimit int `json:"concurrency_limit"`
+}
+
+// SubscriptionResponse represents the authenticated user's subscription
+type SubscriptionResponse struct {
+	// Plan is the subscription plan tier
+	Plan PlanTier `json:"plan"`
+	// Credits contains credit usage information
+	Credits Credits `json:"credits"`
+	// Limits contains usage limits
+	Limits Limits `json:"limits"`
+}

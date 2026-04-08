@@ -218,6 +218,26 @@ func (c *Client) GetVoiceV2(ctx context.Context, voiceID string) (*VoiceV2, erro
 	return &voice, nil
 }
 
+// GetMySubscription retrieves the authenticated user's subscription details
+func (c *Client) GetMySubscription(ctx context.Context) (*SubscriptionResponse, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/v1/users/me/subscription", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+
+	var subscription SubscriptionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&subscription); err != nil {
+		return nil, fmt.Errorf("failed to decode subscription response: %w", err)
+	}
+
+	return &subscription, nil
+}
+
 // GetVoices retrieves the list of available voices (V1 API - deprecated)
 // Deprecated: Use GetVoicesV2 for enhanced metadata and filtering options
 func (c *Client) GetVoices(ctx context.Context, model TTSModel) ([]VoiceV1, error) {
