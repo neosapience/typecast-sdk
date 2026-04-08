@@ -1,4 +1,4 @@
-import { ClientConfig, TTSRequest, TTSResponse, ApiErrorResponse } from './types';
+import { ClientConfig, TTSRequest, TTSResponse, TTSRequestStream, ApiErrorResponse } from './types';
 import { SubscriptionResponse } from './types/Subscription';
 import { VoicesResponse, VoiceV2Response, VoicesV2Filter } from './types/Voices';
 import { TypecastAPIError } from './errors';
@@ -95,6 +95,49 @@ export class TypecastClient {
       duration,
       format,
     };
+  }
+
+  /**
+   * Convert text to speech and receive the audio as a chunked binary stream.
+   *
+   * For WAV the first chunk contains a streaming WAV header (with size declared
+   * as 0xFFFFFFFF) followed by PCM data; subsequent chunks are raw PCM. For MP3
+   * each chunk contains independently-decodable MP3 frames.
+   *
+   * @param request - TTS streaming request parameters
+   * @returns A `ReadableStream` of `Uint8Array` chunks containing the audio
+   */
+  async textToSpeechStream(
+    request: TTSRequestStream,
+  ): Promise<ReadableStream<Uint8Array>> {
+    const response = await fetch(this.buildUrl('/v1/text-to-speech/stream'), {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      let errorData: ApiErrorResponse | undefined;
+      try {
+        errorData = (await response.json()) as ApiErrorResponse;
+      } catch {
+        // Response body is not JSON
+      }
+      throw TypecastAPIError.fromResponse(
+        response.status,
+        response.statusText,
+        errorData,
+      );
+    }
+
+    if (!response.body) {
+      throw new TypecastAPIError(
+        'Streaming response body was empty',
+        500,
+      );
+    }
+
+    return response.body;
   }
 
   /**
