@@ -707,17 +707,6 @@ static void test_tts_prompt_smart_no_context(void) {
                        : sizeof(body) - 1;
         memcpy(body, g_server.last_body, n);
         body[n] = 0;
-        if (strstr(body, "\"previous_text\"") != NULL ||
-            strstr(body, "\"next_text\"") != NULL) {
-            printf("DEBUG body_len=%zu n=%zu\n", g_server.last_body_len, n);
-            printf("DEBUG headers=[%s]\n", g_server.last_headers);
-            printf("DEBUG body_hex=[");
-            for (size_t i = 0; i < n; i++) {
-                printf("%02x", (unsigned char)g_server.last_body[i]);
-            }
-            printf("]\n");
-            printf("DEBUG body_str=[%s]\n", body);
-        }
         ASSERT(strstr(body, "\"previous_text\"") == NULL);
         ASSERT(strstr(body, "\"next_text\"") == NULL);
     }
