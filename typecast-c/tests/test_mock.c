@@ -1103,6 +1103,165 @@ static void test_voice_sparse(void) {
 }
 
 /* ============================================
+ * Subscription
+ * ============================================ */
+
+static const char* SUBSCRIPTION_JSON =
+"{"
+  "\"plan\":\"plus\","
+  "\"credits\":{\"plan_credits\":10000,\"used_credits\":2500},"
+  "\"limits\":{\"concurrency_limit\":8}"
+"}";
+
+static void test_subscription_plan_tier_strings(void) {
+    ASSERT_STREQ(typecast_plan_tier_to_string(TYPECAST_PLAN_TIER_FREE), "free");
+    ASSERT_STREQ(typecast_plan_tier_to_string(TYPECAST_PLAN_TIER_LITE), "lite");
+    ASSERT_STREQ(typecast_plan_tier_to_string(TYPECAST_PLAN_TIER_PLUS), "plus");
+    ASSERT_STREQ(typecast_plan_tier_to_string(TYPECAST_PLAN_TIER_CUSTOM), "custom");
+    ASSERT_STREQ(typecast_plan_tier_to_string((TypecastPlanTier)-1), "unknown");
+    ASSERT_STREQ(typecast_plan_tier_to_string((TypecastPlanTier)999), "unknown");
+
+    ASSERT_EQ(typecast_plan_tier_from_string("free"), TYPECAST_PLAN_TIER_FREE);
+    ASSERT_EQ(typecast_plan_tier_from_string("lite"), TYPECAST_PLAN_TIER_LITE);
+    ASSERT_EQ(typecast_plan_tier_from_string("plus"), TYPECAST_PLAN_TIER_PLUS);
+    ASSERT_EQ(typecast_plan_tier_from_string("custom"), TYPECAST_PLAN_TIER_CUSTOM);
+    ASSERT_EQ(typecast_plan_tier_from_string("nope"), -1);
+    ASSERT_EQ(typecast_plan_tier_from_string(NULL), -1);
+}
+
+static void test_subscription_free_null(void) {
+    typecast_subscription_free(NULL);
+}
+
+static void test_subscription_null_client(void) {
+    ASSERT_NULL(typecast_get_my_subscription(NULL));
+}
+
+static void test_subscription_happy(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL, SUBSCRIPTION_JSON);
+
+    TypecastSubscription* s = typecast_get_my_subscription(c);
+    ASSERT_NOT_NULL(s);
+    ASSERT_EQ(s->plan, TYPECAST_PLAN_TIER_PLUS);
+    ASSERT_EQ(s->credits.plan_credits, 10000);
+    ASSERT_EQ(s->credits.used_credits, 2500);
+    ASSERT_EQ(s->limits.concurrency_limit, 8);
+
+    ASSERT_STREQ(g_server.last_method, "GET");
+    ASSERT(strstr(g_server.last_path, "/v1/users/me/subscription") != NULL);
+    ASSERT(strstr(g_server.last_headers, "X-API-KEY:") != NULL ||
+           strstr(g_server.last_headers, "x-api-key:") != NULL);
+
+    typecast_subscription_free(s);
+    typecast_client_destroy(c);
+}
+
+static void test_subscription_plan_free(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL,
+        "{\"plan\":\"free\","
+        "\"credits\":{\"plan_credits\":0,\"used_credits\":0},"
+        "\"limits\":{\"concurrency_limit\":1}}");
+    TypecastSubscription* s = typecast_get_my_subscription(c);
+    ASSERT_NOT_NULL(s);
+    ASSERT_EQ(s->plan, TYPECAST_PLAN_TIER_FREE);
+    ASSERT_EQ(s->limits.concurrency_limit, 1);
+    typecast_subscription_free(s);
+    typecast_client_destroy(c);
+}
+
+static void check_subscription_error(int http_status, TypecastErrorCode want) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(http_status, NULL, "{}");
+    TypecastSubscription* s = typecast_get_my_subscription(c);
+    ASSERT_NULL(s);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_NOT_NULL(e);
+    ASSERT_EQ(e->code, want);
+    typecast_client_destroy(c);
+}
+
+static void test_subscription_401(void) { check_subscription_error(401, TYPECAST_ERROR_UNAUTHORIZED); }
+static void test_subscription_429(void) { check_subscription_error(429, TYPECAST_ERROR_RATE_LIMIT); }
+static void test_subscription_500(void) { check_subscription_error(500, TYPECAST_ERROR_INTERNAL_SERVER); }
+
+static void test_subscription_network_error(void) {
+    TypecastClient* c = typecast_client_create_with_host("key", "http://127.0.0.1:1");
+    ASSERT_NOT_NULL(c);
+    TypecastSubscription* s = typecast_get_my_subscription(c);
+    ASSERT_NULL(s);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_NETWORK);
+    typecast_client_destroy(c);
+}
+
+static void test_subscription_invalid_json(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL, "<<not-json>>");
+    TypecastSubscription* s = typecast_get_my_subscription(c);
+    ASSERT_NULL(s);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_JSON_PARSE);
+    typecast_client_destroy(c);
+}
+
+static void check_subscription_parse_error(const char* body) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL, body);
+    TypecastSubscription* s = typecast_get_my_subscription(c);
+    ASSERT_NULL(s);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_JSON_PARSE);
+    typecast_client_destroy(c);
+}
+
+static void test_subscription_missing_plan(void) {
+    check_subscription_parse_error(
+        "{\"credits\":{\"plan_credits\":1,\"used_credits\":1},"
+        "\"limits\":{\"concurrency_limit\":1}}");
+}
+
+static void test_subscription_unknown_plan(void) {
+    check_subscription_parse_error(
+        "{\"plan\":\"enterprise\","
+        "\"credits\":{\"plan_credits\":1,\"used_credits\":1},"
+        "\"limits\":{\"concurrency_limit\":1}}");
+}
+
+static void test_subscription_missing_credits(void) {
+    check_subscription_parse_error(
+        "{\"plan\":\"lite\",\"limits\":{\"concurrency_limit\":1}}");
+}
+
+static void test_subscription_missing_plan_credits(void) {
+    check_subscription_parse_error(
+        "{\"plan\":\"lite\","
+        "\"credits\":{\"used_credits\":1},"
+        "\"limits\":{\"concurrency_limit\":1}}");
+}
+
+static void test_subscription_missing_used_credits(void) {
+    check_subscription_parse_error(
+        "{\"plan\":\"lite\","
+        "\"credits\":{\"plan_credits\":1},"
+        "\"limits\":{\"concurrency_limit\":1}}");
+}
+
+static void test_subscription_missing_limits(void) {
+    check_subscription_parse_error(
+        "{\"plan\":\"lite\","
+        "\"credits\":{\"plan_credits\":1,\"used_credits\":1}}");
+}
+
+static void test_subscription_missing_concurrency_limit(void) {
+    check_subscription_parse_error(
+        "{\"plan\":\"custom\","
+        "\"credits\":{\"plan_credits\":1,\"used_credits\":1},"
+        "\"limits\":{}}");
+}
+
+/* ============================================
  * Main
  * ============================================ */
 
@@ -1178,6 +1337,25 @@ int main(void) {
     RUN(get_voice_network_error);
     RUN(error_reuse_and_clear);
     RUN(voice_sparse);
+
+    /* Subscription */
+    RUN(subscription_plan_tier_strings);
+    RUN(subscription_free_null);
+    RUN(subscription_null_client);
+    RUN(subscription_happy);
+    RUN(subscription_plan_free);
+    RUN(subscription_401);
+    RUN(subscription_429);
+    RUN(subscription_500);
+    RUN(subscription_network_error);
+    RUN(subscription_invalid_json);
+    RUN(subscription_missing_plan);
+    RUN(subscription_unknown_plan);
+    RUN(subscription_missing_credits);
+    RUN(subscription_missing_plan_credits);
+    RUN(subscription_missing_used_credits);
+    RUN(subscription_missing_limits);
+    RUN(subscription_missing_concurrency_limit);
 
     mock_shutdown();
 

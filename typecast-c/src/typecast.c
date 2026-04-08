@@ -81,6 +81,13 @@ static const char* GENDER_STRINGS[] = {
     "female"
 };
 
+static const char* PLAN_TIER_STRINGS[] = {
+    "free",
+    "lite",
+    "plus",
+    "custom"
+};
+
 static const char* AGE_STRINGS[] = {
     "unknown",
     "child",
@@ -880,6 +887,142 @@ TYPECAST_API void typecast_voice_free(TypecastVoice* voice) {
 }
 
 /* ============================================
+ * Subscription API Implementation
+ * ============================================ */
+
+TYPECAST_API TypecastSubscription* typecast_get_my_subscription(
+    TypecastClient* client
+) {
+    if (!client) return NULL;
+
+    clear_error(client);
+
+    /* Build URL */
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/users/me/subscription", client->host);
+
+    /* Setup response buffer */
+    ResponseBuffer response_buf = {0};
+
+    /* Setup CURL */
+    CURL* curl = client->curl;
+    curl_easy_reset(curl);
+
+    struct curl_slist* headers = NULL;
+    char api_key_header[256];
+    snprintf(api_key_header, sizeof(api_key_header), "X-API-KEY: %s", client->api_key);
+    headers = curl_slist_append(headers, api_key_header);
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_buf);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+
+    /* Perform request */
+    CURLcode res = curl_easy_perform(curl);
+    curl_slist_free_all(headers);
+
+    if (res != CURLE_OK) {
+        set_error(client, TYPECAST_ERROR_NETWORK, curl_easy_strerror(res));
+        if (response_buf.data) free(response_buf.data);
+        return NULL;
+    }
+
+    /* Check HTTP status */
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+    if (http_code != 200) {
+        TypecastErrorCode err_code = http_status_to_error(http_code);
+        set_error(client, err_code, typecast_error_message(err_code));
+        if (response_buf.data) free(response_buf.data);
+        return NULL;
+    }
+
+    /* Parse JSON response */
+    cJSON* json = cJSON_Parse((const char*)response_buf.data);
+    free(response_buf.data);
+
+    if (!json) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Failed to parse response");
+        return NULL;
+    }
+
+    /* plan */
+    cJSON* plan = cJSON_GetObjectItem(json, "plan");
+    if (!cJSON_IsString(plan)) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Missing or invalid 'plan' field");
+        cJSON_Delete(json);
+        return NULL;
+    }
+    int plan_idx = typecast_plan_tier_from_string(plan->valuestring);
+    if (plan_idx < 0) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Unknown plan tier");
+        cJSON_Delete(json);
+        return NULL;
+    }
+
+    /* credits */
+    cJSON* credits = cJSON_GetObjectItem(json, "credits");
+    if (!cJSON_IsObject(credits)) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Missing or invalid 'credits' field");
+        cJSON_Delete(json);
+        return NULL;
+    }
+    cJSON* plan_credits = cJSON_GetObjectItem(credits, "plan_credits");
+    if (!cJSON_IsNumber(plan_credits)) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Missing or invalid 'plan_credits' field");
+        cJSON_Delete(json);
+        return NULL;
+    }
+    cJSON* used_credits = cJSON_GetObjectItem(credits, "used_credits");
+    if (!cJSON_IsNumber(used_credits)) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Missing or invalid 'used_credits' field");
+        cJSON_Delete(json);
+        return NULL;
+    }
+
+    /* limits */
+    cJSON* limits = cJSON_GetObjectItem(json, "limits");
+    if (!cJSON_IsObject(limits)) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Missing or invalid 'limits' field");
+        cJSON_Delete(json);
+        return NULL;
+    }
+    cJSON* concurrency_limit = cJSON_GetObjectItem(limits, "concurrency_limit");
+    if (!cJSON_IsNumber(concurrency_limit)) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Missing or invalid 'concurrency_limit' field");
+        cJSON_Delete(json);
+        return NULL;
+    }
+
+    TypecastSubscription* sub = (TypecastSubscription*)calloc(1, sizeof(TypecastSubscription));
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="calloc OOM; cannot be triggered deterministically" */
+    if (!sub) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate subscription");
+        cJSON_Delete(json);
+        return NULL;
+    }
+    /* LCOV_EXCL_STOP */
+
+    sub->plan = (TypecastPlanTier)plan_idx;
+    sub->credits.plan_credits = (int64_t)plan_credits->valuedouble;
+    sub->credits.used_credits = (int64_t)used_credits->valuedouble;
+    sub->limits.concurrency_limit = (int)concurrency_limit->valuedouble;
+
+    cJSON_Delete(json);
+    return sub;
+}
+
+TYPECAST_API void typecast_subscription_free(TypecastSubscription* subscription) {
+    if (!subscription) return;
+    free(subscription);
+}
+
+/* ============================================
  * Utility Functions Implementation
  * ============================================ */
 
@@ -913,6 +1056,22 @@ TYPECAST_API const char* typecast_audio_format_to_string(TypecastAudioFormat for
         return "wav";
     }
     return AUDIO_FORMAT_STRINGS[format];
+}
+
+TYPECAST_API const char* typecast_plan_tier_to_string(TypecastPlanTier plan) {
+    if (plan < 0 || plan > TYPECAST_PLAN_TIER_CUSTOM) {
+        return "unknown";
+    }
+    return PLAN_TIER_STRINGS[plan];
+}
+
+TYPECAST_API int typecast_plan_tier_from_string(const char* str) {
+    if (!str) return -1;
+    if (strcmp(str, "free") == 0) return TYPECAST_PLAN_TIER_FREE;
+    if (strcmp(str, "lite") == 0) return TYPECAST_PLAN_TIER_LITE;
+    if (strcmp(str, "plus") == 0) return TYPECAST_PLAN_TIER_PLUS;
+    if (strcmp(str, "custom") == 0) return TYPECAST_PLAN_TIER_CUSTOM;
+    return -1;
 }
 
 TYPECAST_API const char* typecast_error_message(TypecastErrorCode code) {

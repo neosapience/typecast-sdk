@@ -286,6 +286,32 @@ typedef struct {
 } TypecastVoicesFilter;
 
 /* ============================================
+ * Subscription
+ * ============================================ */
+
+typedef enum {
+    TYPECAST_PLAN_TIER_FREE,
+    TYPECAST_PLAN_TIER_LITE,
+    TYPECAST_PLAN_TIER_PLUS,
+    TYPECAST_PLAN_TIER_CUSTOM
+} TypecastPlanTier;
+
+typedef struct {
+    int64_t plan_credits;
+    int64_t used_credits;
+} TypecastCredits;
+
+typedef struct {
+    int concurrency_limit;
+} TypecastLimits;
+
+typedef struct {
+    TypecastPlanTier plan;
+    TypecastCredits credits;
+    TypecastLimits limits;
+} TypecastSubscription;
+
+/* ============================================
  * Error Response
  * ============================================ */
 
@@ -402,6 +428,44 @@ TYPECAST_API void typecast_voices_response_free(TypecastVoicesResponse* response
  * @param voice Pointer to Voice
  */
 TYPECAST_API void typecast_voice_free(TypecastVoice* voice);
+
+/* ============================================
+ * Subscription API
+ * ============================================ */
+
+/**
+ * Get the authenticated user's subscription
+ *
+ * @param client Pointer to TypecastClient
+ * @return Pointer to Subscription, or NULL on failure
+ *         (must be freed with typecast_subscription_free)
+ */
+TYPECAST_API TypecastSubscription* typecast_get_my_subscription(
+    TypecastClient* client
+);
+
+/**
+ * Free subscription
+ *
+ * @param subscription Pointer to Subscription
+ */
+TYPECAST_API void typecast_subscription_free(TypecastSubscription* subscription);
+
+/**
+ * Get plan tier string representation
+ *
+ * @param plan Plan tier enum value
+ * @return Plan string (e.g., "free")
+ */
+TYPECAST_API const char* typecast_plan_tier_to_string(TypecastPlanTier plan);
+
+/**
+ * Parse plan tier from string
+ *
+ * @param str Plan tier string (e.g., "free")
+ * @return Plan tier enum value, or -1 on invalid input
+ */
+TYPECAST_API int typecast_plan_tier_from_string(const char* str);
 
 /* ============================================
  * Utility Functions
