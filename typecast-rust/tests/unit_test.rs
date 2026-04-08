@@ -8,9 +8,10 @@
 use mockito::Server;
 use std::time::Duration;
 use typecast_rust::{
-    Age, AudioFormat, ClientConfig, EmotionPreset, ErrorResponse, Gender, ModelInfo, Output,
-    PresetPrompt, Prompt, SmartPrompt, TTSModel, TTSPrompt, TTSRequest, TypecastClient,
-    TypecastError, UseCase, VoiceV2, VoicesV2Filter, DEFAULT_BASE_URL, DEFAULT_TIMEOUT_SECS,
+    Age, AudioFormat, ClientConfig, Credits, EmotionPreset, ErrorResponse, Gender, Limits,
+    ModelInfo, Output, PlanTier, PresetPrompt, Prompt, SmartPrompt, SubscriptionResponse, TTSModel,
+    TTSPrompt, TTSRequest, TypecastClient, TypecastError, UseCase, VoiceV2, VoicesV2Filter,
+    DEFAULT_BASE_URL, DEFAULT_TIMEOUT_SECS,
 };
 
 // ---------------------------------------------------------------------------
@@ -832,6 +833,142 @@ async fn get_voice_v2_propagates_invalid_json_body() {
     let err = client.get_voice_v2("tc_a").await.unwrap_err();
     // reqwest converts JSON parse failures into reqwest::Error.
     assert!(matches!(err, TypecastError::HttpError(_)));
+}
+
+// ---------------------------------------------------------------------------
+// client.rs - get_my_subscription
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn get_my_subscription_returns_subscription() {
+    let mut server = Server::new_async().await;
+    let body = r#"{
+        "plan":"plus",
+        "credits":{"plan_credits":10000,"used_credits":2500},
+        "limits":{"concurrency_limit":8}
+    }"#;
+    let _m = server
+        .mock("GET", "/v1/users/me/subscription")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let sub = client.get_my_subscription().await.unwrap();
+    assert_eq!(sub.plan, PlanTier::Plus);
+    assert_eq!(sub.credits.plan_credits, 10000);
+    assert_eq!(sub.credits.used_credits, 2500);
+    assert_eq!(sub.limits.concurrency_limit, 8);
+
+    // Cover Debug/Clone/PartialEq for the new types.
+    let _ = format!("{sub:?}");
+    let cloned = sub.clone();
+    assert_eq!(sub, cloned);
+}
+
+#[tokio::test]
+async fn get_my_subscription_propagates_unauthorized() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/v1/users/me/subscription")
+        .with_status(401)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"detail":"bad key"}"#)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let err = client.get_my_subscription().await.unwrap_err();
+    assert!(err.is_unauthorized());
+}
+
+#[tokio::test]
+async fn get_my_subscription_propagates_rate_limited() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/v1/users/me/subscription")
+        .with_status(429)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"detail":"slow down"}"#)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let err = client.get_my_subscription().await.unwrap_err();
+    assert!(err.is_rate_limited());
+}
+
+#[tokio::test]
+async fn get_my_subscription_propagates_server_error() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/v1/users/me/subscription")
+        .with_status(500)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"detail":"boom"}"#)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let err = client.get_my_subscription().await.unwrap_err();
+    assert!(err.is_server_error());
+}
+
+#[tokio::test]
+async fn get_my_subscription_propagates_invalid_json_body() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/v1/users/me/subscription")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body("not json at all")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let err = client.get_my_subscription().await.unwrap_err();
+    assert!(matches!(err, TypecastError::HttpError(_)));
+}
+
+#[tokio::test]
+async fn get_my_subscription_send_error_when_connection_refused() {
+    let config = ClientConfig::new("k")
+        .base_url(dead_base_url())
+        .timeout(Duration::from_secs(2));
+    let client = TypecastClient::new(config).unwrap();
+    let err = client.get_my_subscription().await.unwrap_err();
+    assert!(matches!(err, TypecastError::HttpError(_)));
+}
+
+#[test]
+fn plan_tier_serializes_with_lowercase() {
+    assert_eq!(serde_json::to_string(&PlanTier::Free).unwrap(), "\"free\"");
+    assert_eq!(serde_json::to_string(&PlanTier::Lite).unwrap(), "\"lite\"");
+    assert_eq!(serde_json::to_string(&PlanTier::Plus).unwrap(), "\"plus\"");
+    assert_eq!(
+        serde_json::to_string(&PlanTier::Custom).unwrap(),
+        "\"custom\""
+    );
+
+    // Round-trip through Credits/Limits to cover their derives.
+    let credits = Credits {
+        plan_credits: 1,
+        used_credits: 0,
+    };
+    let limits = Limits {
+        concurrency_limit: 2,
+    };
+    let sub = SubscriptionResponse {
+        plan: PlanTier::Free,
+        credits: credits.clone(),
+        limits: limits.clone(),
+    };
+    let json = serde_json::to_string(&sub).unwrap();
+    let parsed: SubscriptionResponse = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed, sub);
+    let _ = format!("{credits:?}{limits:?}");
 }
 
 #[tokio::test]

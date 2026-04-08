@@ -459,6 +459,47 @@ impl VoicesV2Filter {
     }
 }
 
+/// Subscription plan tier
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PlanTier {
+    /// Free plan
+    Free,
+    /// Lite paid plan
+    Lite,
+    /// Plus paid plan
+    Plus,
+    /// Custom enterprise plan
+    Custom,
+}
+
+/// Credit usage information
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Credits {
+    /// Total credits provided by the plan
+    pub plan_credits: i64,
+    /// Number of credits used
+    pub used_credits: i64,
+}
+
+/// Usage limit information
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Limits {
+    /// Maximum number of concurrent requests allowed
+    pub concurrency_limit: i64,
+}
+
+/// Response from `GET /v1/users/me/subscription`
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubscriptionResponse {
+    /// Current subscription plan tier
+    pub plan: PlanTier,
+    /// Credit usage information
+    pub credits: Credits,
+    /// Usage limit information
+    pub limits: Limits,
+}
+
 /// API error response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorResponse {

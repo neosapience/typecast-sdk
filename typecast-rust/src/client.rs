@@ -4,8 +4,8 @@
 
 use crate::errors::{Result, TypecastError};
 use crate::models::{
-    Age, AudioFormat, ErrorResponse, Gender, TTSModel, TTSRequest, TTSResponse, UseCase, VoiceV2,
-    VoicesV2Filter,
+    Age, AudioFormat, ErrorResponse, Gender, SubscriptionResponse, TTSModel, TTSRequest,
+    TTSResponse, UseCase, VoiceV2, VoicesV2Filter,
 };
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use std::env;
@@ -361,6 +361,45 @@ impl TypecastClient {
 
         let voice: VoiceV2 = response.json().await?;
         Ok(voice)
+    }
+
+    /// Get the authenticated user's subscription
+    ///
+    /// # Returns
+    ///
+    /// Returns a `SubscriptionResponse` containing the user's plan, credits,
+    /// and usage limits.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use typecast_rust::TypecastClient;
+    ///
+    /// # async fn example() -> typecast_rust::Result<()> {
+    /// let client = TypecastClient::from_env()?;
+    /// let subscription = client.get_my_subscription().await?;
+    /// println!("Plan: {:?}", subscription.plan);
+    /// println!(
+    ///     "Credits: {}/{}",
+    ///     subscription.credits.used_credits, subscription.credits.plan_credits
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn get_my_subscription(&self) -> Result<SubscriptionResponse> {
+        let url = self.build_url("/v1/users/me/subscription", None);
+
+        let response = self.client
+            .get(&url)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+
+        let subscription: SubscriptionResponse = response.json().await?;
+        Ok(subscription)
     }
 }
 
