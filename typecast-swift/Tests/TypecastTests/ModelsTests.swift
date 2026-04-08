@@ -166,6 +166,67 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(decoded.audioFormat, .mp3)
     }
 
+    // MARK: - Streaming models
+
+    func testOutputStreamRoundTripFull() throws {
+        let output = Typecast.OutputStream(audioPitch: 2, audioTempo: 1.25, audioFormat: .mp3)
+        let data = try JSONEncoder().encode(output)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        // Streaming output must NOT include volume or target_lufs.
+        XCTAssertNil(json?["volume"])
+        XCTAssertNil(json?["target_lufs"])
+        XCTAssertEqual(json?["audio_pitch"] as? Int, 2)
+        XCTAssertEqual(json?["audio_tempo"] as? Double, 1.25)
+        XCTAssertEqual(json?["audio_format"] as? String, "mp3")
+
+        let decoded = try JSONDecoder().decode(Typecast.OutputStream.self, from: data)
+        XCTAssertEqual(decoded.audioPitch, 2)
+        XCTAssertEqual(decoded.audioTempo, 1.25)
+        XCTAssertEqual(decoded.audioFormat, .mp3)
+    }
+
+    func testOutputStreamDefaultsAreNil() {
+        let output = Typecast.OutputStream()
+        XCTAssertNil(output.audioPitch)
+        XCTAssertNil(output.audioTempo)
+        XCTAssertNil(output.audioFormat)
+    }
+
+    func testTTSRequestStreamFullRoundTrip() throws {
+        let request = TTSRequestStream(
+            voiceId: "tc_s",
+            text: "stream this",
+            model: .ssfmV30,
+            language: .korean,
+            prompt: .smart(SmartPrompt(previousText: "p", nextText: "n")),
+            output: Typecast.OutputStream(audioPitch: -1, audioTempo: 0.9, audioFormat: .wav),
+            seed: 99
+        )
+        let data = try JSONEncoder().encode(request)
+        let decoded = try JSONDecoder().decode(TTSRequestStream.self, from: data)
+        XCTAssertEqual(decoded.voiceId, "tc_s")
+        XCTAssertEqual(decoded.text, "stream this")
+        XCTAssertEqual(decoded.model, .ssfmV30)
+        XCTAssertEqual(decoded.language, .korean)
+        XCTAssertEqual(decoded.seed, 99)
+        XCTAssertEqual(decoded.output?.audioPitch, -1)
+        XCTAssertEqual(decoded.output?.audioTempo, 0.9)
+        XCTAssertEqual(decoded.output?.audioFormat, .wav)
+        guard case .smart(let smart) = decoded.prompt else {
+            XCTFail("expected smart prompt"); return
+        }
+        XCTAssertEqual(smart.previousText, "p")
+        XCTAssertEqual(smart.nextText, "n")
+    }
+
+    func testTTSRequestStreamMinimalDefaults() {
+        let request = TTSRequestStream(voiceId: "tc_s", text: "hi", model: .ssfmV21)
+        XCTAssertNil(request.language)
+        XCTAssertNil(request.prompt)
+        XCTAssertNil(request.output)
+        XCTAssertNil(request.seed)
+    }
+
     // MARK: - TTSRequest / TTSResponse
 
     func testTTSRequestFullRoundTrip() throws {
