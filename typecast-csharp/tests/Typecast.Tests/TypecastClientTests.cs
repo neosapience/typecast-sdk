@@ -756,6 +756,175 @@ public class TypecastClientTests : IDisposable
         await Assert.ThrowsAsync<InternalServerException>(() => _client.GetMySubscriptionAsync());
     }
 
+    // ----- Streaming TTS -----
+
+    [Fact]
+    public async Task TextToSpeechStreamAsync_WithNullRequest_ShouldThrow()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(() => _client.TextToSpeechStreamAsync(null!));
+    }
+
+    [Fact]
+    public async Task TextToSpeechStreamAsync_WithValidRequest_ShouldStreamBytes()
+    {
+        var audioData = new byte[] { 9, 8, 7, 6, 5, 4, 3, 2, 1 };
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(audioData)
+        };
+        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+
+        HttpRequestMessage? capturedRequest = null;
+        string? capturedBody = null;
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) =>
+            {
+                capturedRequest = req;
+                capturedBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            })
+            .ReturnsAsync(response);
+
+        var request = new TTSRequestStream("Streaming hello", "voice_stream", TTSModel.SsfmV30)
+        {
+            Language = LanguageCode.English,
+            Prompt = new Prompt { EmotionPreset = EmotionPreset.Happy, EmotionIntensity = 1.2 },
+            Output = new OutputStream(audioPitch: 2, audioTempo: 1.1, audioFormat: AudioFormat.Wav),
+            Seed = 7,
+        };
+
+        using (var stream = await _client.TextToSpeechStreamAsync(request))
+        {
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.ToArray().Should().BeEquivalentTo(audioData);
+        }
+
+        capturedRequest.Should().NotBeNull();
+        capturedRequest!.Method.Should().Be(HttpMethod.Post);
+        capturedRequest.RequestUri!.AbsolutePath.Should().Be("/v1/text-to-speech/stream");
+        capturedRequest.Headers.Should().Contain(h => h.Key == "X-API-KEY" && h.Value.Contains("test-api-key"));
+
+        capturedBody.Should().NotBeNull();
+        capturedBody!.Should().Contain("\"text\":\"Streaming hello\"");
+        capturedBody.Should().Contain("\"voice_id\":\"voice_stream\"");
+        capturedBody.Should().Contain("\"language\":\"eng\"");
+        capturedBody.Should().Contain("\"audio_pitch\":2");
+        capturedBody.Should().Contain("\"audio_tempo\":1.1");
+        capturedBody.Should().Contain("\"audio_format\":\"wav\"");
+        capturedBody.Should().Contain("\"seed\":7");
+        capturedBody.Should().NotContain("\"volume\"");
+        capturedBody.Should().NotContain("\"target_lufs\"");
+    }
+
+    [Fact]
+    public async Task TextToSpeechStreamAsync_WithMinimalRequest_ShouldStream()
+    {
+        var audioData = new byte[] { 1, 2, 3 };
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(audioData)
+        };
+        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        var request = new TTSRequestStream
+        {
+            Text = "Hi",
+            VoiceId = "v1",
+            Model = TTSModel.SsfmV21,
+        };
+
+        using var stream = await _client.TextToSpeechStreamAsync(request);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+        ms.ToArray().Should().BeEquivalentTo(audioData);
+    }
+
+    [Fact]
+    public async Task TextToSpeechStreamAsync_WithEmptyOutput_ShouldOmitOutputKey()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(new byte[] { 1 })
+        };
+        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+
+        string? capturedBody = null;
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) =>
+            {
+                capturedBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            })
+            .ReturnsAsync(response);
+
+        // OutputStream with all properties null -> outputDict empty -> no "output" key
+        var request = new TTSRequestStream("Hi", "v1", TTSModel.SsfmV21)
+        {
+            Output = new OutputStream { AudioPitch = null, AudioTempo = null, AudioFormat = null },
+        };
+
+        using var stream = await _client.TextToSpeechStreamAsync(request);
+        using var ms = new MemoryStream();
+        await stream.CopyToAsync(ms);
+
+        capturedBody.Should().NotBeNull();
+        capturedBody!.Should().NotContain("\"output\"");
+    }
+
+    [Theory]
+    [InlineData(400, typeof(BadRequestException))]
+    [InlineData(401, typeof(UnauthorizedException))]
+    [InlineData(402, typeof(PaymentRequiredException))]
+    [InlineData(404, typeof(NotFoundException))]
+    [InlineData(422, typeof(UnprocessableEntityException))]
+    [InlineData(429, typeof(RateLimitException))]
+    [InlineData(500, typeof(InternalServerException))]
+    public async Task TextToSpeechStreamAsync_WithErrorStatus_ShouldThrowCorrectException(int statusCode, Type expectedExceptionType)
+    {
+        var response = new HttpResponseMessage((HttpStatusCode)statusCode)
+        {
+            Content = new StringContent("Error message")
+        };
+
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        var request = new TTSRequestStream("Hello", "v1", TTSModel.SsfmV30);
+
+        try
+        {
+            await _client.TextToSpeechStreamAsync(request);
+            Assert.Fail("Expected exception was not thrown");
+        }
+        catch (TypecastException ex)
+        {
+            ex.Should().BeOfType(expectedExceptionType);
+            ex.StatusCode.Should().Be(statusCode);
+        }
+    }
+
     [Fact]
     public async Task TextToSpeechAsync_WithMinimalRequest_NoPromptNoOutput()
     {
