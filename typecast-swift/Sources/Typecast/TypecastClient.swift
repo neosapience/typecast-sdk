@@ -134,6 +134,18 @@ public final class TypecastClient: Sendable {
         return try handleResponse(data: data, response: response)
     }
     
+    // MARK: - Subscription
+
+    /// Get the authenticated user's subscription
+    /// - Returns: SubscriptionResponse containing plan, credits, and limits
+    public func getMySubscription() async throws -> SubscriptionResponse {
+        let url = try buildURL(path: "/v1/users/me/subscription")
+        let request = createRequest(url: url)
+
+        let (data, response) = try await session.data(for: request)
+        return try handleResponse(data: data, response: response)
+    }
+
     // MARK: - Deprecated V1 API
     
     /// Get available voices (V1 API)
