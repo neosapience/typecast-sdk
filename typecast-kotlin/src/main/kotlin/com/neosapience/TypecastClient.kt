@@ -216,6 +216,25 @@ class TypecastClient private constructor(
         return executeRequest(httpRequest)
     }
 
+    /**
+     * Gets the authenticated user's subscription information.
+     *
+     * @return the user's current subscription, including plan, credits, and limits
+     * @throws TypecastException if the API call fails
+     */
+    fun getMySubscription(): SubscriptionResponse {
+        val url = "$baseUrl/v1/users/me/subscription"
+
+        val httpRequest = Request.Builder()
+            .url(url)
+            .addHeader(API_KEY_HEADER, apiKey)
+            .addHeader("Content-Type", "application/json")
+            .get()
+            .build()
+
+        return executeRequest(httpRequest)
+    }
+
     private inline fun <reified T> executeRequest(request: Request): T {
         httpClient.newCall(request).execute().use { response ->
             val responseBody = response.body?.string() ?: ""
