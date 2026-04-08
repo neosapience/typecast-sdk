@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Iterator, Optional
 
 import requests
 
@@ -13,7 +13,15 @@ from .exceptions import (
     UnauthorizedError,
     UnprocessableEntityError,
 )
-from .models import TTSRequest, TTSResponse, VoicesResponse, VoiceV2Response, VoicesV2Filter
+from .models import (
+    SubscriptionResponse,
+    TTSRequest,
+    TTSRequestStream,
+    TTSResponse,
+    VoicesResponse,
+    VoicesV2Filter,
+    VoiceV2Response,
+)
 
 
 class Typecast:
@@ -104,6 +112,52 @@ class Typecast:
             format=response.headers.get("Content-Type", "audio/wav").split("/")[-1],
         )
 
+    def text_to_speech_stream(
+        self, request: TTSRequestStream, chunk_size: int = 8192
+    ) -> Iterator[bytes]:
+        """Stream synthesized audio from `POST /v1/text-to-speech/stream`.
+
+        Yields raw audio chunks as the server produces them. For WAV the
+        first chunk contains the WAV header (declared with size 0xFFFFFFFF
+        for streaming) followed by PCM data; subsequent chunks are PCM only.
+        For MP3 each chunk contains independently-decodable MP3 frames.
+
+        The HTTP response is held open until the iterator is exhausted or
+        garbage-collected, so callers should consume the iterator promptly
+        (e.g. inside a `for` loop or by writing chunks to disk).
+
+        Args:
+            request: Streaming TTS request. Uses `OutputStream`, which omits
+                `volume` and `target_lufs` (not supported by the streaming
+                endpoint).
+            chunk_size: Maximum bytes returned per yielded chunk.
+
+        Yields:
+            Audio chunk bytes in the order produced by the server.
+
+        Raises:
+            BadRequestError, UnauthorizedError, PaymentRequiredError,
+            NotFoundError, UnprocessableEntityError, RateLimitError,
+            InternalServerError, TypecastError: depending on response status.
+        """
+        endpoint = "/v1/text-to-speech/stream"
+        response = self.session.post(
+            f"{self.host}{endpoint}",
+            json=request.model_dump(exclude_none=True),
+            stream=True,
+        )
+        if response.status_code != 200:
+            error_text = response.text
+            response.close()
+            self._handle_error(response.status_code, error_text)
+
+        try:
+            for chunk in response.iter_content(chunk_size=chunk_size):
+                if chunk:
+                    yield chunk
+        finally:
+            response.close()
+
     def voices(self, model: Optional[str] = None) -> list[VoicesResponse]:
         """Get available voices (V1 API).
 
@@ -185,6 +239,26 @@ class Typecast:
             self._handle_error(response.status_code, response.text)
 
         return [VoiceV2Response.model_validate(item) for item in response.json()]
+
+    def get_my_subscription(self) -> SubscriptionResponse:
+        """Get the authenticated user's current subscription.
+
+        Returns plan tier, credit usage, and concurrency limits. Use this to
+        check remaining credits or verify your plan before making TTS calls.
+
+        Returns:
+            SubscriptionResponse with plan, credits, and limits.
+
+        Raises:
+            UnauthorizedError: If the API key is invalid.
+            RateLimitError: If the rate limit was exceeded.
+            InternalServerError: On server-side failures.
+        """
+        endpoint = "/v1/users/me/subscription"
+        response = self.session.get(f"{self.host}{endpoint}")
+        if response.status_code != 200:
+            self._handle_error(response.status_code, response.text)
+        return SubscriptionResponse.model_validate(response.json())
 
     def voice_v2(self, voice_id: str) -> VoiceV2Response:
         """Get a specific voice by ID with enhanced metadata (V2 API)

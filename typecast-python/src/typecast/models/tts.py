@@ -174,3 +174,41 @@ class TTSResponse(BaseModel):
     audio_data: bytes
     duration: float
     format: str = "wav"
+
+
+class OutputStream(BaseModel):
+    """Audio output settings for streaming mode.
+
+    Streaming mode does not support `volume` or `target_lufs` because the
+    server has to commit each chunk before the full waveform is known.
+    Passing either field raises a validation error so misuse fails fast.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    audio_pitch: Optional[int] = Field(default=0, ge=-12, le=12)
+    audio_tempo: Optional[float] = Field(default=1.0, ge=0.5, le=2.0)
+    audio_format: Optional[str] = Field(
+        default="wav", description="Audio format", examples=["wav", "mp3"]
+    )
+
+
+class TTSRequestStream(BaseModel):
+    """Request body for `POST /v1/text-to-speech/stream`.
+
+    Mirrors `TTSRequest` but uses `OutputStream` (no volume / target_lufs).
+    """
+
+    model_config = ConfigDict(json_schema_extra={"exclude_none": True})
+
+    voice_id: str = Field(
+        description="Voice ID", examples=["tc_62a8975e695ad26f7fb514d1"]
+    )
+    text: str = Field(description="Text", examples=["Hello. How are you?"])
+    model: TTSModel = Field(description="Voice model name", examples=["ssfm-v21"])
+    language: Optional[Union[LanguageCode, str]] = Field(
+        None, description="Language code (ISO 639-3)", examples=["eng"]
+    )
+    prompt: Optional[TTSPrompt] = None
+    output: Optional[OutputStream] = None
+    seed: Optional[int] = None

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import AsyncIterator, Optional
 
 import aiohttp
 
@@ -13,7 +13,15 @@ from .exceptions import (
     UnauthorizedError,
     UnprocessableEntityError,
 )
-from .models import TTSRequest, TTSResponse, VoicesResponse, VoiceV2Response, VoicesV2Filter
+from .models import (
+    SubscriptionResponse,
+    TTSRequest,
+    TTSRequestStream,
+    TTSResponse,
+    VoicesResponse,
+    VoicesV2Filter,
+    VoiceV2Response,
+)
 
 
 class AsyncTypecast:
@@ -117,6 +125,44 @@ class AsyncTypecast:
                 format=response.headers.get("Content-Type", "audio/wav").split("/")[-1],
             )
 
+    async def text_to_speech_stream(
+        self, request: TTSRequestStream, chunk_size: int = 8192
+    ) -> AsyncIterator[bytes]:
+        """Stream synthesized audio from `POST /v1/text-to-speech/stream`.
+
+        Async generator that yields audio chunks as the server emits them.
+        For WAV the first chunk contains the WAV header (declared with size
+        0xFFFFFFFF for streaming) followed by PCM data; subsequent chunks are
+        PCM only. For MP3 each chunk contains independently-decodable frames.
+
+        Args:
+            request: Streaming TTS request. Uses `OutputStream`, which omits
+                `volume` and `target_lufs` (not supported by the streaming
+                endpoint).
+            chunk_size: Maximum bytes returned per yielded chunk.
+
+        Yields:
+            Audio chunk bytes in the order produced by the server.
+
+        Raises:
+            TypecastError: If the client session is not initialized.
+            BadRequestError, UnauthorizedError, PaymentRequiredError,
+            NotFoundError, UnprocessableEntityError, RateLimitError,
+            InternalServerError, TypecastError: depending on response status.
+        """
+        if not self.session:
+            raise TypecastError("Client session not initialized. Use async with.")
+        endpoint = "/v1/text-to-speech/stream"
+        async with self.session.post(
+            f"{self.host}{endpoint}", json=request.model_dump(exclude_none=True)
+        ) as response:
+            if response.status != 200:
+                error_text = await response.text()
+                self._handle_error(response.status, error_text)
+
+            async for chunk in response.content.iter_chunked(chunk_size):
+                yield chunk
+
     async def voices(self, model: Optional[str] = None) -> list[VoicesResponse]:
         """Get available voices (V1 API) asynchronously.
 
@@ -211,6 +257,31 @@ class AsyncTypecast:
 
             data = await response.json()
             return [VoiceV2Response.model_validate(item) for item in data]
+
+    async def get_my_subscription(self) -> SubscriptionResponse:
+        """Get the authenticated user's current subscription asynchronously.
+
+        Returns plan tier, credit usage, and concurrency limits. Use this to
+        check remaining credits or verify your plan before making TTS calls.
+
+        Returns:
+            SubscriptionResponse with plan, credits, and limits.
+
+        Raises:
+            TypecastError: If the client session is not initialized.
+            UnauthorizedError: If the API key is invalid.
+            RateLimitError: If the rate limit was exceeded.
+            InternalServerError: On server-side failures.
+        """
+        if not self.session:
+            raise TypecastError("Client session not initialized. Use async with.")
+        endpoint = "/v1/users/me/subscription"
+        async with self.session.get(f"{self.host}{endpoint}") as response:
+            if response.status != 200:
+                error_text = await response.text()
+                self._handle_error(response.status, error_text)
+            data = await response.json()
+            return SubscriptionResponse.model_validate(data)
 
     async def voice_v2(self, voice_id: str) -> VoiceV2Response:
         """Get a specific voice by ID with enhanced metadata (V2 API)

@@ -14,12 +14,13 @@ def test_imports():
             Error,
             LanguageCode,
             Output,
+            OutputStream,
             Prompt,
             Typecast,
             TTSRequest,
+            TTSRequestStream,
             TTSResponse,
             VoicesResponse,
-            WebSocketMessage,
         )
 
         print("✓ All imports successful")
