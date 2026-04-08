@@ -460,6 +460,38 @@ public class TypecastClient {
         }
     }
 
+    /**
+     * Gets the authenticated user's subscription information.
+     *
+     * <p>Calls {@code GET /v1/users/me/subscription} and returns the current
+     * plan tier, credit usage, and usage limits.</p>
+     *
+     * @return the subscription information
+     * @throws TypecastException if the API call fails
+     */
+    public SubscriptionResponse getMySubscription() {
+        String url = baseUrl + "/v1/users/me/subscription";
+
+        Request httpRequest = new Request.Builder()
+                .url(url)
+                .addHeader(API_KEY_HEADER, apiKey)
+                .addHeader("Content-Type", CONTENT_TYPE_JSON)
+                .get()
+                .build();
+
+        try (Response response = httpClient.newCall(httpRequest).execute()) {
+            String responseBody = response.body().string();
+
+            if (!response.isSuccessful()) {
+                throw createException(response.code(), responseBody);
+            }
+
+            return gson.fromJson(responseBody, SubscriptionResponse.class);
+        } catch (IOException e) {
+            throw new TypecastException("Failed to make API request", e);
+        }
+    }
+
     private TypecastException createException(int statusCode, String responseBody) {
         String message = extractErrorMessage(responseBody);
 

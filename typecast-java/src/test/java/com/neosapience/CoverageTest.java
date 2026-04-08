@@ -636,6 +636,12 @@ class CoverageTest {
     }
 
     @Test
+    void getMySubscription_ioException() throws IOException {
+        mockServer.shutdown();
+        assertThrows(TypecastException.class, () -> client.getMySubscription());
+    }
+
+    @Test
     void getVoiceV2_errorBranch() {
         mockServer.enqueue(new MockResponse().setResponseCode(401).setBody("{\"detail\":\"x\"}"));
         assertThrows(UnauthorizedException.class, () -> client.getVoiceV2("tc"));
@@ -927,6 +933,57 @@ class CoverageTest {
 
         TTSResponse r2 = new TTSResponse(null, 0, "wav");
         assertEquals(0, r2.getSize());
+    }
+
+    // ==================== Subscription models ====================
+
+    @Test
+    void planTier_conversion() {
+        for (PlanTier t : PlanTier.values()) {
+            assertEquals(t, PlanTier.fromValue(t.getValue()));
+            assertEquals(t, PlanTier.fromValue(t.getValue().toUpperCase()));
+            assertEquals(t.getValue(), t.toString());
+        }
+        assertNull(PlanTier.fromValue(null));
+        assertThrows(IllegalArgumentException.class, () -> PlanTier.fromValue("???"));
+    }
+
+    @Test
+    void credits_gettersSetters() {
+        Credits c = new Credits();
+        c.setPlanCredits(100L);
+        c.setUsedCredits(25L);
+        assertEquals(100L, c.getPlanCredits());
+        assertEquals(25L, c.getUsedCredits());
+        assertNotNull(c.toString());
+        Credits c2 = new Credits(50L, 10L);
+        assertEquals(50L, c2.getPlanCredits());
+        assertEquals(10L, c2.getUsedCredits());
+    }
+
+    @Test
+    void limits_gettersSetters() {
+        Limits l = new Limits();
+        l.setConcurrencyLimit(7L);
+        assertEquals(7L, l.getConcurrencyLimit());
+        assertNotNull(l.toString());
+        Limits l2 = new Limits(3L);
+        assertEquals(3L, l2.getConcurrencyLimit());
+    }
+
+    @Test
+    void subscriptionResponse_gettersSetters() {
+        SubscriptionResponse s = new SubscriptionResponse();
+        s.setPlan(PlanTier.FREE);
+        s.setCredits(new Credits(10L, 1L));
+        s.setLimits(new Limits(2L));
+        assertEquals(PlanTier.FREE, s.getPlan());
+        assertEquals(10L, s.getCredits().getPlanCredits());
+        assertEquals(2L, s.getLimits().getConcurrencyLimit());
+        assertNotNull(s.toString());
+        SubscriptionResponse s2 = new SubscriptionResponse(
+                PlanTier.CUSTOM, new Credits(0L, 0L), new Limits(0L));
+        assertEquals(PlanTier.CUSTOM, s2.getPlan());
     }
 
     // ==================== VoicesV2Filter ====================

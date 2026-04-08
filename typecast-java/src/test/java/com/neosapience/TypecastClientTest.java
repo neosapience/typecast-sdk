@@ -354,6 +354,84 @@ class TypecastClientTest {
         assertEquals(404, exception.getStatusCode());
     }
 
+    // ==================== Subscription Tests ====================
+
+    @Test
+    @DisplayName("getMySubscription should return subscription on success")
+    void getMySubscription_success() throws Exception {
+        String responseJson = "{" +
+                "\"plan\":\"plus\"," +
+                "\"credits\":{\"plan_credits\":100000,\"used_credits\":1234}," +
+                "\"limits\":{\"concurrency_limit\":5}" +
+                "}";
+
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody(responseJson));
+
+        SubscriptionResponse subscription = client.getMySubscription();
+
+        assertNotNull(subscription);
+        assertEquals(PlanTier.PLUS, subscription.getPlan());
+        assertNotNull(subscription.getCredits());
+        assertEquals(100000L, subscription.getCredits().getPlanCredits());
+        assertEquals(1234L, subscription.getCredits().getUsedCredits());
+        assertNotNull(subscription.getLimits());
+        assertEquals(5L, subscription.getLimits().getConcurrencyLimit());
+
+        RecordedRequest recordedRequest = mockServer.takeRequest();
+        assertEquals("GET", recordedRequest.getMethod());
+        assertEquals("/v1/users/me/subscription", recordedRequest.getPath());
+        assertEquals("test-api-key", recordedRequest.getHeader("X-API-KEY"));
+    }
+
+    @Test
+    @DisplayName("getMySubscription should throw UnauthorizedException on 401")
+    void getMySubscription_unauthorized() {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(401)
+                .setBody("{\"detail\": \"Invalid API key\"}"));
+
+        UnauthorizedException exception = assertThrows(
+                UnauthorizedException.class,
+                () -> client.getMySubscription()
+        );
+
+        assertEquals(401, exception.getStatusCode());
+        assertTrue(exception.getMessage().contains("Invalid API key"));
+    }
+
+    @Test
+    @DisplayName("getMySubscription should throw RateLimitException on 429")
+    void getMySubscription_rateLimit() {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(429)
+                .setBody("{\"detail\": \"Rate limit exceeded\"}"));
+
+        RateLimitException exception = assertThrows(
+                RateLimitException.class,
+                () -> client.getMySubscription()
+        );
+
+        assertEquals(429, exception.getStatusCode());
+    }
+
+    @Test
+    @DisplayName("getMySubscription should throw InternalServerException on 500")
+    void getMySubscription_internalServerError() {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(500)
+                .setBody("{\"detail\": \"Internal server error\"}"));
+
+        InternalServerException exception = assertThrows(
+                InternalServerException.class,
+                () -> client.getMySubscription()
+        );
+
+        assertEquals(500, exception.getStatusCode());
+    }
+
     // ==================== Model Validation Tests ====================
 
     @Test
