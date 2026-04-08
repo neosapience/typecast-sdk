@@ -159,6 +159,54 @@ type TTSRequest struct {
 	Seed *int `json:"seed,omitempty"`
 }
 
+// OutputStream represents audio output settings for the streaming endpoint.
+// Unlike Output, it does not support Volume or TargetLUFS because the
+// streaming endpoint cannot apply loudness normalization.
+type OutputStream struct {
+	// AudioPitch adjusts pitch in semitones (-12 to +12, default: 0)
+	AudioPitch *int `json:"audio_pitch,omitempty"`
+	// AudioTempo controls speech speed (0.5 to 2.0, default: 1.0)
+	AudioTempo *float64 `json:"audio_tempo,omitempty"`
+	// AudioFormat is the output format (wav or mp3, default: wav)
+	AudioFormat AudioFormat `json:"audio_format,omitempty"`
+}
+
+// Validate checks the OutputStream fields for invalid values.
+func (o *OutputStream) Validate() error {
+	if o == nil {
+		return nil
+	}
+	if o.AudioPitch != nil && (*o.AudioPitch < -12 || *o.AudioPitch > 12) {
+		return fmt.Errorf("audio_pitch must be between -12 and 12")
+	}
+	if o.AudioTempo != nil && (*o.AudioTempo < 0.5 || *o.AudioTempo > 2.0) {
+		return fmt.Errorf("audio_tempo must be between 0.5 and 2.0")
+	}
+	if o.AudioFormat != "" && o.AudioFormat != AudioFormatWAV && o.AudioFormat != AudioFormatMP3 {
+		return fmt.Errorf("audio_format must be one of wav or mp3")
+	}
+	return nil
+}
+
+// TTSRequestStream represents a streaming text-to-speech request.
+// It mirrors TTSRequest but uses OutputStream which omits volume / target_lufs.
+type TTSRequestStream struct {
+	// VoiceID is the voice identifier (required)
+	VoiceID string `json:"voice_id"`
+	// Text is the text to convert to speech (required, max 2000 chars)
+	Text string `json:"text"`
+	// Model is the TTS model to use (required)
+	Model TTSModel `json:"model"`
+	// Language is the ISO 639-3 language code (optional, auto-detected if not provided)
+	Language string `json:"language,omitempty"`
+	// Prompt contains emotion and style settings (optional)
+	Prompt interface{} `json:"prompt,omitempty"`
+	// Output contains streaming audio output settings (optional)
+	Output *OutputStream `json:"output,omitempty"`
+	// Seed is the random seed for reproducible results (optional)
+	Seed *int `json:"seed,omitempty"`
+}
+
 // TTSResponse represents the response from text-to-speech API
 type TTSResponse struct {
 	// AudioData contains the generated audio data

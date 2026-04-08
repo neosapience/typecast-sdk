@@ -1,9 +1,11 @@
 package typecast
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -806,6 +808,211 @@ func TestAPIError_Predicates(t *testing.T) {
 	if e.IsBadRequest() || e.IsUnauthorized() || e.IsPaymentRequired() || e.IsForbidden() ||
 		e.IsNotFound() || e.IsValidationError() || e.IsRateLimited() || e.IsServerError() {
 		t.Error("predicates should be false for 200")
+	}
+}
+
+// ---------- TextToSpeechStream ----------
+
+func TestTextToSpeechStream_ValidationError(t *testing.T) {
+	c := NewClient(&ClientConfig{APIKey: "k", BaseURL: "http://x"})
+	bad := 99
+	_, err := c.TextToSpeechStream(context.Background(), TTSRequestStream{
+		VoiceID: "v",
+		Text:    "hi",
+		Model:   ModelSSFMV21,
+		Output:  &OutputStream{AudioPitch: &bad},
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
+func TestTextToSpeechStream_HappyPath(t *testing.T) {
+	// WAV header bytes ("RIFF....WAVE") + a couple PCM samples.
+	wavHeader := []byte{
+		'R', 'I', 'F', 'F', 0x24, 0x00, 0x00, 0x00,
+		'W', 'A', 'V', 'E', 'f', 'm', 't', ' ',
+	}
+	pcm := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+	wantBody := append(append([]byte{}, wavHeader...), pcm...)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/text-to-speech/stream" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST")
+		}
+		if r.Header.Get("X-API-KEY") != "key" {
+			t.Errorf("missing api key header")
+		}
+		if r.Header.Get("Content-Type") != "application/json" {
+			t.Errorf("missing content type")
+		}
+		var body TTSRequestStream
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("failed to decode request: %v", err)
+		}
+		if body.VoiceID != "v1" || body.Text != "hello" || body.Model != ModelSSFMV21 {
+			t.Errorf("unexpected body %+v", body)
+		}
+		if body.Output == nil || body.Output.AudioFormat != AudioFormatWAV {
+			t.Errorf("unexpected output %+v", body.Output)
+		}
+		w.Header().Set("Content-Type", "audio/wav")
+		w.WriteHeader(http.StatusOK)
+		// Write in two chunks to exercise streaming reads.
+		w.Write(wavHeader)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		w.Write(pcm)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv, "key")
+	pitch := 1
+	tempo := 1.0
+	rc, err := c.TextToSpeechStream(context.Background(), TTSRequestStream{
+		VoiceID:  "v1",
+		Text:     "hello",
+		Model:    ModelSSFMV21,
+		Language: "eng",
+		Prompt:   &Prompt{EmotionPreset: EmotionNormal},
+		Output: &OutputStream{
+			AudioPitch:  &pitch,
+			AudioTempo:  &tempo,
+			AudioFormat: AudioFormatWAV,
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	defer rc.Close()
+	got, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatalf("read all: %v", err)
+	}
+	if !bytes.Equal(got, wantBody) {
+		t.Errorf("unexpected body bytes: got %x want %x", got, wantBody)
+	}
+}
+
+func TestTextToSpeechStream_NilOutputAllowed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "audio/wav")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	}))
+	defer srv.Close()
+	c := newTestClient(srv, "k")
+	rc, err := c.TextToSpeechStream(context.Background(), TTSRequestStream{
+		VoiceID: "v", Text: "t", Model: ModelSSFMV21,
+	})
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	defer rc.Close()
+	b, _ := io.ReadAll(rc)
+	if string(b) != "OK" {
+		t.Errorf("unexpected body %q", b)
+	}
+}
+
+// trackingBody records whether Close was called so the test can verify the
+// streaming method closes the body on error paths.
+type trackingBody struct {
+	io.Reader
+	closed bool
+}
+
+func (t *trackingBody) Close() error {
+	t.closed = true
+	return nil
+}
+
+func TestTextToSpeechStream_ErrorStatuses(t *testing.T) {
+	for _, code := range []int{400, 401, 402, 404, 422, 429, 500} {
+		code := code
+		t.Run(http.StatusText(code), func(t *testing.T) {
+			body := &trackingBody{Reader: bytes.NewReader([]byte(`{"detail":"boom"}`))}
+			rt := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: code,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       body,
+				}, nil
+			})
+			c := NewClient(&ClientConfig{
+				APIKey:     "k",
+				BaseURL:    "http://example.invalid",
+				HTTPClient: &http.Client{Transport: rt},
+			})
+			_, err := c.TextToSpeechStream(context.Background(), TTSRequestStream{
+				VoiceID: "v", Text: "t", Model: ModelSSFMV21,
+			})
+			var apiErr *APIError
+			if !errors.As(err, &apiErr) {
+				t.Fatalf("expected APIError, got %T", err)
+			}
+			if apiErr.StatusCode != code {
+				t.Errorf("expected status %d, got %d", code, apiErr.StatusCode)
+			}
+			if apiErr.Detail != "boom" {
+				t.Errorf("expected detail boom, got %q", apiErr.Detail)
+			}
+			if !body.closed {
+				t.Error("expected response body to be closed on error")
+			}
+		})
+	}
+}
+
+func TestTextToSpeechStream_RequestError(t *testing.T) {
+	c := NewClient(&ClientConfig{APIKey: "k", BaseURL: "http://[::1]:bad"})
+	_, err := c.TextToSpeechStream(context.Background(), TTSRequestStream{
+		VoiceID: "v", Text: "t", Model: ModelSSFMV21,
+	})
+	if err == nil {
+		t.Fatal("expected request error")
+	}
+}
+
+// ---------- OutputStream.Validate ----------
+
+func TestOutputStream_Validate(t *testing.T) {
+	// nil
+	var o *OutputStream
+	if err := o.Validate(); err != nil {
+		t.Errorf("nil should be valid, got %v", err)
+	}
+	// pitch out of range
+	badP := -13
+	if err := (&OutputStream{AudioPitch: &badP}).Validate(); err == nil {
+		t.Error("expected pitch range error")
+	}
+	highP := 13
+	if err := (&OutputStream{AudioPitch: &highP}).Validate(); err == nil {
+		t.Error("expected pitch range error")
+	}
+	// tempo out of range
+	badT := 0.4
+	if err := (&OutputStream{AudioTempo: &badT}).Validate(); err == nil {
+		t.Error("expected tempo range error")
+	}
+	highT := 2.1
+	if err := (&OutputStream{AudioTempo: &highT}).Validate(); err == nil {
+		t.Error("expected tempo range error")
+	}
+	// invalid format
+	if err := (&OutputStream{AudioFormat: AudioFormat("flac")}).Validate(); err == nil {
+		t.Error("expected format error")
+	}
+	// all valid
+	t2 := 1.0
+	p2 := 0
+	if err := (&OutputStream{AudioTempo: &t2, AudioPitch: &p2, AudioFormat: AudioFormatMP3}).Validate(); err != nil {
+		t.Errorf("expected valid, got %v", err)
 	}
 }
 
