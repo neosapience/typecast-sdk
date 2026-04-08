@@ -242,6 +242,34 @@ public class TypecastClient : IDisposable
 
     #endregion
 
+    #region Subscription
+
+    /// <summary>
+    /// Gets the authenticated user's current subscription.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The subscription response containing plan, credits, and limits</returns>
+    /// <exception cref="TypecastException">Thrown when the API returns an error</exception>
+    public async Task<SubscriptionResponse> GetMySubscriptionAsync(CancellationToken cancellationToken = default)
+    {
+        var url = $"{_apiHost}/v1/users/me/subscription";
+
+        using var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        return await HandleJsonResponseAsync<SubscriptionResponse>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Gets the authenticated user's current subscription synchronously.
+    /// </summary>
+    /// <returns>The subscription response containing plan, credits, and limits</returns>
+    /// <exception cref="TypecastException">Thrown when the API returns an error</exception>
+    public SubscriptionResponse GetMySubscription()
+    {
+        return GetMySubscriptionAsync().GetAwaiter().GetResult();
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private string SerializeRequest(TTSRequest request)

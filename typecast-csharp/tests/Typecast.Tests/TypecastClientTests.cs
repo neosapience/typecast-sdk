@@ -634,6 +634,129 @@ public class TypecastClientTests : IDisposable
     }
 
     [Fact]
+    public async Task GetMySubscriptionAsync_ShouldReturnSubscription()
+    {
+        // Arrange
+        var jsonResponse = @"{
+            ""plan"": ""plus"",
+            ""credits"": { ""plan_credits"": 10000, ""used_credits"": 1234 },
+            ""limits"": { ""concurrency_limit"": 5 }
+        }";
+
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
+        };
+
+        HttpRequestMessage? capturedRequest = null;
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(req => req.RequestUri!.AbsolutePath == "/v1/users/me/subscription"),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) => capturedRequest = req)
+            .ReturnsAsync(response);
+
+        // Act
+        var result = await _client.GetMySubscriptionAsync();
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Plan.Should().Be(PlanTier.Plus);
+        result.Credits.PlanCredits.Should().Be(10000L);
+        result.Credits.UsedCredits.Should().Be(1234L);
+        result.Limits.ConcurrencyLimit.Should().Be(5);
+
+        capturedRequest.Should().NotBeNull();
+        capturedRequest!.Method.Should().Be(HttpMethod.Get);
+        capturedRequest.RequestUri!.AbsolutePath.Should().Be("/v1/users/me/subscription");
+    }
+
+    [Fact]
+    public void GetMySubscription_Sync_ShouldReturnSubscription()
+    {
+        var jsonResponse = @"{
+            ""plan"": ""free"",
+            ""credits"": { ""plan_credits"": 100, ""used_credits"": 0 },
+            ""limits"": { ""concurrency_limit"": 1 }
+        }";
+
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
+        };
+
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        var result = _client.GetMySubscription();
+
+        result.Plan.Should().Be(PlanTier.Free);
+        result.Credits.PlanCredits.Should().Be(100L);
+        result.Limits.ConcurrencyLimit.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetMySubscriptionAsync_OnUnauthorized_ShouldThrow()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.Unauthorized)
+        {
+            Content = new StringContent("{\"error\":\"unauthorized\"}", Encoding.UTF8, "application/json")
+        };
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        await Assert.ThrowsAsync<UnauthorizedException>(() => _client.GetMySubscriptionAsync());
+    }
+
+    [Fact]
+    public async Task GetMySubscriptionAsync_OnRateLimit_ShouldThrow()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+        {
+            Content = new StringContent("{\"error\":\"rate limit\"}", Encoding.UTF8, "application/json")
+        };
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        await Assert.ThrowsAsync<RateLimitException>(() => _client.GetMySubscriptionAsync());
+    }
+
+    [Fact]
+    public async Task GetMySubscriptionAsync_OnInternalServerError_ShouldThrow()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.InternalServerError)
+        {
+            Content = new StringContent("{\"error\":\"server\"}", Encoding.UTF8, "application/json")
+        };
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        await Assert.ThrowsAsync<InternalServerException>(() => _client.GetMySubscriptionAsync());
+    }
+
+    [Fact]
     public async Task TextToSpeechAsync_WithMinimalRequest_NoPromptNoOutput()
     {
         var audio = new byte[] { 1 };
