@@ -191,8 +191,14 @@ static int read_request(int fd) {
         free(lower);
     }
 
-    /* Read remaining body */
+    /* Read remaining body. We cap every copy by content_length so the
+     * buffer never contains bytes beyond what the client actually sent
+     * for THIS request. Without the cap, an over-read on the first
+     * recv() (which can happen when the client batches headers + body
+     * + framing slop into a single TCP segment) would leak bytes from
+     * unrelated data into the captured body. */
     size_t body_have = total - (size_t)header_end;
+    if (body_have > content_length) body_have = content_length;
     size_t body_copy = body_have;
     if (body_copy > sizeof(g_server.last_body) - 1) body_copy = sizeof(g_server.last_body) - 1;
     memcpy(g_server.last_body, buf + header_end, body_copy);
@@ -201,10 +207,12 @@ static int read_request(int fd) {
     while (body_have < content_length) {
         n = recv(fd, buf, sizeof(buf), 0);
         if (n <= 0) break;
-        body_have += (size_t)n;
+        size_t take = (size_t)n;
+        if (body_have + take > content_length) take = content_length - body_have;
+        body_have += take;
         if (g_server.last_body_len < sizeof(g_server.last_body) - 1) {
             size_t room = sizeof(g_server.last_body) - 1 - g_server.last_body_len;
-            size_t copy = ((size_t)n < room) ? (size_t)n : room;
+            size_t copy = (take < room) ? take : room;
             memcpy(g_server.last_body + g_server.last_body_len, buf, copy);
             g_server.last_body_len += copy;
         }
