@@ -83,6 +83,6 @@ pub use client::{ClientConfig, TypecastClient, DEFAULT_BASE_URL, DEFAULT_TIMEOUT
 pub use errors::{Result, TypecastError};
 pub use models::{
     Age, AudioFormat, Credits, EmotionPreset, ErrorResponse, Gender, Limits, ModelInfo, Output,
-    PlanTier, PresetPrompt, Prompt, SmartPrompt, SubscriptionResponse, TTSModel, TTSPrompt,
-    TTSRequest, TTSResponse, UseCase, VoiceV2, VoicesV2Filter,
+    OutputStream, PlanTier, PresetPrompt, Prompt, SmartPrompt, SubscriptionResponse, TTSModel,
+    TTSPrompt, TTSRequest, TTSRequestStream, TTSResponse, UseCase, VoiceV2, VoicesV2Filter,
 };

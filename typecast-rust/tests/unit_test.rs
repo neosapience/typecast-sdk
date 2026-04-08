@@ -5,13 +5,14 @@
 //! key. They are designed to give 100% line, function, and region coverage of
 //! the SDK source files.
 
+use futures_util::StreamExt;
 use mockito::Server;
 use std::time::Duration;
 use typecast_rust::{
     Age, AudioFormat, ClientConfig, Credits, EmotionPreset, ErrorResponse, Gender, Limits,
-    ModelInfo, Output, PlanTier, PresetPrompt, Prompt, SmartPrompt, SubscriptionResponse, TTSModel,
-    TTSPrompt, TTSRequest, TypecastClient, TypecastError, UseCase, VoiceV2, VoicesV2Filter,
-    DEFAULT_BASE_URL, DEFAULT_TIMEOUT_SECS,
+    ModelInfo, Output, OutputStream, PlanTier, PresetPrompt, Prompt, SmartPrompt,
+    SubscriptionResponse, TTSModel, TTSPrompt, TTSRequest, TTSRequestStream, TypecastClient,
+    TypecastError, UseCase, VoiceV2, VoicesV2Filter, DEFAULT_BASE_URL, DEFAULT_TIMEOUT_SECS,
 };
 
 // ---------------------------------------------------------------------------
@@ -294,6 +295,62 @@ fn tts_request_builder_sets_all_fields() {
 }
 
 #[test]
+fn output_stream_builder_clamps_values() {
+    let out = OutputStream::default();
+    assert!(out.audio_pitch.is_none());
+    assert!(out.audio_tempo.is_none());
+    assert!(out.audio_format.is_none());
+
+    let out = OutputStream::new()
+        .audio_pitch(20)
+        .audio_tempo(5.0)
+        .audio_format(AudioFormat::Mp3);
+    assert_eq!(out.audio_pitch, Some(12));
+    assert_eq!(out.audio_tempo, Some(2.0));
+    assert_eq!(out.audio_format, Some(AudioFormat::Mp3));
+
+    let out2 = OutputStream::new().audio_pitch(-100).audio_tempo(0.1);
+    assert_eq!(out2.audio_pitch, Some(-12));
+    assert_eq!(out2.audio_tempo, Some(0.5));
+
+    // Cover Debug + Clone
+    let _ = format!("{out2:?}");
+    let _ = out2.clone();
+
+    // Ensure volume / target_lufs are NOT serialized for OutputStream.
+    let json = serde_json::to_string(&OutputStream::new().audio_format(AudioFormat::Wav)).unwrap();
+    assert!(!json.contains("volume"));
+    assert!(!json.contains("target_lufs"));
+}
+
+#[test]
+fn tts_request_stream_builder_sets_all_fields() {
+    let req = TTSRequestStream::new("tc_voice", "hello", TTSModel::SsfmV21)
+        .language("eng")
+        .prompt(Prompt::new().emotion_preset(EmotionPreset::Angry))
+        .output(OutputStream::new().audio_format(AudioFormat::Mp3))
+        .seed(7);
+    assert_eq!(req.voice_id, "tc_voice");
+    assert_eq!(req.text, "hello");
+    assert_eq!(req.model, TTSModel::SsfmV21);
+    assert_eq!(req.language.as_deref(), Some("eng"));
+    assert!(req.prompt.is_some());
+    assert!(req.output.is_some());
+    assert_eq!(req.seed, Some(7));
+
+    // Cover Debug + Clone
+    let _ = format!("{req:?}");
+    let _ = req.clone();
+
+    // Default-only request (no optional builders) to cover the unset branches.
+    let bare = TTSRequestStream::new("tc_x", "hi", TTSModel::SsfmV30);
+    assert!(bare.language.is_none());
+    assert!(bare.prompt.is_none());
+    assert!(bare.output.is_none());
+    assert!(bare.seed.is_none());
+}
+
+#[test]
 fn voices_v2_filter_builder_sets_all_fields() {
     let f = VoicesV2Filter::new()
         .model(TTSModel::SsfmV30)
@@ -555,6 +612,127 @@ async fn text_to_speech_handles_error_with_unparseable_body() {
     let req = TTSRequest::new("tc_x", "hi", TTSModel::SsfmV30);
     let err = client.text_to_speech(&req).await.unwrap_err();
     assert!(err.is_server_error());
+}
+
+// ---------------------------------------------------------------------------
+// client.rs - text_to_speech_stream
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn text_to_speech_stream_returns_chunked_bytes() {
+    let mut server = Server::new_async().await;
+    let body = b"RIFFwavfakebodychunk1chunk2";
+    let _m = server
+        .mock("POST", "/v1/text-to-speech/stream")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(body)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let req = TTSRequestStream::new("tc_x", "hello", TTSModel::SsfmV30)
+        .output(OutputStream::new().audio_format(AudioFormat::Wav));
+    let mut stream = client.text_to_speech_stream(&req).await.unwrap();
+
+    let mut collected: Vec<u8> = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let bytes = chunk.unwrap();
+        collected.extend_from_slice(&bytes);
+    }
+    assert_eq!(collected, body);
+}
+
+#[tokio::test]
+async fn text_to_speech_stream_maps_all_error_statuses() {
+    let cases: &[(u16, fn(&TypecastError) -> bool)] = &[
+        (400, TypecastError::is_bad_request),
+        (401, TypecastError::is_unauthorized),
+        (402, TypecastError::is_payment_required),
+        (404, TypecastError::is_not_found),
+        (422, TypecastError::is_validation_error),
+        (429, TypecastError::is_rate_limited),
+        (500, TypecastError::is_server_error),
+    ];
+
+    for (status, predicate) in cases {
+        let mut server = Server::new_async().await;
+        let _m = server
+            .mock("POST", "/v1/text-to-speech/stream")
+            .with_status(*status as usize)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"detail":"nope"}"#)
+            .create_async()
+            .await;
+
+        let client = make_client(&server);
+        let req = TTSRequestStream::new("tc_x", "hi", TTSModel::SsfmV30);
+        let err = match client.text_to_speech_stream(&req).await {
+            Ok(_) => panic!("expected error for status {status}"),
+            Err(e) => e,
+        };
+        assert!(predicate(&err), "status {status} did not map correctly");
+    }
+}
+
+#[tokio::test]
+async fn text_to_speech_stream_handles_error_with_unparseable_body() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech/stream")
+        .with_status(500)
+        .with_header("content-type", "text/plain")
+        .with_body("internal boom")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let req = TTSRequestStream::new("tc_x", "hi", TTSModel::SsfmV30);
+    let err = match client.text_to_speech_stream(&req).await {
+        Ok(_) => panic!("expected server error"),
+        Err(e) => e,
+    };
+    assert!(err.is_server_error());
+}
+
+#[tokio::test]
+async fn text_to_speech_stream_chunk_error_when_connection_drops() {
+    // Mock a 200 OK that closes the connection mid-body so consuming the
+    // stream yields a chunk-level transport error mapped through `From`.
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech/stream")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_header("content-length", "1024")
+        .with_body(b"truncated")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let req = TTSRequestStream::new("tc_x", "hi", TTSModel::SsfmV30);
+
+    // The truncated body may surface either as an error from the initial
+    // `send().await` (caught by `?` and mapped via `From<reqwest::Error>`),
+    // or as a per-chunk error when the stream is consumed. Both paths must
+    // resolve to a transport HttpError.
+    let mut saw_error = false;
+    match client.text_to_speech_stream(&req).await {
+        Err(e) => {
+            assert!(matches!(e, TypecastError::HttpError(_)));
+            saw_error = true;
+        }
+        Ok(mut stream) => {
+            while let Some(item) = stream.next().await {
+                if let Err(e) = item {
+                    assert!(matches!(e, TypecastError::HttpError(_)));
+                    saw_error = true;
+                    break;
+                }
+            }
+        }
+    }
+    assert!(saw_error, "expected a transport error from truncated body");
 }
 
 // ---------------------------------------------------------------------------

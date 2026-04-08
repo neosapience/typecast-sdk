@@ -169,6 +169,48 @@ impl Output {
     }
 }
 
+/// Audio output settings for streaming TTS requests.
+///
+/// Identical to [`Output`] but without `volume` or `target_lufs`, which are
+/// not supported by the streaming endpoint.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct OutputStream {
+    /// Pitch adjustment in semitones (-12 to +12, default: 0)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_pitch: Option<i32>,
+    /// Speech speed multiplier (0.5 to 2.0, default: 1.0)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_tempo: Option<f64>,
+    /// Output audio format (wav or mp3, default: wav)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_format: Option<AudioFormat>,
+}
+
+impl OutputStream {
+    /// Create a new OutputStream with default values
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the audio pitch (-12 to +12 semitones)
+    pub fn audio_pitch(mut self, pitch: i32) -> Self {
+        self.audio_pitch = Some(pitch.clamp(-12, 12));
+        self
+    }
+
+    /// Set the audio tempo (0.5 to 2.0)
+    pub fn audio_tempo(mut self, tempo: f64) -> Self {
+        self.audio_tempo = Some(tempo.clamp(0.5, 2.0));
+        self
+    }
+
+    /// Set the audio format
+    pub fn audio_format(mut self, format: AudioFormat) -> Self {
+        self.audio_format = Some(format);
+        self
+    }
+}
+
 /// Emotion settings for ssfm-v21 model
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Prompt {
@@ -364,6 +406,71 @@ impl TTSRequest {
 
     /// Set the output settings
     pub fn output(mut self, output: Output) -> Self {
+        self.output = Some(output);
+        self
+    }
+
+    /// Set the random seed for reproducible results
+    pub fn seed(mut self, seed: i32) -> Self {
+        self.seed = Some(seed);
+        self
+    }
+}
+
+/// Streaming Text-to-Speech request parameters.
+///
+/// Mirrors [`TTSRequest`] but the `output` field uses [`OutputStream`], which
+/// excludes `volume` and `target_lufs` (not supported by the streaming endpoint).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TTSRequestStream {
+    /// Voice ID in format 'tc_' followed by a unique identifier
+    pub voice_id: String,
+    /// Text to convert to speech (max 2000 chars)
+    pub text: String,
+    /// TTS model to use
+    pub model: TTSModel,
+    /// Language code (ISO 639-3). Auto-detected if not provided
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+    /// Emotion and style settings
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<TTSPrompt>,
+    /// Audio output settings (without volume/target_lufs)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<OutputStream>,
+    /// Random seed for reproducible results
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seed: Option<i32>,
+}
+
+impl TTSRequestStream {
+    /// Create a new TTSRequestStream with required fields
+    pub fn new(voice_id: impl Into<String>, text: impl Into<String>, model: TTSModel) -> Self {
+        Self {
+            voice_id: voice_id.into(),
+            text: text.into(),
+            model,
+            language: None,
+            prompt: None,
+            output: None,
+            seed: None,
+        }
+    }
+
+    /// Set the language code (ISO 639-3)
+    pub fn language(mut self, language: impl Into<String>) -> Self {
+        self.language = Some(language.into());
+        self
+    }
+
+    /// Set the prompt (emotion settings)
+    pub fn prompt(mut self, prompt: impl Into<TTSPrompt>) -> Self {
+        self.prompt = Some(prompt.into());
+        self
+    }
+
+    /// Set the output settings
+    pub fn output(mut self, output: OutputStream) -> Self {
         self.output = Some(output);
         self
     }
