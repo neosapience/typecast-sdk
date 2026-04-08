@@ -964,6 +964,221 @@ class CoverageTest {
         // which also exercises the env$1 lambda.
     }
 
+    // ==================== Streaming model + endpoint coverage ====================
+
+    @Test
+    fun outputStream_directConstructionAndDataMethods() {
+        // Default constructor
+        val def = OutputStream()
+        assertEquals(0, def.audioPitch)
+        assertEquals(1.0, def.audioTempo)
+        assertEquals("wav", def.audioFormat)
+
+        // Explicit constructor
+        val o = OutputStream(audioPitch = 5, audioTempo = 1.25, audioFormat = "mp3")
+        assertEquals(5, o.audioPitch)
+        assertEquals(1.25, o.audioTempo)
+        assertEquals("mp3", o.audioFormat)
+
+        // data class methods
+        val copy = o.copy()
+        assertEquals(o, copy)
+        assertEquals(o.hashCode(), copy.hashCode())
+        assertEquals(5, o.component1())
+        assertEquals(1.25, o.component2())
+        assertEquals("mp3", o.component3())
+        assertTrue(o.toString().contains("mp3"))
+        assertNotEquals(o, o.copy(audioPitch = 1))
+        assertFalse(o.equals(null))
+
+        // All-null branches in init
+        val allNull = OutputStream(audioPitch = null, audioTempo = null, audioFormat = null)
+        assertNull(allNull.audioPitch)
+        assertNull(allNull.audioTempo)
+        assertNull(allNull.audioFormat)
+    }
+
+    @Test
+    fun outputStream_validationRanges() {
+        assertThrows(IllegalArgumentException::class.java) { OutputStream(audioPitch = 13) }
+        assertThrows(IllegalArgumentException::class.java) { OutputStream(audioPitch = -13) }
+        assertThrows(IllegalArgumentException::class.java) { OutputStream(audioTempo = 0.4) }
+        assertThrows(IllegalArgumentException::class.java) { OutputStream(audioTempo = 2.1) }
+        assertThrows(IllegalArgumentException::class.java) { OutputStream(audioFormat = "ogg") }
+        assertDoesNotThrow { OutputStream(audioFormat = "wav") }
+        assertDoesNotThrow { OutputStream(audioFormat = "mp3") }
+    }
+
+    @Test
+    fun outputStream_builderAllSetters() {
+        val built = OutputStream.builder()
+            .audioPitch(-2)
+            .audioTempo(0.75)
+            .audioFormat("mp3")
+            .build()
+        assertEquals(-2, built.audioPitch)
+        assertEquals(0.75, built.audioTempo)
+        assertEquals("mp3", built.audioFormat)
+
+        // Default builder state
+        val def = OutputStream.builder().build()
+        assertEquals(0, def.audioPitch)
+        assertEquals(1.0, def.audioTempo)
+        assertEquals("wav", def.audioFormat)
+
+        // Companion factory
+        assertNotNull(OutputStream.builder())
+    }
+
+    @Test
+    fun ttsRequestStream_directConstructionAndDataMethods() {
+        // Direct construction with all fields
+        val req = TTSRequestStream(
+            voiceId = "tc_x",
+            text = "hi",
+            model = TTSModel.SSFM_V30,
+            language = LanguageCode.ENG,
+            prompt = TTSPromptSerializer(emotionType = "preset", emotionPreset = EmotionPreset.HAPPY),
+            output = OutputStream(audioFormat = "mp3"),
+            seed = 7
+        )
+        assertEquals("tc_x", req.voiceId)
+        assertEquals("hi", req.text)
+        assertEquals(TTSModel.SSFM_V30, req.model)
+        assertEquals(LanguageCode.ENG, req.language)
+        assertNotNull(req.prompt)
+        assertNotNull(req.output)
+        assertEquals(7, req.seed)
+
+        // data class methods
+        val copy = req.copy()
+        assertEquals(req, copy)
+        assertEquals(req.hashCode(), copy.hashCode())
+        assertEquals("tc_x", req.component1())
+        assertEquals("hi", req.component2())
+        assertEquals(TTSModel.SSFM_V30, req.component3())
+        assertEquals(LanguageCode.ENG, req.component4())
+        assertNotNull(req.component5())
+        assertNotNull(req.component6())
+        assertEquals(7, req.component7())
+        assertTrue(req.toString().contains("tc_x"))
+        assertNotEquals(req, req.copy(seed = 8))
+        assertFalse(req.equals(null))
+
+        // Minimal direct construction (only required fields)
+        val minimal = TTSRequestStream(voiceId = "tc_y", text = "yo", model = TTSModel.SSFM_V21)
+        assertNull(minimal.language)
+        assertNull(minimal.prompt)
+        assertNull(minimal.output)
+        assertNull(minimal.seed)
+    }
+
+    @Test
+    fun ttsRequestStream_validationRules() {
+        assertThrows(IllegalArgumentException::class.java) {
+            TTSRequestStream(voiceId = " ", text = "hi", model = TTSModel.SSFM_V30)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            TTSRequestStream(voiceId = "tc_x", text = "  ", model = TTSModel.SSFM_V30)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            TTSRequestStream(voiceId = "tc_x", text = "a".repeat(2001), model = TTSModel.SSFM_V30)
+        }
+    }
+
+    @Test
+    fun ttsRequestStream_builderAllSetters() {
+        val r = TTSRequestStream.builder()
+            .voiceId("tc_x")
+            .text("hi")
+            .model(TTSModel.SSFM_V21)
+            .language(LanguageCode.KOR)
+            .output(OutputStream.builder().audioFormat("mp3").build())
+            .prompt(Prompt.builder().emotionPreset(EmotionPreset.HAPPY).emotionIntensity(1.2).build())
+            .seed(99)
+            .build()
+        assertEquals(99, r.seed)
+        assertEquals(LanguageCode.KOR, r.language)
+        assertNotNull(r.prompt)
+        assertNotNull(r.output)
+
+        // Builder validation - empty voiceId
+        assertThrows(IllegalArgumentException::class.java) {
+            TTSRequestStream.builder()
+                .voiceId("")
+                .text("hi")
+                .model(TTSModel.SSFM_V30)
+                .build()
+        }
+        // Builder validation - empty text
+        assertThrows(IllegalArgumentException::class.java) {
+            TTSRequestStream.builder()
+                .voiceId("tc_x")
+                .text("")
+                .model(TTSModel.SSFM_V30)
+                .build()
+        }
+
+        // Cover the PresetPrompt and SmartPrompt prompt() overloads on the builder.
+        val rPreset = TTSRequestStream.builder()
+            .voiceId("tc_x").text("hi").model(TTSModel.SSFM_V30)
+            .prompt(PresetPrompt(emotionPreset = EmotionPreset.SAD))
+            .build()
+        assertNotNull(rPreset.prompt)
+
+        val rSmart = TTSRequestStream.builder()
+            .voiceId("tc_x").text("hi").model(TTSModel.SSFM_V30)
+            .prompt(SmartPrompt(previousText = "p", nextText = "n"))
+            .build()
+        assertNotNull(rSmart.prompt)
+
+        // language nullable setter
+        val rNoLang = TTSRequestStream.builder()
+            .voiceId("tc_x").text("hi").model(TTSModel.SSFM_V30)
+            .language(null)
+            .seed(null)
+            .build()
+        assertNull(rNoLang.language)
+        assertNull(rNoLang.seed)
+
+        // Companion factory
+        assertNotNull(TTSRequestStream.builder())
+    }
+
+    @Test
+    fun textToSpeechStream_closesResponseOnError() {
+        // Cover the error-body string path through buildError after a non-200.
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(503)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"detail": "service down"}""")
+        )
+        val req = TTSRequestStream.builder()
+            .voiceId("tc_x").text("hi").model(TTSModel.SSFM_V30).build()
+        val ex = assertThrows(TypecastException::class.java) {
+            client.textToSpeechStream(req)
+        }
+        assertTrue(ex.message!!.contains("service down"))
+    }
+
+    @Test
+    fun textToSpeechStream_returnsReadableInputStream() {
+        val payload = ByteArray(1024) { (it % 256).toByte() }
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/mpeg")
+                .setBody(okio.Buffer().write(payload))
+        )
+        val req = TTSRequestStream.builder()
+            .voiceId("tc_x").text("hi").model(TTSModel.SSFM_V30)
+            .output(OutputStream(audioFormat = "mp3"))
+            .build()
+        val bytes = client.textToSpeechStream(req).use { it.readBytes() }
+        assertArrayEquals(payload, bytes)
+    }
+
     @Test
     fun builder_resolveBaseUrlDotEnvLambda() {
         // Building with apiKey but no baseUrl exercises the dotenv DSL lambda.
