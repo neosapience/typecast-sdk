@@ -672,9 +672,16 @@ static void test_tts_prompt_smart_no_context(void) {
     TypecastClient* c = new_client();
     mock_enqueue_text(200, NULL, "AUDIO");
 
-    TypecastPrompt p = TYPECAST_PROMPT_DEFAULT();
+    /* Explicit zero-init of every field, then promote to smart. We don't
+     * use TYPECAST_PROMPT_DEFAULT() here because the compound-literal
+     * macro has historically tripped strict-aliasing edge cases on some
+     * gcc versions, leaving previous_text/next_text non-null. */
+    TypecastPrompt p;
+    memset(&p, 0, sizeof(p));
     p.emotion_type = TYPECAST_EMOTION_TYPE_SMART;
-    /* No previous/next text */
+    p.emotion_preset = TYPECAST_EMOTION_NORMAL;
+    p.emotion_intensity = 1.0f;
+    /* previous_text and next_text remain NULL */
 
     TypecastTTSRequest req = {0};
     req.text = "hi"; req.voice_id = "v"; req.model = TYPECAST_MODEL_SSFM_V30;
@@ -682,8 +689,19 @@ static void test_tts_prompt_smart_no_context(void) {
 
     TypecastTTSResponse* r = typecast_text_to_speech(c, &req);
     ASSERT_NOT_NULL(r);
-    ASSERT(strstr(g_server.last_body, "\"previous_text\"") == NULL);
-    ASSERT(strstr(g_server.last_body, "\"next_text\"") == NULL);
+    /* Use length-bounded checks so we cannot read past the actual body
+     * into the rest of the 8 KB g_server.last_body buffer. */
+    ASSERT(g_server.last_body_len > 0);
+    {
+        char body[8192];
+        size_t n = g_server.last_body_len < sizeof(body) - 1
+                       ? g_server.last_body_len
+                       : sizeof(body) - 1;
+        memcpy(body, g_server.last_body, n);
+        body[n] = 0;
+        ASSERT(strstr(body, "\"previous_text\"") == NULL);
+        ASSERT(strstr(body, "\"next_text\"") == NULL);
+    }
     typecast_tts_response_free(r);
     typecast_client_destroy(c);
 }
