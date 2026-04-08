@@ -20,6 +20,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node (mock server for SSE/WS coverage)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install mock server deps
+        working-directory: test-fixtures/mock-server
+        run: npm ci
+
       - name: Install uv
         uses: astral-sh/setup-uv@v4
         with:
@@ -33,8 +42,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
 
-      - name: Run tests
-        run: uv run pytest tests/unit tests/smoke_test.py -v
+      - name: Run coverage (100% gate)
+        run: make coverage
 
   # ============================================
   # JavaScript/TypeScript SDK
@@ -59,8 +68,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test -- --run --exclude='**/integration.*.test.ts'
+      - name: Run coverage (100% gate)
+        run: make coverage
 
   # ============================================
   # Go SDK
@@ -78,10 +87,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: "1.22"
 
-      - name: Run tests
-        run: go test -v -short ./...
+      - name: Run coverage (100% gate)
+        run: make coverage
 
   # ============================================
   # Java SDK
@@ -99,12 +108,12 @@ jobs:
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
-          java-version: "17"
+          java-version: "21"
           distribution: "temurin"
           cache: "maven"
 
-      - name: Run tests
-        run: mvn test -DskipIntegrationTests=true
+      - name: Run coverage (100% gate)
+        run: make coverage
 
   # ============================================
   # Kotlin SDK
@@ -128,8 +137,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Run tests
-        run: gradle test
+      - name: Run coverage (100% gate)
+        run: make coverage
 
   # ============================================
   # C# SDK
@@ -144,7 +153,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up .NET
+      - name: Set up .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
@@ -152,11 +161,8 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Build
-        run: dotnet build --no-restore
-
-      - name: Run tests
-        run: dotnet test tests/Typecast.Tests/Typecast.Tests.csproj --no-build --verbosity normal
+      - name: Run coverage (100% gate)
+        run: make coverage
 
   # ============================================
   # Rust SDK
@@ -173,14 +179,19 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: typecast-rust
 
-      - name: Run tests
-        run: cargo test --lib
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Run coverage (100% gate)
+        run: make coverage
 
   # ============================================
   # Swift SDK
@@ -195,11 +206,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build
-        run: swift build
-
-      - name: Run tests
-        run: swift test --filter "TypecastClientTests"
+      - name: Run coverage (100% gate)
+        run: make coverage
 
   # ============================================
   # C SDK
@@ -217,19 +225,10 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake libcurl4-openssl-dev
+          sudo apt-get install -y cmake libcurl4-openssl-dev lcov
 
-      - name: Build
-        run: |
-          mkdir -p build
-          cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DTYPECAST_BUILD_TESTS=ON
-          cmake --build .
-
-      - name: Run tests
-        run: |
-          cd build
-          ctest --output-on-failure || true
+      - name: Run coverage (100% gate)
+        run: make coverage
 
   # ============================================
   # Summary Job
@@ -260,7 +259,7 @@ jobs:
              [[ "${{ needs.test-rust.result }}" == "failure" ]] || \
              [[ "${{ needs.test-swift.result }}" == "failure" ]] || \
              [[ "${{ needs.test-c.result }}" == "failure" ]]; then
-            echo "One or more SDK tests failed"
+            echo "One or more SDK coverage gates failed"
             exit 1
           fi
-          echo "All SDK tests passed!"
+          echo "All SDK coverage gates passed at 100%!"
