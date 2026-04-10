@@ -207,6 +207,23 @@ type TTSRequestStream struct {
 	Seed *int `json:"seed,omitempty"`
 }
 
+// Validate checks the TTSRequestStream fields for invalid values.
+func (r *TTSRequestStream) Validate() error {
+	if r.VoiceID == "" {
+		return fmt.Errorf("voice_id is required")
+	}
+	if r.Text == "" {
+		return fmt.Errorf("text is required")
+	}
+	if len(r.Text) > 2000 {
+		return fmt.Errorf("text must not exceed 2000 characters")
+	}
+	if r.Model == "" {
+		return fmt.Errorf("model is required")
+	}
+	return r.Output.Validate()
+}
+
 // TTSResponse represents the response from text-to-speech API
 type TTSResponse struct {
 	// AudioData contains the generated audio data

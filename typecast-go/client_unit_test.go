@@ -980,6 +980,40 @@ func TestTextToSpeechStream_RequestError(t *testing.T) {
 
 // ---------- OutputStream.Validate ----------
 
+func TestTTSRequestStream_Validate(t *testing.T) {
+	// missing voice_id
+	r := TTSRequestStream{Text: "hi", Model: ModelSSFMV30}
+	if err := r.Validate(); err == nil {
+		t.Error("expected voice_id required error")
+	}
+	// missing text
+	r = TTSRequestStream{VoiceID: "v", Model: ModelSSFMV30}
+	if err := r.Validate(); err == nil {
+		t.Error("expected text required error")
+	}
+	// text too long
+	r = TTSRequestStream{VoiceID: "v", Text: string(make([]byte, 2001)), Model: ModelSSFMV30}
+	if err := r.Validate(); err == nil {
+		t.Error("expected text length error")
+	}
+	// missing model
+	r = TTSRequestStream{VoiceID: "v", Text: "hi"}
+	if err := r.Validate(); err == nil {
+		t.Error("expected model required error")
+	}
+	// valid minimal
+	r = TTSRequestStream{VoiceID: "v", Text: "hi", Model: ModelSSFMV30}
+	if err := r.Validate(); err != nil {
+		t.Errorf("expected valid, got %v", err)
+	}
+	// delegates to OutputStream.Validate
+	bad := 99
+	r = TTSRequestStream{VoiceID: "v", Text: "hi", Model: ModelSSFMV30, Output: &OutputStream{AudioPitch: &bad}}
+	if err := r.Validate(); err == nil {
+		t.Error("expected output validation error")
+	}
+}
+
 func TestOutputStream_Validate(t *testing.T) {
 	// nil
 	var o *OutputStream

@@ -159,7 +159,7 @@ func (c *Client) TextToSpeech(ctx context.Context, request *TTSRequest) (*TTSRes
 // followed by PCM data, or independently-decodable MP3 chunks). The caller
 // is responsible for closing it.
 func (c *Client) TextToSpeechStream(ctx context.Context, request TTSRequestStream) (io.ReadCloser, error) {
-	if err := request.Output.Validate(); err != nil {
+	if err := request.Validate(); err != nil {
 		return nil, err
 	}
 	resp, err := c.doRequest(ctx, http.MethodPost, "/v1/text-to-speech/stream", request)
