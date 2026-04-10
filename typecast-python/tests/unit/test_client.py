@@ -328,6 +328,12 @@ class TestSyncStreamChunkSizeValidation:
         with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
             list(client.text_to_speech_stream(req, chunk_size=-1))
 
+    def test_bool_chunk_size_raises(self):
+        client = Typecast(host="https://dummy.example", api_key="k")
+        req = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
+        with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
+            list(client.text_to_speech_stream(req, chunk_size=True))
+
 
 class TestSyncSubscription:
     @pytest.fixture

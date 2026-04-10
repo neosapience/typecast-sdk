@@ -150,7 +150,7 @@ class AsyncTypecast:
             NotFoundError, UnprocessableEntityError, RateLimitError,
             InternalServerError, TypecastError: depending on response status.
         """
-        if not isinstance(chunk_size, int) or chunk_size < 1:
+        if not isinstance(chunk_size, int) or isinstance(chunk_size, bool) or chunk_size < 1:
             raise ValueError("chunk_size must be a positive integer")
         if not self.session:
             raise TypecastError("Client session not initialized. Use async with.")
