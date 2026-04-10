@@ -151,6 +151,9 @@ public class TypecastClient {
      * @throws TypecastException if the API call fails
      */
     public TTSResponse textToSpeech(TTSRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("request cannot be null");
+        }
         String url = baseUrl + "/v1/text-to-speech";
         String jsonBody = buildTTSRequestJson(request);
 
@@ -214,6 +217,9 @@ public class TypecastClient {
      * @throws TypecastException if the API returns a non-200 status
      */
     public InputStream textToSpeechStream(TTSRequestStream request) throws IOException {
+        if (request == null) {
+            throw new IllegalArgumentException("request cannot be null");
+        }
         String url = baseUrl + "/v1/text-to-speech/stream";
         String jsonBody = buildTTSRequestStreamJson(request);
 
