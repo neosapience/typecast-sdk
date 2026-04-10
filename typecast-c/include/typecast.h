@@ -599,6 +599,14 @@ TYPECAST_API const char* typecast_error_message(TypecastErrorCode code);
         .audio_format = TYPECAST_AUDIO_FORMAT_WAV \
     })
 
+/** Create default streaming output settings */
+#define TYPECAST_OUTPUT_STREAM_DEFAULT() \
+    ((TypecastOutputStream){ \
+        .audio_pitch = 0, \
+        .audio_tempo = 1.0f, \
+        .audio_format = TYPECAST_AUDIO_FORMAT_WAV \
+    })
+
 /** Create default prompt settings */
 #define TYPECAST_PROMPT_DEFAULT() \
     ((TypecastPrompt){ \

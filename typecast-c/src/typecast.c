@@ -253,14 +253,18 @@ static cJSON* build_tts_request_json(const TypecastTTSRequest* request) {
             } else {
                 cJSON_AddNumberToObject(output, "volume", request->output->volume);
             }
-            cJSON_AddNumberToObject(output, "audio_pitch", request->output->audio_pitch);
-            cJSON_AddNumberToObject(output, "audio_tempo", request->output->audio_tempo);
-            cJSON_AddStringToObject(output, "audio_format", 
+            if (request->output->audio_pitch != 0) {
+                cJSON_AddNumberToObject(output, "audio_pitch", request->output->audio_pitch);
+            }
+            if (request->output->audio_tempo != 0.0f && request->output->audio_tempo != 1.0f) {
+                cJSON_AddNumberToObject(output, "audio_tempo", request->output->audio_tempo);
+            }
+            cJSON_AddStringToObject(output, "audio_format",
                 typecast_audio_format_to_string(request->output->audio_format));
             cJSON_AddItemToObject(root, "output", output);
         }
     }
-    
+
     /* Optional: seed */
     if (request->seed != 0) {
         cJSON_AddNumberToObject(root, "seed", request->seed);
@@ -704,8 +708,12 @@ static cJSON* build_tts_stream_request_json(const TypecastTTSRequestStream* requ
         if (output) {
             /* NOTE: volume and target_lufs are deliberately omitted - the
              * streaming endpoint rejects them. */
-            cJSON_AddNumberToObject(output, "audio_pitch", request->output->audio_pitch);
-            cJSON_AddNumberToObject(output, "audio_tempo", request->output->audio_tempo);
+            if (request->output->audio_pitch != 0) {
+                cJSON_AddNumberToObject(output, "audio_pitch", request->output->audio_pitch);
+            }
+            if (request->output->audio_tempo != 0.0f && request->output->audio_tempo != 1.0f) {
+                cJSON_AddNumberToObject(output, "audio_tempo", request->output->audio_tempo);
+            }
             cJSON_AddStringToObject(output, "audio_format",
                 typecast_audio_format_to_string(request->output->audio_format));
             cJSON_AddItemToObject(root, "output", output);
