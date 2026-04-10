@@ -1,6 +1,9 @@
 package typecast
 
-import "fmt"
+import (
+	"fmt"
+	"unicode/utf8"
+)
 
 // TTSModel represents the TTS model version
 type TTSModel string
@@ -215,7 +218,7 @@ func (r *TTSRequestStream) Validate() error {
 	if r.Text == "" {
 		return fmt.Errorf("text is required")
 	}
-	if len(r.Text) > 2000 {
+	if utf8.RuneCountInString(r.Text) > 2000 {
 		return fmt.Errorf("text must not exceed 2000 characters")
 	}
 	if r.Model == "" {
