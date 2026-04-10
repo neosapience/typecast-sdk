@@ -108,6 +108,50 @@ public final class TypecastClient: Sendable {
         return TTSResponse(audioData: data, duration: duration, format: format)
     }
     
+    /// Stream text-to-speech audio from `POST /v1/text-to-speech/stream`.
+    ///
+    /// Returns an `AsyncThrowingStream` that yields audio chunks (default
+    /// 8192 bytes) in the order produced by the server. For WAV the first
+    /// chunk contains the WAV header followed by PCM data; subsequent chunks
+    /// are PCM only. For MP3 each chunk contains independently-decodable
+    /// MP3 frames.
+    ///
+    /// - Note: Internally this method buffers the full HTTP response body
+    ///   via `URLSession.data(for:)` and then re-emits it in fixed-size
+    ///   chunks. This keeps the public API symmetric with what a true
+    ///   streaming reader would expose while remaining compatible with the
+    ///   `URLProtocol`-based mock used by the test suite.
+    /// - Parameter request: Streaming TTS request parameters.
+    /// - Returns: An async sequence of audio data chunks.
+    public func textToSpeechStream(
+        _ request: TTSRequestStream
+    ) async throws -> AsyncThrowingStream<Data, Error> {
+        let url = try buildURL(path: "/v1/text-to-speech/stream")
+        let bodyData = try encoder.encode(request)
+        let urlRequest = createRequest(url: url, method: "POST", body: bodyData)
+
+        let (data, response) = try await session.data(for: urlRequest)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw TypecastError.invalidResponse("Invalid response type")
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw TypecastError.fromResponse(statusCode: httpResponse.statusCode, data: data)
+        }
+
+        let chunkSize = 8192
+        return AsyncThrowingStream<Data, Error> { continuation in
+            var offset = 0
+            while offset < data.count {
+                let end = min(offset + chunkSize, data.count)
+                continuation.yield(data.subdata(in: offset..<end))
+                offset = end
+            }
+            continuation.finish()
+        }
+    }
+
     // MARK: - Voices V2 API
     
     /// Get voices with enhanced metadata (V2 API)
@@ -134,6 +178,18 @@ public final class TypecastClient: Sendable {
         return try handleResponse(data: data, response: response)
     }
     
+    // MARK: - Subscription
+
+    /// Get the authenticated user's subscription
+    /// - Returns: SubscriptionResponse containing plan, credits, and limits
+    public func getMySubscription() async throws -> SubscriptionResponse {
+        let url = try buildURL(path: "/v1/users/me/subscription")
+        let request = createRequest(url: url)
+
+        let (data, response) = try await session.data(for: request)
+        return try handleResponse(data: data, response: response)
+    }
+
     // MARK: - Deprecated V1 API
     
     /// Get available voices (V1 API)

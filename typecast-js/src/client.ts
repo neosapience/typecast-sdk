@@ -1,4 +1,5 @@
-import { ClientConfig, TTSRequest, TTSResponse, ApiErrorResponse } from './types';
+import { ClientConfig, TTSRequest, TTSResponse, TTSRequestStream, ApiErrorResponse } from './types';
+import { SubscriptionResponse } from './types/Subscription';
 import { VoicesResponse, VoiceV2Response, VoicesV2Filter } from './types/Voices';
 import { TypecastAPIError } from './errors';
 
@@ -97,6 +98,49 @@ export class TypecastClient {
   }
 
   /**
+   * Convert text to speech and receive the audio as a chunked binary stream.
+   *
+   * For WAV the first chunk contains a streaming WAV header (with size declared
+   * as 0xFFFFFFFF) followed by PCM data; subsequent chunks are raw PCM. For MP3
+   * each chunk contains independently-decodable MP3 frames.
+   *
+   * @param request - TTS streaming request parameters
+   * @returns A `ReadableStream` of `Uint8Array` chunks containing the audio
+   */
+  async textToSpeechStream(
+    request: TTSRequestStream,
+  ): Promise<ReadableStream<Uint8Array>> {
+    const response = await fetch(this.buildUrl('/v1/text-to-speech/stream'), {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      let errorData: ApiErrorResponse | undefined;
+      try {
+        errorData = (await response.json()) as ApiErrorResponse;
+      } catch {
+        // Response body is not JSON
+      }
+      throw TypecastAPIError.fromResponse(
+        response.status,
+        response.statusText,
+        errorData,
+      );
+    }
+
+    if (!response.body) {
+      throw new TypecastAPIError(
+        'Streaming response body was empty',
+        500,
+      );
+    }
+
+    return response.body;
+  }
+
+  /**
    * Get available voices (V1 API)
    * @param model - Optional model filter (e.g., 'ssfm-v21', 'ssfm-v30')
    * @returns List of available voices with their emotions
@@ -149,5 +193,18 @@ export class TypecastClient {
       { headers: this.headers }
     );
     return this.handleResponse<VoiceV2Response>(response);
+  }
+
+  /**
+   * Get the authenticated user's current subscription information.
+   * Returns plan tier, credit usage, and concurrency limits. Use this to
+   * check remaining credits or verify your plan before making TTS calls.
+   */
+  async getMySubscription(): Promise<SubscriptionResponse> {
+    const response = await fetch(
+      this.buildUrl('/v1/users/me/subscription'),
+      { headers: this.headers }
+    );
+    return this.handleResponse<SubscriptionResponse>(response);
   }
 }

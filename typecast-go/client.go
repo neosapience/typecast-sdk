@@ -154,6 +154,27 @@ func (c *Client) TextToSpeech(ctx context.Context, request *TTSRequest) (*TTSRes
 	}, nil
 }
 
+// TextToSpeechStream converts text to speech using the streaming endpoint.
+// The returned io.ReadCloser delivers chunked audio bytes (a WAV header
+// followed by PCM data, or independently-decodable MP3 chunks). The caller
+// is responsible for closing it.
+func (c *Client) TextToSpeechStream(ctx context.Context, request TTSRequestStream) (io.ReadCloser, error) {
+	if err := request.Validate(); err != nil {
+		return nil, err
+	}
+	resp, err := c.doRequest(ctx, http.MethodPost, "/v1/text-to-speech/stream", request)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		defer resp.Body.Close()
+		return nil, c.handleErrorResponse(resp)
+	}
+
+	return resp.Body, nil
+}
+
 // GetVoicesV2 retrieves the list of available voices with enhanced metadata (V2 API)
 func (c *Client) GetVoicesV2(ctx context.Context, filter *VoicesV2Filter) ([]VoiceV2, error) {
 	path := "/v2/voices"
@@ -216,6 +237,26 @@ func (c *Client) GetVoiceV2(ctx context.Context, voiceID string) (*VoiceV2, erro
 	}
 
 	return &voice, nil
+}
+
+// GetMySubscription retrieves the authenticated user's subscription details
+func (c *Client) GetMySubscription(ctx context.Context) (*SubscriptionResponse, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/v1/users/me/subscription", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+
+	var subscription SubscriptionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&subscription); err != nil {
+		return nil, fmt.Errorf("failed to decode subscription response: %w", err)
+	}
+
+	return &subscription, nil
 }
 
 // GetVoices retrieves the list of available voices (V1 API - deprecated)

@@ -1,6 +1,6 @@
 {
   "name": "@neosapience/typecast-js",
-  "version": "0.1.8",
+  "version": "0.3.0",
   "type": "module",
   "main": "./lib/index.cjs",
   "module": "./lib/index.js",

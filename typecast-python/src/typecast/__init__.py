@@ -11,14 +11,19 @@ from .exceptions import (
     UnprocessableEntityError,
 )
 from .models import (
+    Credits,
     Error,
     LanguageCode,
+    Limits,
     Output,
+    OutputStream,
+    PlanTier,
     Prompt,
+    SubscriptionResponse,
     TTSRequest,
+    TTSRequestStream,
     TTSResponse,
     VoicesResponse,
-    WebSocketMessage,
 )
 
 __all__ = [
@@ -35,12 +40,17 @@ __all__ = [
     "UnauthorizedError",
     "UnprocessableEntityError",
     # Models
+    "Credits",
     "Error",
     "LanguageCode",
+    "Limits",
     "Output",
+    "OutputStream",
+    "PlanTier",
     "Prompt",
+    "SubscriptionResponse",
     "TTSRequest",
+    "TTSRequestStream",
     "TTSResponse",
     "VoicesResponse",
-    "WebSocketMessage",
 ]

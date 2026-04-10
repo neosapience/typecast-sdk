@@ -4,12 +4,18 @@
 
 use crate::errors::{Result, TypecastError};
 use crate::models::{
-    Age, AudioFormat, ErrorResponse, Gender, TTSModel, TTSRequest, TTSResponse, UseCase, VoiceV2,
-    VoicesV2Filter,
+    Age, AudioFormat, ErrorResponse, Gender, SubscriptionResponse, TTSModel, TTSRequest,
+    TTSRequestStream, TTSResponse, UseCase, VoiceV2, VoicesV2Filter,
 };
+use bytes::Bytes;
+use futures_util::stream::{Stream, StreamExt};
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use std::env;
+use std::pin::Pin;
 use std::time::Duration;
+
+/// Boxed asynchronous stream of audio chunks returned by the streaming TTS endpoint.
+pub type AudioByteStream = Pin<Box<dyn Stream<Item = Result<Bytes>> + Send>>;
 
 /// Convert a [`TTSModel`] into the wire format string used in query parameters.
 fn model_query_value(model: TTSModel) -> &'static str {
@@ -263,6 +269,60 @@ impl TypecastClient {
         })
     }
 
+    /// Convert text to speech as a streaming response
+    ///
+    /// Returns a stream of audio byte chunks. For `wav` output the first chunk
+    /// contains the WAV header followed by PCM samples; for `mp3` output each
+    /// chunk is independently decodable.
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The streaming TTS request
+    ///
+    /// # Returns
+    ///
+    /// A pinned boxed [`Stream`] yielding [`Result<Bytes>`] chunks.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use futures_util::StreamExt;
+    /// use typecast_rust::{TypecastClient, TTSRequestStream, TTSModel};
+    ///
+    /// # async fn example() -> typecast_rust::Result<()> {
+    /// let client = TypecastClient::from_env()?;
+    /// let request = TTSRequestStream::new(
+    ///     "tc_60e5426de8b95f1d3000d7b5",
+    ///     "Hello, world!",
+    ///     TTSModel::SsfmV30,
+    /// );
+    /// let mut stream = client.text_to_speech_stream(&request).await?;
+    /// while let Some(chunk) = stream.next().await {
+    ///     let bytes = chunk?;
+    ///     // write bytes to file or audio sink
+    ///     let _ = bytes;
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn text_to_speech_stream(
+        &self,
+        request: &TTSRequestStream,
+    ) -> Result<AudioByteStream> {
+        let url = self.build_url("/v1/text-to-speech/stream", None);
+
+        let response = self.client.post(&url).json(request).send().await?;
+
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+
+        let stream = response
+            .bytes_stream()
+            .map(|item| item.map_err(TypecastError::from));
+        Ok(Box::pin(stream))
+    }
+
     /// Get voices with enhanced metadata (V2 API)
     ///
     /// # Arguments
@@ -361,6 +421,45 @@ impl TypecastClient {
 
         let voice: VoiceV2 = response.json().await?;
         Ok(voice)
+    }
+
+    /// Get the authenticated user's subscription
+    ///
+    /// # Returns
+    ///
+    /// Returns a `SubscriptionResponse` containing the user's plan, credits,
+    /// and usage limits.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use typecast_rust::TypecastClient;
+    ///
+    /// # async fn example() -> typecast_rust::Result<()> {
+    /// let client = TypecastClient::from_env()?;
+    /// let subscription = client.get_my_subscription().await?;
+    /// println!("Plan: {:?}", subscription.plan);
+    /// println!(
+    ///     "Credits: {}/{}",
+    ///     subscription.credits.used_credits, subscription.credits.plan_credits
+    /// );
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn get_my_subscription(&self) -> Result<SubscriptionResponse> {
+        let url = self.build_url("/v1/users/me/subscription", None);
+
+        let response = self.client
+            .get(&url)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+
+        let subscription: SubscriptionResponse = response.json().await?;
+        Ok(subscription)
     }
 }
 

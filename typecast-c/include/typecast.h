@@ -227,6 +227,34 @@ typedef struct {
     int seed;                /* Optional: Random seed (0 = not set) */
 } TypecastTTSRequest;
 
+/**
+ * Output settings for streaming TTS request.
+ *
+ * The streaming endpoint (/v1/text-to-speech/stream) does NOT accept
+ * `volume` or `target_lufs`, so they are deliberately absent here.
+ */
+typedef struct {
+    int audio_pitch;                    /* -12 to 12, default 0 */
+    float audio_tempo;                  /* 0.5 to 2.0, default 1.0 */
+    TypecastAudioFormat audio_format;   /* wav or mp3, default wav */
+} TypecastOutputStream;
+
+/**
+ * Streaming TTS Request structure (for text-to-speech/stream).
+ *
+ * Mirrors TypecastTTSRequest but uses TypecastOutputStream which omits
+ * the volume / target_lufs fields rejected by the streaming endpoint.
+ */
+typedef struct {
+    const char* text;                /* Required: Text to convert (max 2000 chars) */
+    const char* voice_id;            /* Required: Voice ID (e.g., "tc_xxx") */
+    TypecastModel model;             /* Required: ssfm-v21 or ssfm-v30 */
+    const char* language;            /* Optional: ISO 639-3 code */
+    TypecastPrompt* prompt;          /* Optional: Emotion settings */
+    TypecastOutputStream* output;    /* Optional: Audio output settings (no volume / lufs) */
+    int seed;                        /* Optional: Random seed (0 = not set) */
+} TypecastTTSRequestStream;
+
 /* ============================================
  * TTS Response
  * ============================================ */
@@ -284,6 +312,32 @@ typedef struct {
     TypecastAge* age;        /* Optional: Filter by age */
     const char* use_cases;   /* Optional: Filter by use case */
 } TypecastVoicesFilter;
+
+/* ============================================
+ * Subscription
+ * ============================================ */
+
+typedef enum {
+    TYPECAST_PLAN_TIER_FREE,
+    TYPECAST_PLAN_TIER_LITE,
+    TYPECAST_PLAN_TIER_PLUS,
+    TYPECAST_PLAN_TIER_CUSTOM
+} TypecastPlanTier;
+
+typedef struct {
+    int64_t plan_credits;
+    int64_t used_credits;
+} TypecastCredits;
+
+typedef struct {
+    int concurrency_limit;
+} TypecastLimits;
+
+typedef struct {
+    TypecastPlanTier plan;
+    TypecastCredits credits;
+    TypecastLimits limits;
+} TypecastSubscription;
 
 /* ============================================
  * Error Response
@@ -359,6 +413,46 @@ TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
  */
 TYPECAST_API void typecast_tts_response_free(TypecastTTSResponse* response);
 
+/**
+ * Streaming TTS chunk callback.
+ *
+ * Invoked once per chunk produced by the server while streaming
+ * audio bytes. Return 0 to continue receiving more chunks; return
+ * any non-zero value to abort the transfer (the request will fail
+ * with TYPECAST_ERROR_NETWORK).
+ *
+ * @param data    Pointer to chunk bytes (not NUL-terminated)
+ * @param len     Number of bytes in this chunk
+ * @param user_data Opaque pointer forwarded from the call site
+ * @return 0 to continue, non-zero to abort
+ */
+typedef int (*typecast_stream_callback_t)(
+    const uint8_t* data,
+    size_t len,
+    void* user_data
+);
+
+/**
+ * Convert text to speech via the streaming endpoint.
+ *
+ * Calls POST /v1/text-to-speech/stream and forwards each chunk of
+ * the response body to `on_chunk` as it arrives. The callback is
+ * invoked one or more times before the function returns.
+ *
+ * @param client    Pointer to TypecastClient (required)
+ * @param request   Streaming TTS request (required)
+ * @param on_chunk  Callback invoked per response chunk (required)
+ * @param user_data Opaque pointer forwarded to the callback
+ * @return TYPECAST_OK on success, otherwise an error code. On error,
+ *         additional details are available via typecast_client_get_error().
+ */
+TYPECAST_API TypecastErrorCode typecast_text_to_speech_stream(
+    TypecastClient* client,
+    const TypecastTTSRequestStream* request,
+    typecast_stream_callback_t on_chunk,
+    void* user_data
+);
+
 /* ============================================
  * Voices API
  * ============================================ */
@@ -402,6 +496,44 @@ TYPECAST_API void typecast_voices_response_free(TypecastVoicesResponse* response
  * @param voice Pointer to Voice
  */
 TYPECAST_API void typecast_voice_free(TypecastVoice* voice);
+
+/* ============================================
+ * Subscription API
+ * ============================================ */
+
+/**
+ * Get the authenticated user's subscription
+ *
+ * @param client Pointer to TypecastClient
+ * @return Pointer to Subscription, or NULL on failure
+ *         (must be freed with typecast_subscription_free)
+ */
+TYPECAST_API TypecastSubscription* typecast_get_my_subscription(
+    TypecastClient* client
+);
+
+/**
+ * Free subscription
+ *
+ * @param subscription Pointer to Subscription
+ */
+TYPECAST_API void typecast_subscription_free(TypecastSubscription* subscription);
+
+/**
+ * Get plan tier string representation
+ *
+ * @param plan Plan tier enum value
+ * @return Plan string (e.g., "free")
+ */
+TYPECAST_API const char* typecast_plan_tier_to_string(TypecastPlanTier plan);
+
+/**
+ * Parse plan tier from string
+ *
+ * @param str Plan tier string (e.g., "free")
+ * @return Plan tier enum value, or -1 on invalid input
+ */
+TYPECAST_API int typecast_plan_tier_from_string(const char* str);
 
 /* ============================================
  * Utility Functions
@@ -462,6 +594,14 @@ TYPECAST_API const char* typecast_error_message(TypecastErrorCode code);
 #define TYPECAST_OUTPUT_DEFAULT() \
     ((TypecastOutput){ \
         .volume = 100, \
+        .audio_pitch = 0, \
+        .audio_tempo = 1.0f, \
+        .audio_format = TYPECAST_AUDIO_FORMAT_WAV \
+    })
+
+/** Create default streaming output settings */
+#define TYPECAST_OUTPUT_STREAM_DEFAULT() \
+    ((TypecastOutputStream){ \
         .audio_pitch = 0, \
         .audio_tempo = 1.0f, \
         .audio_format = TYPECAST_AUDIO_FORMAT_WAV \

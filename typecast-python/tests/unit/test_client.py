@@ -3,7 +3,14 @@ import pytest
 from pydantic import ValidationError
 
 from typecast.client import Typecast
-from typecast.models import Output, Prompt, TTSRequest, TTSResponse
+from typecast.models import (
+    Output,
+    OutputStream,
+    Prompt,
+    TTSRequest,
+    TTSRequestStream,
+    TTSResponse,
+)
 
 
 @pytest.fixture
@@ -200,3 +207,182 @@ class TestSyncClient:
         mocker.patch.object(client.session, "get", return_value=mock_resp)
         with pytest.raises(NotFoundError):
             client.voice_v2("missing")
+
+
+class TestOutputStreamModel:
+    def test_defaults(self):
+        out = OutputStream()
+        assert out.audio_pitch == 0
+        assert out.audio_tempo == 1.0
+        assert out.audio_format == "wav"
+
+    def test_no_volume_field(self):
+        with pytest.raises(ValidationError):
+            OutputStream(volume=100)  # type: ignore[call-arg]
+
+    def test_no_target_lufs_field(self):
+        with pytest.raises(ValidationError):
+            OutputStream(target_lufs=-14.0)  # type: ignore[call-arg]
+
+
+class TestTTSRequestStreamModel:
+    def test_uses_output_stream(self):
+        req = TTSRequestStream(
+            voice_id="tc_test",
+            text="Hi",
+            model="ssfm-v30",
+            output=OutputStream(audio_format="mp3"),
+        )
+        assert req.output is not None
+        assert req.output.audio_format == "mp3"
+
+    def test_minimal(self):
+        req = TTSRequestStream(voice_id="tc_test", text="Hi", model="ssfm-v21")
+        assert req.output is None
+
+
+class TestSyncStream:
+    @pytest.fixture
+    def client(self):
+        return Typecast(host="https://dummy.example", api_key="test-key")
+
+    @pytest.fixture
+    def stream_request(self):
+        return TTSRequestStream(voice_id="tc_test", text="Hi", model="ssfm-v30")
+
+    def _mock_stream_response(self, mocker, chunks, status_code=200, text=""):
+        m = mocker.Mock()
+        m.status_code = status_code
+        m.text = text
+        # Include an empty chunk to exercise the `if chunk:` filter branch.
+        m.iter_content = mocker.Mock(return_value=iter([*chunks, b""]))
+        m.close = mocker.Mock()
+        return m
+
+    def test_stream_yields_chunks_and_closes(self, client, stream_request, mocker):
+        wav_header = b"RIFF\xff\xff\xff\xffWAVEfmt "
+        chunks = [wav_header, b"PCM1", b"PCM2"]
+        mock_resp = self._mock_stream_response(mocker, chunks)
+        post_mock = mocker.patch.object(
+            client.session, "post", return_value=mock_resp
+        )
+
+        out = list(client.text_to_speech_stream(stream_request, chunk_size=4096))
+
+        assert out == chunks
+        post_mock.assert_called_once_with(
+            f"{client.host}/v1/text-to-speech/stream",
+            json=stream_request.model_dump(exclude_none=True),
+            stream=True,
+            timeout=(10, 300),
+        )
+        mock_resp.iter_content.assert_called_once_with(chunk_size=4096)
+        mock_resp.close.assert_called_once()
+
+    def test_stream_default_chunk_size(self, client, stream_request, mocker):
+        mock_resp = self._mock_stream_response(mocker, [b"a"])
+        mocker.patch.object(client.session, "post", return_value=mock_resp)
+        list(client.text_to_speech_stream(stream_request))
+        mock_resp.iter_content.assert_called_once_with(chunk_size=8192)
+
+    @pytest.mark.parametrize(
+        "status,exc_name",
+        [
+            (400, "BadRequestError"),
+            (401, "UnauthorizedError"),
+            (402, "PaymentRequiredError"),
+            (404, "NotFoundError"),
+            (422, "UnprocessableEntityError"),
+            (429, "RateLimitError"),
+            (500, "InternalServerError"),
+            (503, "TypecastError"),
+        ],
+    )
+    def test_stream_error_status_codes(
+        self, client, stream_request, mocker, status, exc_name
+    ):
+        from typecast import exceptions as exc_mod
+
+        exc_class = getattr(exc_mod, exc_name)
+        mock_resp = self._mock_stream_response(
+            mocker, [], status_code=status, text=f"err {status}"
+        )
+        mocker.patch.object(client.session, "post", return_value=mock_resp)
+        with pytest.raises(exc_class):
+            # Materialize the generator so any setup-time HTTP error fires.
+            list(client.text_to_speech_stream(stream_request))
+        mock_resp.close.assert_called_once()
+        # iter_content should never be hit on the error path.
+        mock_resp.iter_content.assert_not_called()
+
+
+class TestSyncStreamChunkSizeValidation:
+    def test_zero_chunk_size_raises(self):
+        client = Typecast(host="https://dummy.example", api_key="k")
+        req = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
+        with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
+            list(client.text_to_speech_stream(req, chunk_size=0))
+
+    def test_negative_chunk_size_raises(self):
+        client = Typecast(host="https://dummy.example", api_key="k")
+        req = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
+        with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
+            list(client.text_to_speech_stream(req, chunk_size=-1))
+
+    def test_bool_chunk_size_raises(self):
+        client = Typecast(host="https://dummy.example", api_key="k")
+        req = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
+        with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
+            list(client.text_to_speech_stream(req, chunk_size=True))
+
+
+class TestSyncSubscription:
+    @pytest.fixture
+    def client(self):
+        return Typecast(host="https://dummy.example", api_key="test-key")
+
+    def _payload(self):
+        return {
+            "plan": "plus",
+            "credits": {"plan_credits": 100000, "used_credits": 1234},
+            "limits": {"concurrency_limit": 5},
+        }
+
+    def test_get_my_subscription_success(self, client, mocker):
+        from typecast.models import PlanTier
+
+        mock_resp = mocker.Mock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = self._payload()
+        get_mock = mocker.patch.object(
+            client.session, "get", return_value=mock_resp
+        )
+
+        sub = client.get_my_subscription()
+
+        get_mock.assert_called_once_with(
+            f"{client.host}/v1/users/me/subscription"
+        )
+        assert sub.plan == PlanTier.PLUS
+        assert sub.credits.plan_credits == 100000
+        assert sub.credits.used_credits == 1234
+        assert sub.limits.concurrency_limit == 5
+
+    @pytest.mark.parametrize(
+        "status,exc_name",
+        [
+            (401, "UnauthorizedError"),
+            (429, "RateLimitError"),
+            (500, "InternalServerError"),
+        ],
+    )
+    def test_get_my_subscription_errors(self, client, mocker, status, exc_name):
+        from typecast import exceptions as exc_mod
+
+        exc_class = getattr(exc_mod, exc_name)
+        mock_resp = mocker.Mock()
+        mock_resp.status_code = status
+        mock_resp.text = f"err {status}"
+        mocker.patch.object(client.session, "get", return_value=mock_resp)
+        with pytest.raises(exc_class):
+            client.get_my_subscription()

@@ -135,6 +135,56 @@ public class TypecastClient : IDisposable
         return TextToSpeechAsync(request).GetAwaiter().GetResult();
     }
 
+    /// <summary>
+    /// Synthesizes text to speech and returns the response body as a readable
+    /// stream from <c>POST /v1/text-to-speech/stream</c>.
+    /// </summary>
+    /// <param name="request">The streaming TTS request. Uses <see cref="OutputStream"/>
+    /// which omits <c>volume</c> and <c>target_lufs</c>.</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>
+    /// A <see cref="Stream"/> containing the audio bytes as they arrive from the
+    /// server. The caller is responsible for disposing the returned stream, which
+    /// will release the underlying HTTP response.
+    /// </returns>
+    /// <exception cref="TypecastException">Thrown when the API returns an error</exception>
+    public async Task<Stream> TextToSpeechStreamAsync(TTSRequestStream request, CancellationToken cancellationToken = default)
+    {
+        if (request == null) throw new ArgumentNullException(nameof(request));
+        request.Validate();
+
+        var url = $"{_apiHost}/v1/text-to-speech/stream";
+        var json = SerializeStreamRequest(request);
+
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+
+        var response = await _httpClient
+            .SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            string errorBody;
+            try
+            {
+                errorBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            }
+            finally
+            {
+                response.Dispose();
+                httpRequest.Dispose();
+            }
+            throw TypecastException.FromStatusCode((int)response.StatusCode, errorBody);
+        }
+
+        // Caller owns the returned Stream; disposing it will dispose the
+        // underlying HttpResponseMessage / connection.
+        return await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+    }
+
     #endregion
 
     #region Voices V1 (Deprecated)
@@ -242,6 +292,34 @@ public class TypecastClient : IDisposable
 
     #endregion
 
+    #region Subscription
+
+    /// <summary>
+    /// Gets the authenticated user's current subscription.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The subscription response containing plan, credits, and limits</returns>
+    /// <exception cref="TypecastException">Thrown when the API returns an error</exception>
+    public async Task<SubscriptionResponse> GetMySubscriptionAsync(CancellationToken cancellationToken = default)
+    {
+        var url = $"{_apiHost}/v1/users/me/subscription";
+
+        using var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        return await HandleJsonResponseAsync<SubscriptionResponse>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Gets the authenticated user's current subscription synchronously.
+    /// </summary>
+    /// <returns>The subscription response containing plan, credits, and limits</returns>
+    /// <exception cref="TypecastException">Thrown when the API returns an error</exception>
+    public SubscriptionResponse GetMySubscription()
+    {
+        return GetMySubscriptionAsync().GetAwaiter().GetResult();
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private string SerializeRequest(TTSRequest request)
@@ -278,6 +356,49 @@ public class TypecastClient : IDisposable
             if (request.Output.AudioFormat.HasValue)
                 outputDict["audio_format"] = request.Output.AudioFormat.Value.ToApiString();
             
+            if (outputDict.Count > 0)
+                dict["output"] = outputDict;
+        }
+
+        if (request.Seed.HasValue)
+        {
+            dict["seed"] = request.Seed.Value;
+        }
+
+        return JsonSerializer.Serialize(dict, JsonOptions);
+    }
+
+    private string SerializeStreamRequest(TTSRequestStream request)
+    {
+        // Build the request object manually to handle prompt polymorphism.
+        // OutputStream omits volume / target_lufs by design.
+        var dict = new Dictionary<string, object>
+        {
+            ["text"] = request.Text,
+            ["voice_id"] = request.VoiceId,
+            ["model"] = request.Model.ToApiString()
+        };
+
+        if (request.Language.HasValue)
+        {
+            dict["language"] = request.Language.Value.ToApiString();
+        }
+
+        if (request.Prompt != null)
+        {
+            dict["prompt"] = SerializePrompt(request.Prompt);
+        }
+
+        if (request.Output != null)
+        {
+            var outputDict = new Dictionary<string, object>();
+            if (request.Output.AudioPitch.HasValue)
+                outputDict["audio_pitch"] = request.Output.AudioPitch.Value;
+            if (request.Output.AudioTempo.HasValue)
+                outputDict["audio_tempo"] = request.Output.AudioTempo.Value;
+            if (request.Output.AudioFormat.HasValue)
+                outputDict["audio_format"] = request.Output.AudioFormat.Value.ToApiString();
+
             if (outputDict.Count > 0)
                 dict["output"] = outputDict;
         }

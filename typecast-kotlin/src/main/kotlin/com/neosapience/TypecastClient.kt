@@ -12,6 +12,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.Closeable
+import java.io.InputStream
 import java.util.concurrent.TimeUnit
 
 /**
@@ -119,6 +120,46 @@ class TypecastClient private constructor(
     }
 
     /**
+     * Streams synthesized audio from `POST /v1/text-to-speech/stream`.
+     *
+     * Returns an [InputStream] that yields the chunked binary audio body
+     * as the server produces it. For WAV, the first bytes contain the WAV
+     * header followed by PCM data. For MP3, the stream is a sequence of
+     * independently-decodable MP3 frames.
+     *
+     * The caller is responsible for closing the returned [InputStream];
+     * doing so releases the underlying HTTP connection.
+     *
+     * @param request the streaming TTS request parameters
+     * @return an [InputStream] of the audio body
+     * @throws TypecastException if the API call fails
+     */
+    fun textToSpeechStream(request: TTSRequestStream): InputStream {
+        val url = "$baseUrl/v1/text-to-speech/stream"
+        val jsonBody = json.encodeToString(request)
+
+        val httpRequest = Request.Builder()
+            .url(url)
+            .addHeader(API_KEY_HEADER, apiKey)
+            .addHeader("Content-Type", "application/json")
+            .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+
+        val streamClient = httpClient.newBuilder()
+            .readTimeout(5, TimeUnit.MINUTES)
+            .build()
+        val response = streamClient.newCall(httpRequest).execute()
+        // OkHttp 4.x always returns a non-null ResponseBody from execute().
+        val body = response.body!!
+        if (!response.isSuccessful) {
+            val errorText = body.string()
+            response.close()
+            throw buildError(response.code, errorText)
+        }
+        return body.byteStream()
+    }
+
+    /**
      * Gets all available voices (V1 API).
      *
      * @param model Optional model filter
@@ -205,6 +246,25 @@ class TypecastClient private constructor(
      */
     fun getVoiceV2(voiceId: String): VoiceV2Response {
         val url = "$baseUrl/v2/voices/$voiceId"
+
+        val httpRequest = Request.Builder()
+            .url(url)
+            .addHeader(API_KEY_HEADER, apiKey)
+            .addHeader("Content-Type", "application/json")
+            .get()
+            .build()
+
+        return executeRequest(httpRequest)
+    }
+
+    /**
+     * Gets the authenticated user's subscription information.
+     *
+     * @return the user's current subscription, including plan, credits, and limits
+     * @throws TypecastException if the API call fails
+     */
+    fun getMySubscription(): SubscriptionResponse {
+        val url = "$baseUrl/v1/users/me/subscription"
 
         val httpRequest = Request.Builder()
             .url(url)

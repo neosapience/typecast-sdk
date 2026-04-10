@@ -138,6 +138,120 @@ describe('TypecastClient', () => {
     });
   });
 
+  describe('textToSpeechStream', () => {
+    const streamRequest = {
+      text: 'Hello stream',
+      voice_id: 'tc_mock_001',
+      model: 'ssfm-v21' as TTSModel,
+      language: 'eng' as const,
+      seed: 12345,
+      prompt: {
+        emotion_preset: 'normal' as const,
+        emotion_intensity: 1.0,
+      },
+      output: {
+        audio_pitch: 0,
+        audio_tempo: 1.0,
+        audio_format: 'wav' as const,
+      },
+    };
+
+    it('returns a ReadableStream that yields the audio bytes', async () => {
+      const payload = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(payload);
+          controller.close();
+        },
+      });
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        body,
+      });
+
+      const stream = await client.textToSpeechStream(streamRequest);
+      const reader = stream.getReader();
+      const chunks: number[] = [];
+      // Read until done
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        if (value) chunks.push(...value);
+      }
+
+      expect(chunks).toEqual(Array.from(payload));
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://dummy-api.ai/v1/text-to-speech/stream',
+        expect.objectContaining({
+          method: 'POST',
+          headers: {
+            'X-API-KEY': 'test-api-key',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(streamRequest),
+        }),
+      );
+    });
+
+    it('throws TypecastAPIError when response.body is null', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: null,
+      });
+
+      await expect(
+        client.textToSpeechStream(streamRequest),
+      ).rejects.toMatchObject({
+        name: 'TypecastAPIError',
+        statusCode: 500,
+      });
+    });
+
+    it.each([
+      [400, 'Bad Request'],
+      [401, 'Unauthorized'],
+      [402, 'Payment Required'],
+      [404, 'Not Found'],
+      [422, 'Unprocessable Entity'],
+      [429, 'Too Many Requests'],
+      [500, 'Internal Server Error'],
+    ])(
+      'throws TypecastAPIError on %i',
+      async (status, statusText) => {
+        mockFetch.mockResolvedValue({
+          ok: false,
+          status,
+          statusText,
+          json: () => Promise.resolve({ detail: `err ${status}` }),
+        });
+
+        await expect(
+          client.textToSpeechStream(streamRequest),
+        ).rejects.toMatchObject({
+          name: 'TypecastAPIError',
+          statusCode: status,
+        });
+      },
+    );
+
+    it('throws TypecastAPIError when the error body is not JSON', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: () => Promise.reject(new SyntaxError('not json')),
+      });
+
+      await expect(
+        client.textToSpeechStream(streamRequest),
+      ).rejects.toBeInstanceOf(TypecastAPIError);
+    });
+  });
+
   describe('voices V1', () => {
     it('getVoices returns the array on success', async () => {
       const mockVoices = [
@@ -319,6 +433,59 @@ describe('TypecastClient', () => {
         statusCode: 404,
       });
     });
+  });
+
+  describe('subscription', () => {
+    const subscriptionPayload = {
+      plan: 'plus' as const,
+      credits: { plan_credits: 100000, used_credits: 1234 },
+      limits: { concurrency_limit: 5 },
+    };
+
+    it('getMySubscription returns the parsed subscription payload', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(subscriptionPayload),
+      });
+
+      const sub = await client.getMySubscription();
+
+      expect(sub.plan).toBe('plus');
+      expect(sub.credits.plan_credits).toBe(100000);
+      expect(sub.credits.used_credits).toBe(1234);
+      expect(sub.limits.concurrency_limit).toBe(5);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://dummy-api.ai/v1/users/me/subscription',
+        expect.objectContaining({
+          headers: {
+            'X-API-KEY': 'test-api-key',
+            'Content-Type': 'application/json',
+          },
+        }),
+      );
+    });
+
+    it.each([
+      [401, 'Unauthorized'],
+      [429, 'Too Many Requests'],
+      [500, 'Internal Server Error'],
+    ])(
+      'getMySubscription throws TypecastAPIError on %i',
+      async (status, statusText) => {
+        mockFetch.mockResolvedValue({
+          ok: false,
+          status,
+          statusText,
+          json: () => Promise.resolve({ detail: `err ${status}` }),
+        });
+
+        await expect(client.getMySubscription()).rejects.toMatchObject({
+          name: 'TypecastAPIError',
+          statusCode: status,
+        });
+      },
+    );
   });
 
   describe('constructor defaults', () => {

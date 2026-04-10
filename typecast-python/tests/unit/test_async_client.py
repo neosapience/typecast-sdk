@@ -14,7 +14,7 @@ from typecast.exceptions import (
     UnauthorizedError,
     UnprocessableEntityError,
 )
-from typecast.models import TTSRequest
+from typecast.models import OutputStream, TTSRequest, TTSRequestStream
 
 
 HOST = "https://dummy.example"
@@ -239,3 +239,136 @@ class TestAsyncContextManager:
         client = AsyncTypecast(host=HOST, api_key="key")
         assert client.session is None
         await client.__aexit__(None, None, None)
+
+
+class TestAsyncTextToSpeechStream:
+    @pytest.fixture
+    def stream_request(self):
+        return TTSRequestStream(
+            voice_id="tc_test",
+            text="Hi",
+            model="ssfm-v30",
+            output=OutputStream(audio_format="wav"),
+        )
+
+    async def test_stream_yields_chunks(self, stream_request):
+        # aioresponses returns the body in a single chunk; iter_chunked
+        # then re-slices it. We just verify all bytes round-trip.
+        body = b"RIFF\xff\xff\xff\xffWAVEfmt PCM_DATA_BLOCK"
+        with aioresponses() as m:
+            m.post(
+                f"{HOST}/v1/text-to-speech/stream",
+                status=200,
+                body=body,
+            )
+            async with AsyncTypecast(host=HOST, api_key="key") as client:
+                collected = b""
+                async for chunk in client.text_to_speech_stream(
+                    stream_request, chunk_size=4
+                ):
+                    collected += chunk
+                assert collected == body
+
+    @pytest.mark.parametrize(
+        "status,exc_class",
+        [
+            (400, BadRequestError),
+            (401, UnauthorizedError),
+            (402, PaymentRequiredError),
+            (404, NotFoundError),
+            (422, UnprocessableEntityError),
+            (429, RateLimitError),
+            (500, InternalServerError),
+            (503, TypecastError),
+        ],
+    )
+    async def test_stream_error_status_codes(
+        self, stream_request, status, exc_class
+    ):
+        with aioresponses() as m:
+            m.post(
+                f"{HOST}/v1/text-to-speech/stream",
+                status=status,
+                body=f"err {status}",
+            )
+            async with AsyncTypecast(host=HOST, api_key="key") as client:
+                with pytest.raises(exc_class):
+                    async for _ in client.text_to_speech_stream(stream_request):
+                        pass
+
+    async def test_stream_session_not_initialized(self, stream_request):
+        client = AsyncTypecast(host=HOST, api_key="key")
+        with pytest.raises(TypecastError, match="session not initialized"):
+            async for _ in client.text_to_speech_stream(stream_request):
+                pass
+
+
+class TestAsyncStreamChunkSizeValidation:
+    async def test_zero_chunk_size_raises(self):
+        stream_request = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
+        async with AsyncTypecast(host=HOST, api_key="key") as client:
+            with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
+                async for _ in client.text_to_speech_stream(stream_request, chunk_size=0):
+                    pass
+
+    async def test_negative_chunk_size_raises(self):
+        stream_request = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
+        async with AsyncTypecast(host=HOST, api_key="key") as client:
+            with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
+                async for _ in client.text_to_speech_stream(stream_request, chunk_size=-1):
+                    pass
+
+    async def test_bool_chunk_size_raises(self):
+        stream_request = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
+        async with AsyncTypecast(host=HOST, api_key="key") as client:
+            with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
+                async for _ in client.text_to_speech_stream(stream_request, chunk_size=True):
+                    pass
+
+
+class TestAsyncSubscription:
+    PAYLOAD = {
+        "plan": "plus",
+        "credits": {"plan_credits": 100000, "used_credits": 1234},
+        "limits": {"concurrency_limit": 5},
+    }
+
+    async def test_get_my_subscription_success(self):
+        from typecast.models import PlanTier
+
+        with aioresponses() as m:
+            m.get(
+                f"{HOST}/v1/users/me/subscription",
+                status=200,
+                payload=self.PAYLOAD,
+            )
+            async with AsyncTypecast(host=HOST, api_key="key") as client:
+                sub = await client.get_my_subscription()
+                assert sub.plan == PlanTier.PLUS
+                assert sub.credits.plan_credits == 100000
+                assert sub.credits.used_credits == 1234
+                assert sub.limits.concurrency_limit == 5
+
+    @pytest.mark.parametrize(
+        "status,exc_class",
+        [
+            (401, UnauthorizedError),
+            (429, RateLimitError),
+            (500, InternalServerError),
+        ],
+    )
+    async def test_get_my_subscription_errors(self, status, exc_class):
+        with aioresponses() as m:
+            m.get(
+                f"{HOST}/v1/users/me/subscription",
+                status=status,
+                body=f"err {status}",
+            )
+            async with AsyncTypecast(host=HOST, api_key="key") as client:
+                with pytest.raises(exc_class):
+                    await client.get_my_subscription()
+
+    async def test_get_my_subscription_session_not_initialized(self):
+        client = AsyncTypecast(host=HOST, api_key="key")
+        with pytest.raises(TypecastError, match="session not initialized"):
+            await client.get_my_subscription()

@@ -1,7 +1,13 @@
 package com.neosapience
 
+import com.neosapience.exceptions.BadRequestException
 import com.neosapience.exceptions.ForbiddenException
+import com.neosapience.exceptions.InternalServerException
 import com.neosapience.exceptions.NotFoundException
+import com.neosapience.exceptions.PaymentRequiredException
+import com.neosapience.exceptions.RateLimitException
+import com.neosapience.exceptions.UnauthorizedException
+import com.neosapience.exceptions.UnprocessableEntityException
 import com.neosapience.models.*
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -154,6 +160,142 @@ class TypecastClientTest {
         assertTrue(body.contains("\"previous_text\""))
     }
 
+    // ==================== TTS Stream Tests ====================
+
+    @Test
+    @DisplayName("textToSpeechStream should successfully stream audio bytes")
+    fun textToSpeechStream_success() {
+        val mockAudioData = "fake wav stream data".toByteArray(StandardCharsets.UTF_8)
+
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(okio.Buffer().write(mockAudioData))
+        )
+
+        val request = TTSRequestStream.builder()
+            .voiceId("tc_test_voice")
+            .text("Hello, world!")
+            .model(TTSModel.SSFM_V30)
+            .language(LanguageCode.ENG)
+            .output(OutputStream.builder().audioFormat("wav").build())
+            .build()
+
+        val received = client.textToSpeechStream(request).use { it.readBytes() }
+        assertArrayEquals(mockAudioData, received)
+
+        val recordedRequest = mockServer.takeRequest()
+        assertEquals("POST", recordedRequest.method)
+        assertEquals("/v1/text-to-speech/stream", recordedRequest.path)
+        assertEquals("test-api-key", recordedRequest.getHeader("X-API-KEY"))
+        val body = recordedRequest.body.readUtf8()
+        assertTrue(body.contains("\"voice_id\":\"tc_test_voice\""))
+        assertTrue(body.contains("\"text\":\"Hello, world!\""))
+        assertTrue(body.contains("\"audio_format\":\"wav\""))
+        // OutputStream must NOT serialize volume / target_lufs.
+        assertFalse(body.contains("volume"))
+        assertFalse(body.contains("target_lufs"))
+    }
+
+    @Test
+    @DisplayName("textToSpeechStream should throw BadRequestException on 400")
+    fun textToSpeechStream_badRequest() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(400)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"detail": "bad request"}""")
+        )
+        val request = TTSRequestStream.builder()
+            .voiceId("tc_test").text("hi").model(TTSModel.SSFM_V30).build()
+        assertThrows(BadRequestException::class.java) { client.textToSpeechStream(request) }
+    }
+
+    @Test
+    @DisplayName("textToSpeechStream should throw UnauthorizedException on 401")
+    fun textToSpeechStream_unauthorized() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"detail": "no auth"}""")
+        )
+        val request = TTSRequestStream.builder()
+            .voiceId("tc_test").text("hi").model(TTSModel.SSFM_V30).build()
+        assertThrows(UnauthorizedException::class.java) { client.textToSpeechStream(request) }
+    }
+
+    @Test
+    @DisplayName("textToSpeechStream should throw PaymentRequiredException on 402")
+    fun textToSpeechStream_paymentRequired() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(402)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"detail": "pay up"}""")
+        )
+        val request = TTSRequestStream.builder()
+            .voiceId("tc_test").text("hi").model(TTSModel.SSFM_V30).build()
+        assertThrows(PaymentRequiredException::class.java) { client.textToSpeechStream(request) }
+    }
+
+    @Test
+    @DisplayName("textToSpeechStream should throw NotFoundException on 404")
+    fun textToSpeechStream_notFound() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(404)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"detail": "missing"}""")
+        )
+        val request = TTSRequestStream.builder()
+            .voiceId("tc_test").text("hi").model(TTSModel.SSFM_V30).build()
+        assertThrows(NotFoundException::class.java) { client.textToSpeechStream(request) }
+    }
+
+    @Test
+    @DisplayName("textToSpeechStream should throw UnprocessableEntityException on 422")
+    fun textToSpeechStream_unprocessable() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(422)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"detail": "bad params"}""")
+        )
+        val request = TTSRequestStream.builder()
+            .voiceId("tc_test").text("hi").model(TTSModel.SSFM_V30).build()
+        assertThrows(UnprocessableEntityException::class.java) { client.textToSpeechStream(request) }
+    }
+
+    @Test
+    @DisplayName("textToSpeechStream should throw RateLimitException on 429")
+    fun textToSpeechStream_rateLimited() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(429)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"detail": "slow down"}""")
+        )
+        val request = TTSRequestStream.builder()
+            .voiceId("tc_test").text("hi").model(TTSModel.SSFM_V30).build()
+        assertThrows(RateLimitException::class.java) { client.textToSpeechStream(request) }
+    }
+
+    @Test
+    @DisplayName("textToSpeechStream should throw InternalServerException on 500")
+    fun textToSpeechStream_internalServerError() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(500)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"detail": "boom"}""")
+        )
+        val request = TTSRequestStream.builder()
+            .voiceId("tc_test").text("hi").model(TTSModel.SSFM_V30).build()
+        assertThrows(InternalServerException::class.java) { client.textToSpeechStream(request) }
+    }
+
     // ==================== Voices V2 Tests ====================
 
     @Test
@@ -258,6 +400,143 @@ class TypecastClientTest {
 
         assertThrows(NotFoundException::class.java) {
             client.getVoiceV2("invalid_voice")
+        }
+    }
+
+    // ==================== Subscription Tests ====================
+
+    @Test
+    @DisplayName("getMySubscription should return subscription information")
+    fun getMySubscription_success() {
+        val mockResponse = """
+            {
+                "plan": "plus",
+                "credits": {
+                    "plan_credits": 10000,
+                    "used_credits": 1234
+                },
+                "limits": {
+                    "concurrency_limit": 5
+                }
+            }
+        """.trimIndent()
+
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody(mockResponse)
+        )
+
+        val subscription = client.getMySubscription()
+
+        assertEquals(PlanTier.PLUS, subscription.plan)
+        assertEquals("plus", subscription.plan.value)
+        assertEquals(10000L, subscription.credits.planCredits)
+        assertEquals(1234L, subscription.credits.usedCredits)
+        assertEquals(5L, subscription.limits.concurrencyLimit)
+
+        val recordedRequest = mockServer.takeRequest()
+        assertEquals("GET", recordedRequest.method)
+        assertEquals("/v1/users/me/subscription", recordedRequest.path)
+        assertEquals("test-api-key", recordedRequest.getHeader("X-API-KEY"))
+    }
+
+    @Test
+    @DisplayName("Subscription model classes should be constructable directly")
+    fun subscription_modelsConstructable() {
+        // Exercise the public primary constructors directly. kotlinx.serialization
+        // uses a synthetic deserialization constructor instead, so the primary
+        // constructors are not invoked by getMySubscription() alone.
+        val credits = Credits(planCredits = 100L, usedCredits = 25L)
+        assertEquals(100L, credits.planCredits)
+        assertEquals(25L, credits.usedCredits)
+
+        val limits = Limits(concurrencyLimit = 4L)
+        assertEquals(4L, limits.concurrencyLimit)
+
+        val sub = SubscriptionResponse(plan = PlanTier.FREE, credits = credits, limits = limits)
+        assertEquals(PlanTier.FREE, sub.plan)
+        assertEquals(credits, sub.credits)
+        assertEquals(limits, sub.limits)
+    }
+
+    @Test
+    @DisplayName("getMySubscription should support all plan tiers")
+    fun getMySubscription_allPlanTiers() {
+        // Cover all enum values to ensure they (de)serialize correctly.
+        val tiers = listOf(
+            "free" to PlanTier.FREE,
+            "lite" to PlanTier.LITE,
+            "plus" to PlanTier.PLUS,
+            "custom" to PlanTier.CUSTOM
+        )
+
+        for ((wire, expected) in tiers) {
+            mockServer.enqueue(
+                MockResponse()
+                    .setResponseCode(200)
+                    .setHeader("Content-Type", "application/json")
+                    .setBody(
+                        """
+                        {
+                            "plan": "$wire",
+                            "credits": {"plan_credits": 0, "used_credits": 0},
+                            "limits": {"concurrency_limit": 1}
+                        }
+                        """.trimIndent()
+                    )
+            )
+
+            val subscription = client.getMySubscription()
+            assertEquals(expected, subscription.plan)
+            assertEquals(wire, subscription.plan.value)
+        }
+    }
+
+    @Test
+    @DisplayName("getMySubscription should throw UnauthorizedException for 401")
+    fun getMySubscription_unauthorized() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"detail": "Invalid API key"}""")
+        )
+
+        val exception = assertThrows(UnauthorizedException::class.java) {
+            client.getMySubscription()
+        }
+        assertTrue(exception.message!!.contains("Invalid API key"))
+    }
+
+    @Test
+    @DisplayName("getMySubscription should throw RateLimitException for 429")
+    fun getMySubscription_rateLimited() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(429)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"detail": "Too many requests"}""")
+        )
+
+        assertThrows(RateLimitException::class.java) {
+            client.getMySubscription()
+        }
+    }
+
+    @Test
+    @DisplayName("getMySubscription should throw InternalServerException for 500")
+    fun getMySubscription_internalServerError() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(500)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"detail": "Internal server error"}""")
+        )
+
+        assertThrows(InternalServerException::class.java) {
+            client.getMySubscription()
         }
     }
 

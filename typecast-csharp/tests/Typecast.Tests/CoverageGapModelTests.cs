@@ -198,6 +198,145 @@ public class CoverageGapModelTests
         act.Should().Throw<JsonException>();
     }
 
+    // ----- OutputStream -----
+
+    [Fact]
+    public void OutputStream_DefaultConstructor_ShouldHaveDefaults()
+    {
+        var output = new OutputStream();
+        output.AudioPitch.Should().Be(0);
+        output.AudioTempo.Should().Be(1.0);
+        output.AudioFormat.Should().Be(AudioFormat.Wav);
+    }
+
+    [Fact]
+    public void OutputStream_ParameterizedConstructor_ShouldSetValues()
+    {
+        var output = new OutputStream(audioPitch: 5, audioTempo: 1.5, audioFormat: AudioFormat.Mp3);
+        output.AudioPitch.Should().Be(5);
+        output.AudioTempo.Should().Be(1.5);
+        output.AudioFormat.Should().Be(AudioFormat.Mp3);
+    }
+
+    [Fact]
+    public void OutputStream_ParameterizedConstructor_NullFormat_ShouldDefaultToWav()
+    {
+        var output = new OutputStream(audioPitch: 1, audioTempo: 1.0, audioFormat: null);
+        output.AudioFormat.Should().Be(AudioFormat.Wav);
+    }
+
+    [Fact]
+    public void OutputStream_Validate_DefaultValues_ShouldNotThrow()
+    {
+        var output = new OutputStream();
+        output.Invoking(o => o.Validate()).Should().NotThrow();
+    }
+
+    [Fact]
+    public void OutputStream_Validate_NullValues_ShouldNotThrow()
+    {
+        var output = new OutputStream { AudioPitch = null, AudioTempo = null, AudioFormat = null };
+        output.Invoking(o => o.Validate()).Should().NotThrow();
+    }
+
+    [Fact]
+    public void OutputStream_Validate_AudioPitchTooLow_ShouldThrow()
+    {
+        var output = new OutputStream { AudioPitch = -13 };
+        output.Invoking(o => o.Validate())
+            .Should().Throw<ArgumentOutOfRangeException>()
+            .WithMessage("*AudioPitch*");
+    }
+
+    [Fact]
+    public void OutputStream_Validate_AudioPitchTooHigh_ShouldThrow()
+    {
+        var output = new OutputStream { AudioPitch = 13 };
+        output.Invoking(o => o.Validate())
+            .Should().Throw<ArgumentOutOfRangeException>()
+            .WithMessage("*AudioPitch*");
+    }
+
+    [Fact]
+    public void OutputStream_Validate_AudioTempoTooLow_ShouldThrow()
+    {
+        var output = new OutputStream { AudioTempo = 0.4 };
+        output.Invoking(o => o.Validate())
+            .Should().Throw<ArgumentOutOfRangeException>()
+            .WithMessage("*AudioTempo*");
+    }
+
+    [Fact]
+    public void OutputStream_Validate_AudioTempoTooHigh_ShouldThrow()
+    {
+        var output = new OutputStream { AudioTempo = 2.1 };
+        output.Invoking(o => o.Validate())
+            .Should().Throw<ArgumentOutOfRangeException>()
+            .WithMessage("*AudioTempo*");
+    }
+
+    // ----- TTSRequestStream -----
+
+    [Fact]
+    public void TTSRequestStream_DefaultConstructor_ShouldHaveEmptyDefaults()
+    {
+        var request = new TTSRequestStream();
+        request.Text.Should().BeEmpty();
+        request.VoiceId.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void TTSRequestStream_ParameterizedConstructor_ShouldSetFields()
+    {
+        var request = new TTSRequestStream("hello", "voice1", TTSModel.SsfmV30);
+        request.Text.Should().Be("hello");
+        request.VoiceId.Should().Be("voice1");
+        request.Model.Should().Be(TTSModel.SsfmV30);
+    }
+
+    [Fact]
+    public void TTSRequestStream_Validate_Valid_ShouldNotThrow()
+    {
+        var request = new TTSRequestStream("hello", "voice1", TTSModel.SsfmV30)
+        {
+            Prompt = new Prompt(EmotionPreset.Happy),
+            Output = new OutputStream(),
+        };
+        request.Invoking(r => r.Validate()).Should().NotThrow();
+    }
+
+    [Fact]
+    public void TTSRequestStream_Validate_EmptyText_ShouldThrow()
+    {
+        var request = new TTSRequestStream { Text = "", VoiceId = "v1", Model = TTSModel.SsfmV30 };
+        request.Invoking(r => r.Validate())
+            .Should().Throw<ArgumentException>()
+            .WithMessage("*Text*");
+    }
+
+    [Fact]
+    public void TTSRequestStream_Validate_TextTooLong_ShouldThrow()
+    {
+        var request = new TTSRequestStream
+        {
+            Text = new string('a', 5001),
+            VoiceId = "v1",
+            Model = TTSModel.SsfmV30,
+        };
+        request.Invoking(r => r.Validate())
+            .Should().Throw<ArgumentException>()
+            .WithMessage("*5000*");
+    }
+
+    [Fact]
+    public void TTSRequestStream_Validate_EmptyVoiceId_ShouldThrow()
+    {
+        var request = new TTSRequestStream { Text = "hi", VoiceId = "", Model = TTSModel.SsfmV30 };
+        request.Invoking(r => r.Validate())
+            .Should().Throw<ArgumentException>()
+            .WithMessage("*VoiceId*");
+    }
+
     [Fact]
     public void JsonStringEnumMemberConverter_Write_UndefinedValue_ShouldUseLowerInvariantToString()
     {
