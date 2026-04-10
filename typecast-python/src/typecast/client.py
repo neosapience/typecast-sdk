@@ -147,6 +147,7 @@ class Typecast:
             f"{self.host}{endpoint}",
             json=request.model_dump(exclude_none=True),
             stream=True,
+            timeout=(10, 300),
         )
         if response.status_code != 200:
             error_text = response.text

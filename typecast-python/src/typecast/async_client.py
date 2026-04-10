@@ -155,8 +155,11 @@ class AsyncTypecast:
         if not self.session:
             raise TypecastError("Client session not initialized. Use async with.")
         endpoint = "/v1/text-to-speech/stream"
+        stream_timeout = aiohttp.ClientTimeout(sock_connect=10, sock_read=300)
         async with self.session.post(
-            f"{self.host}{endpoint}", json=request.model_dump(exclude_none=True)
+            f"{self.host}{endpoint}",
+            json=request.model_dump(exclude_none=True),
+            timeout=stream_timeout,
         ) as response:
             if response.status != 200:
                 error_text = await response.text()

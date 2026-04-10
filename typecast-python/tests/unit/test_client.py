@@ -274,6 +274,7 @@ class TestSyncStream:
             f"{client.host}/v1/text-to-speech/stream",
             json=stream_request.model_dump(exclude_none=True),
             stream=True,
+            timeout=(10, 300),
         )
         mock_resp.iter_content.assert_called_once_with(chunk_size=4096)
         mock_resp.close.assert_called_once()
