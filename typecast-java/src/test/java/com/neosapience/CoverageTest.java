@@ -704,6 +704,12 @@ class CoverageTest {
     }
 
     @Test
+    void output_rejectsNaNAndInfinityTempo() {
+        assertThrows(IllegalArgumentException.class, () -> new Output().setAudioTempo(Double.NaN));
+        assertThrows(IllegalArgumentException.class, () -> new Output().setAudioTempo(Double.POSITIVE_INFINITY));
+    }
+
+    @Test
     void output_volumeAndTargetLufsConflict() {
         Output o = new Output();
         // Default has volume=100; setting targetLufs should fail
@@ -1106,6 +1112,16 @@ class CoverageTest {
     }
 
     @Test
+    void textToSpeech_nullRequestThrows() {
+        assertThrows(IllegalArgumentException.class, () -> client.textToSpeech(null));
+    }
+
+    @Test
+    void textToSpeechStream_nullRequestThrows() {
+        assertThrows(IllegalArgumentException.class, () -> client.textToSpeechStream(null));
+    }
+
+    @Test
     void textToSpeechStream_success_readsBytesAndVerifiesRequest() throws Exception {
         byte[] audioBytes = new byte[]{0x52, 0x49, 0x46, 0x46, 0x10, 0x20, 0x30};
         mockServer.enqueue(new MockResponse()
@@ -1383,6 +1399,8 @@ class CoverageTest {
     void outputStream_validatesAudioTempoRange() {
         assertThrows(IllegalArgumentException.class, () -> new OutputStream().setAudioTempo(0.49));
         assertThrows(IllegalArgumentException.class, () -> new OutputStream().setAudioTempo(2.01));
+        assertThrows(IllegalArgumentException.class, () -> new OutputStream().setAudioTempo(Double.NaN));
+        assertThrows(IllegalArgumentException.class, () -> new OutputStream().setAudioTempo(Double.POSITIVE_INFINITY));
         assertDoesNotThrow(() -> new OutputStream().setAudioTempo(0.5));
         assertDoesNotThrow(() -> new OutputStream().setAudioTempo(2.0));
     }

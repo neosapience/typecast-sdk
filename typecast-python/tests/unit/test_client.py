@@ -315,6 +315,20 @@ class TestSyncStream:
         mock_resp.iter_content.assert_not_called()
 
 
+class TestSyncStreamChunkSizeValidation:
+    def test_zero_chunk_size_raises(self):
+        client = Typecast(host="https://dummy.example", api_key="k")
+        req = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
+        with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
+            list(client.text_to_speech_stream(req, chunk_size=0))
+
+    def test_negative_chunk_size_raises(self):
+        client = Typecast(host="https://dummy.example", api_key="k")
+        req = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
+        with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
+            list(client.text_to_speech_stream(req, chunk_size=-1))
+
+
 class TestSyncSubscription:
     @pytest.fixture
     def client(self):

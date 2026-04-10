@@ -303,6 +303,22 @@ class TestAsyncTextToSpeechStream:
                 pass
 
 
+class TestAsyncStreamChunkSizeValidation:
+    async def test_zero_chunk_size_raises(self):
+        stream_request = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
+        async with AsyncTypecast(host=HOST, api_key="key") as client:
+            with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
+                async for _ in client.text_to_speech_stream(stream_request, chunk_size=0):
+                    pass
+
+    async def test_negative_chunk_size_raises(self):
+        stream_request = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
+        async with AsyncTypecast(host=HOST, api_key="key") as client:
+            with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
+                async for _ in client.text_to_speech_stream(stream_request, chunk_size=-1):
+                    pass
+
+
 class TestAsyncSubscription:
     PAYLOAD = {
         "plan": "plus",
