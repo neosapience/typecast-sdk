@@ -230,7 +230,10 @@ public class TypecastClient {
                 .post(RequestBody.create(jsonBody, JSON_MEDIA_TYPE))
                 .build();
 
-        Response response = httpClient.newCall(httpRequest).execute();
+        OkHttpClient streamClient = httpClient.newBuilder()
+                .readTimeout(5, TimeUnit.MINUTES)
+                .build();
+        Response response = streamClient.newCall(httpRequest).execute();
         if (!response.isSuccessful()) {
             String errorBody;
             try {

@@ -145,7 +145,10 @@ class TypecastClient private constructor(
             .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        val response = httpClient.newCall(httpRequest).execute()
+        val streamClient = httpClient.newBuilder()
+            .readTimeout(5, TimeUnit.MINUTES)
+            .build()
+        val response = streamClient.newCall(httpRequest).execute()
         // OkHttp 4.x always returns a non-null ResponseBody from execute().
         val body = response.body!!
         if (!response.isSuccessful) {
