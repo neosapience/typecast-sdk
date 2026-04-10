@@ -61,7 +61,7 @@ public class OutputStream {
      * @throws IllegalArgumentException if audioTempo is out of range
      */
     public OutputStream setAudioTempo(Double audioTempo) {
-        if (audioTempo != null && (audioTempo < 0.5 || audioTempo > 2.0)) {
+        if (audioTempo != null && (audioTempo.isNaN() || audioTempo.isInfinite() || audioTempo < 0.5 || audioTempo > 2.0)) {
             throw new IllegalArgumentException("Audio tempo must be between 0.5 and 2.0");
         }
         this.audioTempo = audioTempo;
