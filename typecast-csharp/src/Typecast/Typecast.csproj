@@ -11,7 +11,7 @@
     
     <!-- NuGet Package Configuration -->
     <PackageId>typecast-csharp</PackageId>
-    <Version>0.1.2</Version>
+    <Version>0.2.0</Version>
     <Authors>Neosapience</Authors>
     <Company>Neosapience</Company>
     <Description>Official C# SDK for Typecast Text-to-Speech API. Supports .NET Standard 2.0+, .NET 6+, Unity (via NuGetForUnity), and Blazor.</Description>
