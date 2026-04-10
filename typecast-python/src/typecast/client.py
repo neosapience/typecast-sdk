@@ -140,6 +140,8 @@ class Typecast:
             NotFoundError, UnprocessableEntityError, RateLimitError,
             InternalServerError, TypecastError: depending on response status.
         """
+        if not isinstance(chunk_size, int) or chunk_size < 1:
+            raise ValueError("chunk_size must be a positive integer")
         endpoint = "/v1/text-to-speech/stream"
         response = self.session.post(
             f"{self.host}{endpoint}",
