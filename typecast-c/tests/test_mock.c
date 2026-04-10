@@ -923,6 +923,7 @@ static void test_tts_stream_basic(void) {
 
     size_t body_len = 4096;
     uint8_t* body = (uint8_t*)malloc(body_len);
+    ASSERT_NOT_NULL(body);
     for (size_t i = 0; i < body_len; i++) body[i] = (uint8_t)((i * 7 + 3) & 0xff);
 
     mock_enqueue(200, NULL, body, body_len);
@@ -1117,6 +1118,7 @@ static void test_tts_stream_callback_abort(void) {
     /* 4 KiB chunked body, sent as two separate HTTP chunks. */
     size_t body_len = 4096;
     uint8_t* body = (uint8_t*)malloc(body_len);
+    ASSERT_NOT_NULL(body);
     for (size_t i = 0; i < body_len; i++) body[i] = (uint8_t)(i & 0xff);
     mock_enqueue_chunked(200, body, body_len);
     free(body);
