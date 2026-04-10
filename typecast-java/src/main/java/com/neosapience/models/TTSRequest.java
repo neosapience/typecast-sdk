@@ -313,7 +313,7 @@ public class TTSRequest {
     public String toString() {
         return "TTSRequest{" +
                 "voiceId='" + voiceId + '\'' +
-                ", text='" + (text.length() > 50 ? text.substring(0, 50) + "..." : text) + '\'' +
+                ", text.length=" + text.length() +
                 ", model=" + model +
                 ", language=" + language +
                 ", prompt=" + prompt +

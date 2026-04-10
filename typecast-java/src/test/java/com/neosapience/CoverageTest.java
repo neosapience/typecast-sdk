@@ -667,11 +667,12 @@ class CoverageTest {
     }
 
     @Test
-    void ttsRequest_toString_truncatesLongText() {
+    void ttsRequest_toString_showsTextLength() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 100; i++) sb.append("a");
         TTSRequest r = new TTSRequest("tc", sb.toString(), TTSModel.SSFM_V30);
-        assertTrue(r.toString().contains("..."));
+        assertTrue(r.toString().contains("text.length=100"));
+        assertFalse(r.toString().contains("aaa"));
     }
 
     @Test
@@ -1442,11 +1443,12 @@ class CoverageTest {
     }
 
     @Test
-    void ttsRequestStream_toString_truncatesLongText() {
+    void ttsRequestStream_toString_showsTextLength() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 100; i++) sb.append("a");
         TTSRequestStream r = new TTSRequestStream("tc", sb.toString(), TTSModel.SSFM_V30);
-        assertTrue(r.toString().contains("..."));
+        assertTrue(r.toString().contains("text.length=100"));
+        assertFalse(r.toString().contains("aaa"));
     }
 
     @Test
