@@ -636,11 +636,14 @@ async fn text_to_speech_stream_returns_chunked_bytes() {
     let mut stream = client.text_to_speech_stream(&req).await.unwrap();
 
     let mut collected: Vec<u8> = Vec::new();
+    let mut chunk_count: usize = 0;
     while let Some(chunk) = stream.next().await {
         let bytes = chunk.unwrap();
         collected.extend_from_slice(&bytes);
+        chunk_count += 1;
     }
     assert_eq!(collected, body);
+    assert!(chunk_count >= 1, "expected at least one chunk from stream");
 }
 
 #[tokio::test]
