@@ -30,10 +30,10 @@ public class TTSRequestStream {
      * @throws IllegalArgumentException if any required field is invalid
      */
     public TTSRequestStream(String voiceId, String text, TTSModel model) {
-        if (voiceId == null || voiceId.isEmpty()) {
+        if (voiceId == null || voiceId.isBlank()) {
             throw new IllegalArgumentException("Voice ID is required");
         }
-        if (text == null || text.isEmpty()) {
+        if (text == null || text.isBlank()) {
             throw new IllegalArgumentException("Text is required");
         }
         if (text.length() > MAX_TEXT_LENGTH) {
