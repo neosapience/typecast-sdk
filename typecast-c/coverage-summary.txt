@@ -1,0 +1,8 @@
+Reading tracefile coverage.filtered.info.
+Summary coverage rate:
+  source files: 1
+  lines.......: 100.0% (719 of 719 lines)
+  functions...: 100.0% (34 of 34 functions)
+  branches....: 83.6% (347 of 415 branches)
+Message summary:
+  no messages were reported
