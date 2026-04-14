@@ -166,7 +166,7 @@ pub const TypecastError = error{
 - **JSON**: `std.json` — `parseFromSlice` / `stringifyAlloc`
 - **Streaming**: Callback function pattern `fn([]const u8) anyerror!void`
 - **Memory**: Caller provides allocator. `textToSpeech` returns owned slice (caller frees). `textToSpeechStream` streams through callback (no large allocation).
-- **Minimum Zig**: 0.13.0
+- **Minimum Zig**: 0.15.0
 
 ## Testing
 

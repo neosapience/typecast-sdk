@@ -353,7 +353,10 @@ pub fn parseVoicesV2(allocator: std.mem.Allocator, data: []const u8) ![]models.V
             .array => |arr| blk: {
                 const cases = try allocator.alloc([]const u8, arr.items.len);
                 for (arr.items, 0..) |c, ci| {
-                    cases[ci] = try allocator.dupe(u8, c.string);
+                    cases[ci] = try allocator.dupe(u8, switch (c) {
+                        .string => |s| s,
+                        else => return error.JsonParseError,
+                    });
                 }
                 break :blk cases;
             },
