@@ -212,7 +212,16 @@ pub fn parseVoices(allocator: std.mem.Allocator, data: []const u8) ![]models.Voi
     const items = parsed.value.array.items;
 
     var voices = try allocator.alloc(models.Voice, items.len);
-    errdefer allocator.free(voices);
+    var initialized: usize = 0;
+    errdefer {
+        for (voices[0..initialized]) |v| {
+            allocator.free(v.voice_id);
+            allocator.free(v.voice_name);
+            for (v.emotions) |e| allocator.free(e);
+            allocator.free(v.emotions);
+        }
+        allocator.free(voices);
+    }
 
     for (items, 0..) |item, i| {
         const obj = item.object;
@@ -227,6 +236,7 @@ pub fn parseVoices(allocator: std.mem.Allocator, data: []const u8) ![]models.Voi
             .model = models.TtsModel.fromString(obj.get("model").?.string) orelse return error.InvalidModel,
             .emotions = emotions,
         };
+        initialized = i + 1;
     }
 
     return voices;
@@ -239,7 +249,24 @@ pub fn parseVoicesV2(allocator: std.mem.Allocator, data: []const u8) ![]models.V
     const items = parsed.value.array.items;
 
     var voices = try allocator.alloc(models.VoiceV2, items.len);
-    errdefer allocator.free(voices);
+    var initialized: usize = 0;
+    errdefer {
+        for (voices[0..initialized]) |v| {
+            allocator.free(v.voice_id);
+            allocator.free(v.voice_name);
+            for (v.models) |mi| {
+                allocator.free(mi.version);
+                for (mi.emotions) |e| allocator.free(e);
+                allocator.free(mi.emotions);
+            }
+            allocator.free(v.models);
+            if (v.use_cases) |cases| {
+                for (cases) |c| allocator.free(c);
+                allocator.free(cases);
+            }
+        }
+        allocator.free(voices);
+    }
 
     for (items, 0..) |item, i| {
         const obj = item.object;
@@ -292,6 +319,7 @@ pub fn parseVoicesV2(allocator: std.mem.Allocator, data: []const u8) ![]models.V
             .age = age,
             .use_cases = use_cases,
         };
+        initialized = i + 1;
     }
 
     return voices;

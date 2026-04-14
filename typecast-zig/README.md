@@ -121,8 +121,11 @@ var client = typecast.Client.init(allocator, .{
     .api_key = "your-api-key",
 });
 defer client.deinit();
+```
 
-// Or read from environment variable (recommended)
+Or read from an environment variable (recommended):
+
+```zig
 const api_key = std.posix.getenv("TYPECAST_API_KEY") orelse return error.MissingApiKey;
 var client = typecast.Client.init(allocator, .{
     .api_key = api_key,

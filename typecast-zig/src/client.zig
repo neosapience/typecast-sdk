@@ -112,7 +112,7 @@ pub const Client = struct {
         var buf: [8192]u8 = undefined;
         var read_buf = [_][]u8{&buf};
         while (true) {
-            const n = reader.readVec(&read_buf) catch break;
+            const n = try reader.readVec(&read_buf);
             if (n == 0) break;
             try on_chunk(buf[0..n]);
         }
@@ -163,8 +163,22 @@ pub const Client = struct {
             self.allocator.free(voices);
             return error.NotFound;
         }
-        // Return the first match; free the rest of the slice but keep index 0.
+        // Return the first match; free allocations for the rest, then the slice.
         const result = voices[0];
+        for (voices[1..]) |v| {
+            self.allocator.free(v.voice_id);
+            self.allocator.free(v.voice_name);
+            for (v.models) |mi| {
+                self.allocator.free(mi.version);
+                for (mi.emotions) |e| self.allocator.free(e);
+                self.allocator.free(mi.emotions);
+            }
+            self.allocator.free(v.models);
+            if (v.use_cases) |cases| {
+                for (cases) |c| self.allocator.free(c);
+                self.allocator.free(cases);
+            }
+        }
         self.allocator.free(voices);
         return result;
     }
@@ -219,9 +233,17 @@ pub const Client = struct {
     }
 
     fn parseDurationHeader(head_bytes: []const u8) f64 {
-        // Search raw header bytes for X-Audio-Duration header
+        // Search raw header bytes for X-Audio-Duration header (case-insensitive per RFC 7230)
         const needle = "X-Audio-Duration:";
-        if (std.mem.indexOf(u8, head_bytes, needle)) |pos| {
+        // Convert header bytes to lowercase for case-insensitive search
+        var lower_buf: [8192]u8 = undefined;
+        const len = @min(head_bytes.len, lower_buf.len);
+        const lower = lower_buf[0..len];
+        for (head_bytes[0..len], 0..) |c, idx| {
+            lower[idx] = std.ascii.toLower(c);
+        }
+        const lower_needle = "x-audio-duration:";
+        if (std.mem.indexOf(u8, lower, lower_needle)) |pos| {
             const after = head_bytes[pos + needle.len ..];
             // Find end of line
             const end = std.mem.indexOf(u8, after, "\r\n") orelse after.len;
