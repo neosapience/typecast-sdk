@@ -344,16 +344,15 @@ test "serialize basic Prompt" {
 test "parseSubscriptionResponse" {
     const allocator = testing.allocator;
     const json_str =
-        \\{"plan_tier":"plus","credits":{"total":10000,"used":2500,"remaining":7500},"limits":{"max_text_length":5000,"max_requests_per_minute":60}}
+        \\{"plan":"lite","credits":{"plan_credits":200000,"used_credits":14080},"limits":{"concurrency_limit":5}}
     ;
     const sub = try json_helpers.parseSubscriptionResponse(allocator, json_str);
+    defer allocator.free(sub.plan);
 
-    try testing.expectEqual(models.PlanTier.plus, sub.plan_tier);
-    try testing.expectEqual(@as(i64, 10000), sub.credits.total);
-    try testing.expectEqual(@as(i64, 2500), sub.credits.used);
-    try testing.expectEqual(@as(i64, 7500), sub.credits.remaining);
-    try testing.expectEqual(@as(i32, 5000), sub.limits.max_text_length);
-    try testing.expectEqual(@as(i32, 60), sub.limits.max_requests_per_minute);
+    try testing.expectEqualStrings("lite", sub.plan);
+    try testing.expectEqual(@as(i64, 200000), sub.credits.plan_credits);
+    try testing.expectEqual(@as(i64, 14080), sub.credits.used_credits);
+    try testing.expectEqual(@as(i32, 5), sub.limits.concurrency_limit);
 }
 
 test "parseErrorDetail with detail field" {

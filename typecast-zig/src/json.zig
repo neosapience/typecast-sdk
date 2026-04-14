@@ -189,20 +189,18 @@ pub fn parseSubscriptionResponse(allocator: std.mem.Allocator, data: []const u8)
     defer parsed.deinit();
     const root = parsed.value;
 
-    const plan_str = root.object.get("plan_tier").?.string;
+    const plan_str = root.object.get("plan").?.string;
     const credits_obj = root.object.get("credits").?.object;
     const limits_obj = root.object.get("limits").?.object;
 
     return models.SubscriptionResponse{
-        .plan_tier = models.PlanTier.fromString(plan_str) orelse return error.InvalidPlanTier,
+        .plan = try allocator.dupe(u8, plan_str),
         .credits = .{
-            .total = credits_obj.get("total").?.integer,
-            .used = credits_obj.get("used").?.integer,
-            .remaining = credits_obj.get("remaining").?.integer,
+            .plan_credits = credits_obj.get("plan_credits").?.integer,
+            .used_credits = credits_obj.get("used_credits").?.integer,
         },
         .limits = .{
-            .max_text_length = @intCast(limits_obj.get("max_text_length").?.integer),
-            .max_requests_per_minute = @intCast(limits_obj.get("max_requests_per_minute").?.integer),
+            .concurrency_limit = @intCast(limits_obj.get("concurrency_limit").?.integer),
         },
     };
 }

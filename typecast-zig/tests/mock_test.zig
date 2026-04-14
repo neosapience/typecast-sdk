@@ -174,7 +174,7 @@ test "getMySubscription parses response" {
     var mock = try MockServer.init();
     mock.response_status = 200;
     mock.response_body =
-        \\{"plan_tier":"plus","credits":{"total":100000,"used":1234,"remaining":98766},"limits":{"max_text_length":5000,"max_requests_per_minute":60}}
+        \\{"plan":"plus","credits":{"plan_credits":100000,"used_credits":1234},"limits":{"concurrency_limit":5}}
     ;
     mock.response_content_type = "application/json";
     try mock.start();
@@ -190,13 +190,12 @@ test "getMySubscription parses response" {
     defer client.deinit();
 
     const sub = try client.getMySubscription();
+    defer std.testing.allocator.free(sub.plan);
 
-    try std.testing.expectEqual(models.PlanTier.plus, sub.plan_tier);
-    try std.testing.expectEqual(@as(i64, 100000), sub.credits.total);
-    try std.testing.expectEqual(@as(i64, 1234), sub.credits.used);
-    try std.testing.expectEqual(@as(i64, 98766), sub.credits.remaining);
-    try std.testing.expectEqual(@as(i32, 5000), sub.limits.max_text_length);
-    try std.testing.expectEqual(@as(i32, 60), sub.limits.max_requests_per_minute);
+    try std.testing.expectEqualStrings("plus", sub.plan);
+    try std.testing.expectEqual(@as(i64, 100000), sub.credits.plan_credits);
+    try std.testing.expectEqual(@as(i64, 1234), sub.credits.used_credits);
+    try std.testing.expectEqual(@as(i32, 5), sub.limits.concurrency_limit);
 }
 
 test "getVoices returns voice list" {

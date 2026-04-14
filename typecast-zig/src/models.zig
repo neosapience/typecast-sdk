@@ -223,17 +223,15 @@ pub const TtsResponse = struct {
 
 pub const SubscriptionResponse = struct {
     pub const Credits = struct {
-        total: i64,
-        used: i64,
-        remaining: i64,
+        plan_credits: i64,
+        used_credits: i64,
     };
 
     pub const Limits = struct {
-        max_text_length: i32,
-        max_requests_per_minute: i32,
+        concurrency_limit: i32,
     };
 
-    plan_tier: PlanTier,
+    plan: []const u8,
     credits: Credits,
     limits: Limits,
 };

@@ -25,7 +25,7 @@ test "integration: textToSpeech returns audio" {
     defer client.deinit();
 
     const response = try client.textToSpeech(.{
-        .voice_id = "tc_672c5f5ce59fac2a48faeaee",
+        .voice_id = "tc_68d259f809700d8ac76e8567",
         .text = "Hello from the Zig integration test.",
         .model = .ssfm_v30,
     });
@@ -47,7 +47,7 @@ test "integration: textToSpeechStream delivers chunks" {
     // Use a comptime-known callback; we cannot capture local state but
     // reaching the end of the call without error proves streaming works.
     try client.textToSpeechStream(.{
-        .voice_id = "tc_672c5f5ce59fac2a48faeaee",
+        .voice_id = "tc_68d259f809700d8ac76e8567",
         .text = "Streaming test from Zig.",
         .model = .ssfm_v30,
     }, struct {
@@ -64,11 +64,17 @@ test "integration: getVoicesV2 returns voices" {
     const api_key = try getEnvOrSkip("TYPECAST_API_KEY");
     const host = std.posix.getenv("TYPECAST_API_HOST") orelse "https://api.typecast.ai";
 
-    var client = makeClient(api_key, host);
+    // Use an arena allocator to avoid having to free every inner allocation.
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    var client = typecast.Client.init(arena.allocator(), .{
+        .api_key = api_key,
+        .base_url = host,
+    });
     defer client.deinit();
 
     const voices = try client.getVoicesV2(null);
-    defer testing.allocator.free(voices);
 
     try testing.expect(voices.len > 0);
     // Every voice must have a non-empty id and name.
@@ -86,8 +92,9 @@ test "integration: getMySubscription returns plan" {
     defer client.deinit();
 
     const sub = try client.getMySubscription();
-    // plan_tier is an enum; if parsing succeeded the value is valid.
-    _ = sub.plan_tier.toString();
-    try testing.expect(sub.credits.total >= 0);
-    try testing.expect(sub.limits.max_text_length > 0);
+    defer testing.allocator.free(sub.plan);
+    // plan is a string; verify it is non-empty.
+    try testing.expect(sub.plan.len > 0);
+    try testing.expect(sub.credits.plan_credits >= 0);
+    try testing.expect(sub.limits.concurrency_limit > 0);
 }
