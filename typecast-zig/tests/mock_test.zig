@@ -12,6 +12,7 @@ const MockServer = struct {
     response_body: []const u8 = "",
     response_content_type: []const u8 = "application/octet-stream",
     extra_headers: []const u8 = "",
+    use_chunked: bool = false,
 
     fn init() !MockServer {
         const address = std.net.Address.initIp4(.{ 127, 0, 0, 1 }, 0);
@@ -31,15 +32,16 @@ const MockServer = struct {
         const conn = self.server.accept() catch return;
         defer conn.stream.close();
 
-        // Read request (drain it so client doesn't get broken pipe)
+        // Read request (drain it so client doesn't get broken pipe).
+        // Accumulate into a buffer and search the full accumulated data
+        // for the header terminator, since \r\n\r\n may span two reads.
         var buf: [4096]u8 = undefined;
-        while (true) {
-            const n = conn.stream.read(&buf) catch break;
+        var total: usize = 0;
+        while (total < buf.len) {
+            const n = conn.stream.read(buf[total..]) catch break;
             if (n == 0) break;
-            // Check if we've read the full request (ends with \r\n\r\n for
-            // bodiless, or we got Content-Length worth of body).
-            // For simplicity, just check if buffer contains \r\n\r\n
-            if (std.mem.indexOf(u8, buf[0..n], "\r\n\r\n") != null) break;
+            total += n;
+            if (std.mem.indexOf(u8, buf[0..total], "\r\n\r\n") != null) break;
         }
 
         // Build HTTP response
@@ -47,18 +49,40 @@ const MockServer = struct {
         var resp_buf: [65536]u8 = undefined;
         var stream = std.io.fixedBufferStream(&resp_buf);
         const writer = stream.writer();
-        writer.print(
-            "HTTP/1.1 {d} {s}\r\nContent-Length: {d}\r\nContent-Type: {s}\r\nConnection: close\r\n{s}\r\n",
-            .{
-                self.response_status,
-                status_text,
-                self.response_body.len,
-                self.response_content_type,
-                self.extra_headers,
-            },
-        ) catch return;
-        _ = conn.stream.write(stream.getWritten()) catch return;
-        _ = conn.stream.write(self.response_body) catch return;
+
+        if (self.use_chunked) {
+            // Chunked transfer encoding — exercises the streaming read path.
+            writer.print(
+                "HTTP/1.1 {d} {s}\r\nTransfer-Encoding: chunked\r\nContent-Type: {s}\r\nConnection: close\r\n{s}\r\n",
+                .{
+                    self.response_status,
+                    status_text,
+                    self.response_content_type,
+                    self.extra_headers,
+                },
+            ) catch return;
+            _ = conn.stream.write(stream.getWritten()) catch return;
+            // Send body as a single chunk: <hex-size>\r\n<data>\r\n0\r\n\r\n
+            var chunk_header_buf: [32]u8 = undefined;
+            var chunk_stream = std.io.fixedBufferStream(&chunk_header_buf);
+            chunk_stream.writer().print("{x}\r\n", .{self.response_body.len}) catch return;
+            _ = conn.stream.write(chunk_header_buf[0..chunk_stream.pos]) catch return;
+            _ = conn.stream.write(self.response_body) catch return;
+            _ = conn.stream.write("\r\n0\r\n\r\n") catch return;
+        } else {
+            writer.print(
+                "HTTP/1.1 {d} {s}\r\nContent-Length: {d}\r\nContent-Type: {s}\r\nConnection: close\r\n{s}\r\n",
+                .{
+                    self.response_status,
+                    status_text,
+                    self.response_body.len,
+                    self.response_content_type,
+                    self.extra_headers,
+                },
+            ) catch return;
+            _ = conn.stream.write(stream.getWritten()) catch return;
+            _ = conn.stream.write(self.response_body) catch return;
+        }
     }
 
     fn deinit(self: *MockServer) void {
@@ -135,6 +159,7 @@ test "textToSpeechStream calls callback with chunks" {
     mock.response_status = 200;
     mock.response_body = "audio-data-here";
     mock.response_content_type = "audio/wav";
+    mock.use_chunked = true;
     try mock.start();
     defer mock.deinit();
 
@@ -155,11 +180,6 @@ test "textToSpeechStream calls callback with chunks" {
     };
     Ctx.cb_total = 0;
 
-    // Verify the stream endpoint succeeds (returns 200 without error).
-    // The mock uses Content-Length (not chunked transfer), so the HTTP
-    // reader may deliver all bytes via the internal buffer rather than
-    // through readVec, meaning the callback may receive 0 calls. We
-    // only assert that no error is returned from the call itself.
     try client.textToSpeechStream(
         .{
             .text = "Hello",
@@ -168,6 +188,9 @@ test "textToSpeechStream calls callback with chunks" {
         },
         &Ctx.callback,
     );
+
+    // Assert the callback was actually invoked with data.
+    try std.testing.expect(Ctx.cb_total > 0);
 }
 
 test "getMySubscription parses response" {

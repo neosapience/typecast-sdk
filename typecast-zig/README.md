@@ -126,6 +126,7 @@ defer client.deinit();
 Or read from an environment variable (recommended):
 
 ```zig
+// std.posix.getenv is POSIX-only; on Windows use std.process.EnvMap instead.
 const api_key = std.posix.getenv("TYPECAST_API_KEY") orelse return error.MissingApiKey;
 var client = typecast.Client.init(allocator, .{
     .api_key = api_key,

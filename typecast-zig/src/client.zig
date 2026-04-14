@@ -106,15 +106,16 @@ pub const Client = struct {
         try mapStatusError(response.head.status);
 
         var transfer_buf: [16384]u8 = undefined;
-        const reader = response.reader(&transfer_buf);
+        var reader = response.reader(&transfer_buf);
 
-        // Read chunks and forward to callback
-        var buf: [8192]u8 = undefined;
-        var read_buf = [_][]u8{&buf};
-        while (true) {
-            const n = try reader.readVec(&read_buf);
-            if (n == 0) break;
-            try on_chunk(buf[0..n]);
+        // Read body and forward to callback.  In Zig 0.15 the Reader
+        // vtable's readVec does not reliably return already-buffered HTTP
+        // data, so we use allocRemaining which is implemented via the
+        // working stream() path.
+        const response_body = try reader.allocRemaining(self.allocator, .unlimited);
+        defer self.allocator.free(response_body);
+        if (response_body.len > 0) {
+            try on_chunk(response_body);
         }
     }
 
@@ -138,7 +139,7 @@ pub const Client = struct {
     /// GET /v2/voices
     pub fn getVoicesV2(self: *Client, filter: ?models.VoicesV2Filter) ![]models.VoiceV2 {
         var query_buf: [512]u8 = undefined;
-        const query = buildVoicesV2Query(&query_buf, filter);
+        const query = try buildVoicesV2Query(&query_buf, filter);
         const body = try self.doGet("/v2/voices", query);
         defer self.allocator.free(body);
         return json_helpers.parseVoicesV2(self.allocator, body);
@@ -274,33 +275,48 @@ pub const Client = struct {
         return buf[0..stream.pos];
     }
 
-    fn buildVoicesV2Query(buf: *[512]u8, filter: ?models.VoicesV2Filter) ?[]const u8 {
+    fn buildVoicesV2Query(buf: *[512]u8, filter: ?models.VoicesV2Filter) error{QueryTooLong}!?[]const u8 {
         const f = filter orelse return null;
         var stream = std.io.fixedBufferStream(buf);
         const writer = stream.writer();
         var has_param = false;
 
+        // model, gender, and age use enum .toString() — known safe ASCII,
+        // no percent-encoding needed.
         if (f.model) |m| {
-            writer.print("model={s}", .{m.toString()}) catch return null;
+            writer.print("model={s}", .{m.toString()}) catch return error.QueryTooLong;
             has_param = true;
         }
         if (f.gender) |g| {
-            if (has_param) writer.writeByte('&') catch return null;
-            writer.print("gender={s}", .{g.toString()}) catch return null;
+            if (has_param) writer.writeByte('&') catch return error.QueryTooLong;
+            writer.print("gender={s}", .{g.toString()}) catch return error.QueryTooLong;
             has_param = true;
         }
         if (f.age) |a| {
-            if (has_param) writer.writeByte('&') catch return null;
-            writer.print("age={s}", .{a.toString()}) catch return null;
+            if (has_param) writer.writeByte('&') catch return error.QueryTooLong;
+            writer.print("age={s}", .{a.toString()}) catch return error.QueryTooLong;
             has_param = true;
         }
         if (f.use_cases) |uc| {
-            if (has_param) writer.writeByte('&') catch return null;
-            writer.print("use_cases={s}", .{uc}) catch return null;
+            if (has_param) writer.writeByte('&') catch return error.QueryTooLong;
+            writer.writeAll("use_cases=") catch return error.QueryTooLong;
+            percentEncode(writer, uc) catch return error.QueryTooLong;
             has_param = true;
         }
 
         if (!has_param) return null;
         return buf[0..stream.pos];
+    }
+
+    /// Minimal percent-encoding for query parameter values (RFC 3986).
+    /// Passes unreserved characters through; encodes everything else as %XX.
+    fn percentEncode(writer: anytype, input: []const u8) !void {
+        for (input) |c| {
+            if (std.ascii.isAlphanumeric(c) or c == '-' or c == '_' or c == '.' or c == '~') {
+                try writer.writeByte(c);
+            } else {
+                try writer.print("%{X:0>2}", .{c});
+            }
+        }
     }
 };

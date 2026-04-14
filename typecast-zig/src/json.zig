@@ -327,33 +327,31 @@ pub fn parseVoicesV2(allocator: std.mem.Allocator, data: []const u8) ![]models.V
 
 /// Extract error detail message from error JSON response.
 /// Returns null if parsing fails or neither "detail" nor "message" is found.
-/// The returned slice is backed by page_allocator and intentionally not freed
-/// since this is used only in error paths for diagnostic messages.
+/// The returned slice is an owned copy allocated via page_allocator; the
+/// JSON parse tree is fully released before returning.
 pub fn parseErrorDetail(data: []const u8) ?[]const u8 {
+    const allocator = std.heap.page_allocator;
     const parsed = std.json.parseFromSlice(
         std.json.Value,
-        std.heap.page_allocator,
+        allocator,
         data,
         .{},
     ) catch return null;
-    // Intentionally not calling parsed.deinit() so the returned string
-    // slice remains valid. This leaks memory but is acceptable since this
-    // function is only called on error paths.
+    defer parsed.deinit();
+
     const root = parsed.value;
 
     if (root.object.get("detail")) |d| {
         switch (d) {
-            .string => |s| return s,
+            .string => |s| return allocator.dupe(u8, s) catch return null,
             else => {},
         }
     }
     if (root.object.get("message")) |m| {
         switch (m) {
-            .string => |s| return s,
+            .string => |s| return allocator.dupe(u8, s) catch return null,
             else => {},
         }
     }
-    // No detail found, we can safely deinit
-    parsed.deinit();
     return null;
 }
