@@ -1,6 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 const models = @import("typecast").models;
+const json_helpers = @import("typecast").json_helpers;
 
 // ── TtsModel ───────────────────────────────────────────────────────────
 
@@ -206,4 +207,172 @@ test "PresetPrompt defaults" {
     const pp = models.PresetPrompt{};
     try testing.expectEqual(models.EmotionPreset.normal, pp.emotion_preset);
     try testing.expectEqual(@as(?f64, 1.0), pp.emotion_intensity);
+}
+
+// ── JSON Serialization Tests ──────────────────────────────────────────
+
+test "serializeTtsRequest basic fields" {
+    const allocator = testing.allocator;
+    const req = models.TtsRequest{
+        .voice_id = "voice-123",
+        .text = "Hello world",
+        .model = .ssfm_v30,
+    };
+    const json_bytes = try json_helpers.serializeTtsRequest(allocator, req);
+    defer allocator.free(json_bytes);
+
+    // Parse back to verify
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_bytes, .{});
+    defer parsed.deinit();
+    const obj = parsed.value.object;
+
+    try testing.expectEqualStrings("Hello world", obj.get("text").?.string);
+    try testing.expectEqualStrings("voice-123", obj.get("voice_id").?.string);
+    try testing.expectEqualStrings("ssfm-v30", obj.get("model").?.string);
+    // Optional fields should not be present
+    try testing.expect(obj.get("language") == null);
+    try testing.expect(obj.get("seed") == null);
+    try testing.expect(obj.get("prompt") == null);
+    try testing.expect(obj.get("output") == null);
+}
+
+test "serializeTtsRequest with all optional fields" {
+    const allocator = testing.allocator;
+    const req = models.TtsRequest{
+        .voice_id = "v1",
+        .text = "Test",
+        .model = .ssfm_v21,
+        .language = "en",
+        .seed = 42,
+        .prompt = .{ .basic = .{ .emotion_preset = .happy, .emotion_intensity = 0.8 } },
+        .output = .{ .volume = 80, .audio_pitch = 2, .audio_tempo = 1.5, .audio_format = .mp3 },
+    };
+    const json_bytes = try json_helpers.serializeTtsRequest(allocator, req);
+    defer allocator.free(json_bytes);
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_bytes, .{});
+    defer parsed.deinit();
+    const obj = parsed.value.object;
+
+    try testing.expectEqualStrings("en", obj.get("language").?.string);
+    try testing.expectEqual(@as(i64, 42), obj.get("seed").?.integer);
+    try testing.expect(obj.get("prompt") != null);
+    try testing.expect(obj.get("output") != null);
+}
+
+test "serializeTtsRequestStream has no volume or target_lufs" {
+    const allocator = testing.allocator;
+    const req = models.TtsRequestStream{
+        .voice_id = "v1",
+        .text = "Stream test",
+        .model = .ssfm_v30,
+        .output = .{ .audio_format = .mp3 },
+    };
+    const json_bytes = try json_helpers.serializeTtsRequestStream(allocator, req);
+    defer allocator.free(json_bytes);
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_bytes, .{});
+    defer parsed.deinit();
+    const output_obj = parsed.value.object.get("output").?.object;
+
+    try testing.expect(output_obj.get("volume") == null);
+    try testing.expect(output_obj.get("target_lufs") == null);
+    try testing.expectEqualStrings("mp3", output_obj.get("audio_format").?.string);
+}
+
+test "serialize SmartPrompt" {
+    const allocator = testing.allocator;
+    const req = models.TtsRequest{
+        .voice_id = "v1",
+        .text = "hi",
+        .model = .ssfm_v30,
+        .prompt = .{ .smart = .{ .previous_text = "before", .next_text = "after" } },
+    };
+    const json_bytes = try json_helpers.serializeTtsRequest(allocator, req);
+    defer allocator.free(json_bytes);
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_bytes, .{});
+    defer parsed.deinit();
+    const prompt_obj = parsed.value.object.get("prompt").?.object;
+
+    try testing.expectEqualStrings("smart", prompt_obj.get("emotion_type").?.string);
+    try testing.expectEqualStrings("before", prompt_obj.get("previous_text").?.string);
+    try testing.expectEqualStrings("after", prompt_obj.get("next_text").?.string);
+}
+
+test "serialize PresetPrompt" {
+    const allocator = testing.allocator;
+    const req = models.TtsRequest{
+        .voice_id = "v1",
+        .text = "hi",
+        .model = .ssfm_v30,
+        .prompt = .{ .preset = .{ .emotion_preset = .sad, .emotion_intensity = 0.5 } },
+    };
+    const json_bytes = try json_helpers.serializeTtsRequest(allocator, req);
+    defer allocator.free(json_bytes);
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_bytes, .{});
+    defer parsed.deinit();
+    const prompt_obj = parsed.value.object.get("prompt").?.object;
+
+    try testing.expectEqualStrings("preset", prompt_obj.get("emotion_type").?.string);
+    try testing.expectEqualStrings("sad", prompt_obj.get("emotion_preset").?.string);
+}
+
+test "serialize basic Prompt" {
+    const allocator = testing.allocator;
+    const req = models.TtsRequest{
+        .voice_id = "v1",
+        .text = "hi",
+        .model = .ssfm_v30,
+        .prompt = .{ .basic = .{ .emotion_preset = .angry, .emotion_intensity = 1.0 } },
+    };
+    const json_bytes = try json_helpers.serializeTtsRequest(allocator, req);
+    defer allocator.free(json_bytes);
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_bytes, .{});
+    defer parsed.deinit();
+    const prompt_obj = parsed.value.object.get("prompt").?.object;
+
+    // Basic prompt should NOT have emotion_type field
+    try testing.expect(prompt_obj.get("emotion_type") == null);
+    try testing.expectEqualStrings("angry", prompt_obj.get("emotion_preset").?.string);
+}
+
+// ── JSON Deserialization Tests ────────────────────────────────────────
+
+test "parseSubscriptionResponse" {
+    const allocator = testing.allocator;
+    const json_str =
+        \\{"plan_tier":"plus","credits":{"total":10000,"used":2500,"remaining":7500},"limits":{"max_text_length":5000,"max_requests_per_minute":60}}
+    ;
+    const sub = try json_helpers.parseSubscriptionResponse(allocator, json_str);
+
+    try testing.expectEqual(models.PlanTier.plus, sub.plan_tier);
+    try testing.expectEqual(@as(i64, 10000), sub.credits.total);
+    try testing.expectEqual(@as(i64, 2500), sub.credits.used);
+    try testing.expectEqual(@as(i64, 7500), sub.credits.remaining);
+    try testing.expectEqual(@as(i32, 5000), sub.limits.max_text_length);
+    try testing.expectEqual(@as(i32, 60), sub.limits.max_requests_per_minute);
+}
+
+test "parseErrorDetail with detail field" {
+    const result = json_helpers.parseErrorDetail(
+        \\{"detail":"error msg"}
+    );
+    try testing.expect(result != null);
+    try testing.expectEqualStrings("error msg", result.?);
+}
+
+test "parseErrorDetail with message field" {
+    const result = json_helpers.parseErrorDetail(
+        \\{"message":"something went wrong"}
+    );
+    try testing.expect(result != null);
+    try testing.expectEqualStrings("something went wrong", result.?);
+}
+
+test "parseErrorDetail with invalid JSON" {
+    const result = json_helpers.parseErrorDetail("not json");
+    try testing.expect(result == null);
 }
