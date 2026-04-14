@@ -181,6 +181,40 @@ fn writeOutputStream(ws: *std.json.Stringify, output: models.OutputStream) !void
     try ws.endObject();
 }
 
+// ── Deserialization helpers ──────────────────────────────────────────
+
+fn getString(obj: std.json.ObjectMap, key: []const u8) ![]const u8 {
+    const val = obj.get(key) orelse return error.JsonParseError;
+    return switch (val) {
+        .string => |s| s,
+        else => error.JsonParseError,
+    };
+}
+
+fn getInteger(obj: std.json.ObjectMap, key: []const u8) !i64 {
+    const val = obj.get(key) orelse return error.JsonParseError;
+    return switch (val) {
+        .integer => |n| n,
+        else => error.JsonParseError,
+    };
+}
+
+fn getObject(obj: std.json.ObjectMap, key: []const u8) !std.json.ObjectMap {
+    const val = obj.get(key) orelse return error.JsonParseError;
+    return switch (val) {
+        .object => |o| o,
+        else => error.JsonParseError,
+    };
+}
+
+fn getArray(obj: std.json.ObjectMap, key: []const u8) ![]std.json.Value {
+    const val = obj.get(key) orelse return error.JsonParseError;
+    return switch (val) {
+        .array => |a| a.items,
+        else => error.JsonParseError,
+    };
+}
+
 // ── Deserialization ───────────────────────────────────────────────────
 
 /// Parse a SubscriptionResponse from JSON bytes.
@@ -189,18 +223,18 @@ pub fn parseSubscriptionResponse(allocator: std.mem.Allocator, data: []const u8)
     defer parsed.deinit();
     const root = parsed.value;
 
-    const plan_str = root.object.get("plan").?.string;
-    const credits_obj = root.object.get("credits").?.object;
-    const limits_obj = root.object.get("limits").?.object;
+    const plan_str = try getString(root.object, "plan");
+    const credits_obj = try getObject(root.object, "credits");
+    const limits_obj = try getObject(root.object, "limits");
 
     return models.SubscriptionResponse{
         .plan = try allocator.dupe(u8, plan_str),
         .credits = .{
-            .plan_credits = credits_obj.get("plan_credits").?.integer,
-            .used_credits = credits_obj.get("used_credits").?.integer,
+            .plan_credits = try getInteger(credits_obj, "plan_credits"),
+            .used_credits = try getInteger(credits_obj, "used_credits"),
         },
         .limits = .{
-            .concurrency_limit = @intCast(limits_obj.get("concurrency_limit").?.integer),
+            .concurrency_limit = @intCast(try getInteger(limits_obj, "concurrency_limit")),
         },
     };
 }
@@ -209,7 +243,10 @@ pub fn parseSubscriptionResponse(allocator: std.mem.Allocator, data: []const u8)
 pub fn parseVoices(allocator: std.mem.Allocator, data: []const u8) ![]models.Voice {
     const parsed = try std.json.parseFromSlice(std.json.Value, allocator, data, .{});
     defer parsed.deinit();
-    const items = parsed.value.array.items;
+    const items = switch (parsed.value) {
+        .array => |a| a.items,
+        else => return error.JsonParseError,
+    };
 
     var voices = try allocator.alloc(models.Voice, items.len);
     var initialized: usize = 0;
@@ -225,15 +262,18 @@ pub fn parseVoices(allocator: std.mem.Allocator, data: []const u8) ![]models.Voi
 
     for (items, 0..) |item, i| {
         const obj = item.object;
-        const emotions_arr = obj.get("emotions").?.array.items;
+        const emotions_arr = try getArray(obj, "emotions");
         const emotions = try allocator.alloc([]const u8, emotions_arr.len);
         for (emotions_arr, 0..) |e, j| {
-            emotions[j] = try allocator.dupe(u8, e.string);
+            emotions[j] = try allocator.dupe(u8, switch (e) {
+                .string => |s| s,
+                else => return error.JsonParseError,
+            });
         }
         voices[i] = .{
-            .voice_id = try allocator.dupe(u8, obj.get("voice_id").?.string),
-            .voice_name = try allocator.dupe(u8, obj.get("voice_name").?.string),
-            .model = models.TtsModel.fromString(obj.get("model").?.string) orelse return error.InvalidModel,
+            .voice_id = try allocator.dupe(u8, try getString(obj, "voice_id")),
+            .voice_name = try allocator.dupe(u8, try getString(obj, "voice_name")),
+            .model = models.TtsModel.fromString(try getString(obj, "model")) orelse return error.InvalidModel,
             .emotions = emotions,
         };
         initialized = i + 1;
@@ -246,7 +286,10 @@ pub fn parseVoices(allocator: std.mem.Allocator, data: []const u8) ![]models.Voi
 pub fn parseVoicesV2(allocator: std.mem.Allocator, data: []const u8) ![]models.VoiceV2 {
     const parsed = try std.json.parseFromSlice(std.json.Value, allocator, data, .{});
     defer parsed.deinit();
-    const items = parsed.value.array.items;
+    const items = switch (parsed.value) {
+        .array => |a| a.items,
+        else => return error.JsonParseError,
+    };
 
     var voices = try allocator.alloc(models.VoiceV2, items.len);
     var initialized: usize = 0;
@@ -272,17 +315,23 @@ pub fn parseVoicesV2(allocator: std.mem.Allocator, data: []const u8) ![]models.V
         const obj = item.object;
 
         // Parse models array
-        const models_arr = obj.get("models").?.array.items;
+        const models_arr = try getArray(obj, "models");
         const model_infos = try allocator.alloc(models.ModelInfo, models_arr.len);
         for (models_arr, 0..) |m, mi| {
-            const mobj = m.object;
-            const emo_arr = mobj.get("emotions").?.array.items;
+            const mobj = switch (m) {
+                .object => |o| o,
+                else => return error.JsonParseError,
+            };
+            const emo_arr = try getArray(mobj, "emotions");
             const emos = try allocator.alloc([]const u8, emo_arr.len);
             for (emo_arr, 0..) |e, ei| {
-                emos[ei] = try allocator.dupe(u8, e.string);
+                emos[ei] = try allocator.dupe(u8, switch (e) {
+                    .string => |s| s,
+                    else => return error.JsonParseError,
+                });
             }
             model_infos[mi] = .{
-                .version = try allocator.dupe(u8, mobj.get("version").?.string),
+                .version = try allocator.dupe(u8, try getString(mobj, "version")),
                 .emotions = emos,
             };
         }
@@ -312,8 +361,8 @@ pub fn parseVoicesV2(allocator: std.mem.Allocator, data: []const u8) ![]models.V
         } else null;
 
         voices[i] = .{
-            .voice_id = try allocator.dupe(u8, obj.get("voice_id").?.string),
-            .voice_name = try allocator.dupe(u8, obj.get("voice_name").?.string),
+            .voice_id = try allocator.dupe(u8, try getString(obj, "voice_id")),
+            .voice_name = try allocator.dupe(u8, try getString(obj, "voice_name")),
             .models = model_infos,
             .gender = gender,
             .age = age,

@@ -32,16 +32,47 @@ const MockServer = struct {
         const conn = self.server.accept() catch return;
         defer conn.stream.close();
 
-        // Read request (drain it so client doesn't get broken pipe).
+        // Read request (drain headers + body so client doesn't get broken pipe).
         // Accumulate into a buffer and search the full accumulated data
         // for the header terminator, since \r\n\r\n may span two reads.
-        var buf: [4096]u8 = undefined;
+        var buf: [8192]u8 = undefined;
         var total: usize = 0;
+        var header_end: ?usize = null;
         while (total < buf.len) {
             const n = conn.stream.read(buf[total..]) catch break;
             if (n == 0) break;
             total += n;
-            if (std.mem.indexOf(u8, buf[0..total], "\r\n\r\n") != null) break;
+            if (header_end == null) {
+                if (std.mem.indexOf(u8, buf[0..total], "\r\n\r\n")) |pos| {
+                    header_end = pos + 4;
+                }
+            }
+            if (header_end != null) break;
+        }
+
+        // Drain request body based on Content-Length header.
+        if (header_end) |hend| {
+            const headers = buf[0..hend];
+            var content_length: usize = 0;
+            var it = std.mem.splitSequence(u8, headers, "\r\n");
+            while (it.next()) |line| {
+                if (std.ascii.startsWithIgnoreCase(line, "content-length:")) {
+                    const val = std.mem.trimLeft(u8, line["content-length:".len..], " ");
+                    content_length = std.fmt.parseInt(usize, val, 10) catch 0;
+                    break;
+                }
+            }
+            if (content_length > 0) {
+                const body_already = total - hend;
+                var remaining = if (content_length > body_already) content_length - body_already else 0;
+                while (remaining > 0) {
+                    var drain_buf: [4096]u8 = undefined;
+                    const to_read = @min(remaining, drain_buf.len);
+                    const n = conn.stream.read(drain_buf[0..to_read]) catch break;
+                    if (n == 0) break;
+                    remaining -= n;
+                }
+            }
         }
 
         // Build HTTP response
@@ -61,14 +92,14 @@ const MockServer = struct {
                     self.extra_headers,
                 },
             ) catch return;
-            _ = conn.stream.write(stream.getWritten()) catch return;
+            conn.stream.writeAll(stream.getWritten()) catch return;
             // Send body as a single chunk: <hex-size>\r\n<data>\r\n0\r\n\r\n
             var chunk_header_buf: [32]u8 = undefined;
             var chunk_stream = std.io.fixedBufferStream(&chunk_header_buf);
             chunk_stream.writer().print("{x}\r\n", .{self.response_body.len}) catch return;
-            _ = conn.stream.write(chunk_header_buf[0..chunk_stream.pos]) catch return;
-            _ = conn.stream.write(self.response_body) catch return;
-            _ = conn.stream.write("\r\n0\r\n\r\n") catch return;
+            conn.stream.writeAll(chunk_header_buf[0..chunk_stream.pos]) catch return;
+            conn.stream.writeAll(self.response_body) catch return;
+            conn.stream.writeAll("\r\n0\r\n\r\n") catch return;
         } else {
             writer.print(
                 "HTTP/1.1 {d} {s}\r\nContent-Length: {d}\r\nContent-Type: {s}\r\nConnection: close\r\n{s}\r\n",
@@ -80,8 +111,8 @@ const MockServer = struct {
                     self.extra_headers,
                 },
             ) catch return;
-            _ = conn.stream.write(stream.getWritten()) catch return;
-            _ = conn.stream.write(self.response_body) catch return;
+            conn.stream.writeAll(stream.getWritten()) catch return;
+            conn.stream.writeAll(self.response_body) catch return;
         }
     }
 
