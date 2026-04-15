@@ -37,7 +37,7 @@ $voices = $client->getVoicesV2();
 foreach (array_slice($voices, 0, 3) as $voice) {
     echo "  {$voice->voiceId}: {$voice->voiceName}\n";
 }
-echo "  ... ({" . count($voices) . "} total)\n\n";
+echo "  ... (" . count($voices) . " total)\n\n";
 
 // 3. Text-to-Speech
 echo "=== Text-to-Speech ===\n";

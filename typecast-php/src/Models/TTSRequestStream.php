@@ -20,6 +20,21 @@ class TTSRequestStream
         public ?OutputStream $output = null,
         public ?int $seed = null,
     ) {
+        if (trim($this->voiceId) === '') {
+            throw new \InvalidArgumentException('voiceId is required and must be non-empty');
+        }
+        if (trim($this->model) === '') {
+            throw new \InvalidArgumentException('model is required and must be non-empty');
+        }
+        if (mb_strlen($this->text) === 0) {
+            throw new \InvalidArgumentException('text is required and must be non-empty');
+        }
+        if (mb_strlen($this->text) > 2000) {
+            throw new \InvalidArgumentException('text must not exceed 2000 characters');
+        }
+        if ($this->seed !== null && !is_int($this->seed)) {
+            throw new \InvalidArgumentException('seed must be an integer');
+        }
     }
 
     /**

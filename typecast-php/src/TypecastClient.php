@@ -116,7 +116,7 @@ class TypecastClient
         }
 
         /** @var array<string, mixed> $data */
-        $data = json_decode((string) $response->getBody(), true);
+        $data = $this->decodeJson((string) $response->getBody());
 
         return SubscriptionResponse::fromArray($data);
     }
@@ -144,7 +144,7 @@ class TypecastClient
         }
 
         /** @var array<int, array<string, mixed>> $items */
-        $items = json_decode((string) $response->getBody(), true);
+        $items = $this->decodeJson((string) $response->getBody());
 
         return array_map(
             static fn(array $item): Voice => Voice::fromArray($item),
@@ -175,7 +175,7 @@ class TypecastClient
         }
 
         /** @var array<int, array<string, mixed>> $items */
-        $items = json_decode((string) $response->getBody(), true);
+        $items = $this->decodeJson((string) $response->getBody());
 
         return array_map(
             static fn(array $item): VoiceV2 => VoiceV2::fromArray($item),
@@ -206,13 +206,31 @@ class TypecastClient
         }
 
         /** @var array<int, array<string, mixed>> $items */
-        $items = json_decode((string) $response->getBody(), true);
+        $items = $this->decodeJson((string) $response->getBody());
 
         if (empty($items)) {
             throw new NotFoundException("Voice not found: {$voiceId}");
         }
 
         return VoiceV2::fromArray($items[0]);
+    }
+
+    /**
+     * Decode a JSON response body, throwing on failure.
+     *
+     * @return array<string|int, mixed>
+     * @throws TypecastException
+     */
+    private function decodeJson(string $body): array
+    {
+        $data = json_decode($body, true);
+        if (!is_array($data)) {
+            throw new TypecastException(
+                'Failed to decode JSON response: ' . (json_last_error_msg() ?: 'unknown error'),
+            );
+        }
+
+        return $data;
     }
 
     /**

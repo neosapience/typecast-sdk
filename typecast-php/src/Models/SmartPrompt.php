@@ -13,6 +13,12 @@ class SmartPrompt
         public ?string $previousText = null,
         public ?string $nextText = null,
     ) {
+        if ($this->previousText !== null && mb_strlen($this->previousText) > 2000) {
+            throw new \InvalidArgumentException('previousText must not exceed 2000 characters');
+        }
+        if ($this->nextText !== null && mb_strlen($this->nextText) > 2000) {
+            throw new \InvalidArgumentException('nextText must not exceed 2000 characters');
+        }
     }
 
     /**

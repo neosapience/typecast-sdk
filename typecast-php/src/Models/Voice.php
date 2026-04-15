@@ -27,11 +27,18 @@ class Voice
      */
     public static function fromArray(array $data): self
     {
+        if (!isset($data['voice_id']) || !is_string($data['voice_id'])) {
+            throw new \InvalidArgumentException('voice_id is required and must be a string');
+        }
+        if (!isset($data['voice_name']) || !is_string($data['voice_name'])) {
+            throw new \InvalidArgumentException('voice_name is required and must be a string');
+        }
+
         return new self(
-            voiceId: $data['voice_id'] ?? '',
-            voiceName: $data['voice_name'] ?? '',
-            model: $data['model'] ?? '',
-            emotions: $data['emotions'] ?? [],
+            voiceId: $data['voice_id'],
+            voiceName: $data['voice_name'],
+            model: isset($data['model']) && is_string($data['model']) ? $data['model'] : '',
+            emotions: isset($data['emotions']) && is_array($data['emotions']) ? $data['emotions'] : [],
         );
     }
 }

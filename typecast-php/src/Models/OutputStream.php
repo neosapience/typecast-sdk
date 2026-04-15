@@ -16,6 +16,15 @@ class OutputStream
         public ?float $audioTempo = 1.0,
         public ?string $audioFormat = 'wav',
     ) {
+        if ($this->audioPitch !== null && ($this->audioPitch < -12 || $this->audioPitch > 12)) {
+            throw new \InvalidArgumentException('audioPitch must be between -12 and 12');
+        }
+        if ($this->audioTempo !== null && ($this->audioTempo < 0.5 || $this->audioTempo > 2.0)) {
+            throw new \InvalidArgumentException('audioTempo must be between 0.5 and 2.0');
+        }
+        if ($this->audioFormat !== null && !in_array($this->audioFormat, ['wav', 'mp3'], true)) {
+            throw new \InvalidArgumentException("audioFormat must be 'wav' or 'mp3'");
+        }
     }
 
     /**
