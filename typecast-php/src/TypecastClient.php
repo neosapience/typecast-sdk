@@ -72,6 +72,7 @@ class TypecastClient
 
         $duration = (float) ($response->getHeaderLine('X-Audio-Duration') ?: '0');
         $contentType = $response->getHeaderLine('Content-Type') ?: 'audio/wav';
+        $contentType = explode(';', $contentType)[0];
         $format = explode('/', $contentType);
         $format = end($format);
 
