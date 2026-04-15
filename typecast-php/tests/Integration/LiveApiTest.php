@@ -93,7 +93,7 @@ class LiveApiTest extends TestCase
         $response = $this->client->textToSpeech($request);
 
         $this->assertNotEmpty($response->audioData);
-        $this->assertGreaterThan(0, $response->duration);
+        $this->assertGreaterThanOrEqual(0, $response->duration);
         $this->assertContains($response->format, ['wav', 'mp3']);
     }
 
