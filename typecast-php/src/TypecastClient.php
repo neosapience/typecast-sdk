@@ -34,6 +34,12 @@ class TypecastClient
         private readonly string $baseUrl = 'https://api.typecast.ai',
         ?ClientInterface $httpClient = null,
     ) {
+        if (trim($this->apiKey) === '') {
+            throw new \InvalidArgumentException('API key must not be empty');
+        }
+        if (!str_starts_with($this->baseUrl, 'https://') && !str_starts_with($this->baseUrl, 'http://localhost')) {
+            throw new \InvalidArgumentException('Base URL must use HTTPS');
+        }
         $this->httpClient = $httpClient ?? new Client([
             'base_uri' => $this->baseUrl,
             'http_errors' => false,
@@ -51,9 +57,13 @@ class TypecastClient
      */
     public function textToSpeech(TTSRequest $request): TTSResponse
     {
-        $response = $this->httpClient->request('POST', '/v1/text-to-speech', [
-            'json' => $request->toArray(),
-        ]);
+        try {
+            $response = $this->httpClient->request('POST', '/v1/text-to-speech', [
+                'json' => $request->toArray(),
+            ]);
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
 
         $statusCode = $response->getStatusCode();
         if ($statusCode !== 200) {
@@ -82,10 +92,14 @@ class TypecastClient
      */
     public function textToSpeechStream(TTSRequestStream $request, callable $onChunk): void
     {
-        $response = $this->httpClient->request('POST', '/v1/text-to-speech/stream', [
-            'json' => $request->toArray(),
-            'stream' => true,
-        ]);
+        try {
+            $response = $this->httpClient->request('POST', '/v1/text-to-speech/stream', [
+                'json' => $request->toArray(),
+                'stream' => true,
+            ]);
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
 
         $statusCode = $response->getStatusCode();
         if ($statusCode !== 200) {
@@ -108,7 +122,11 @@ class TypecastClient
      */
     public function getMySubscription(): SubscriptionResponse
     {
-        $response = $this->httpClient->request('GET', '/v1/users/me/subscription');
+        try {
+            $response = $this->httpClient->request('GET', '/v1/users/me/subscription');
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
 
         $statusCode = $response->getStatusCode();
         if ($statusCode !== 200) {
@@ -134,9 +152,13 @@ class TypecastClient
             $query['model'] = $model;
         }
 
-        $response = $this->httpClient->request('GET', '/v1/voices', [
-            'query' => $query,
-        ]);
+        try {
+            $response = $this->httpClient->request('GET', '/v1/voices', [
+                'query' => $query,
+            ]);
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
 
         $statusCode = $response->getStatusCode();
         if ($statusCode !== 200) {
@@ -165,9 +187,13 @@ class TypecastClient
             $query = $filter->toQueryParams();
         }
 
-        $response = $this->httpClient->request('GET', '/v2/voices', [
-            'query' => $query,
-        ]);
+        try {
+            $response = $this->httpClient->request('GET', '/v2/voices', [
+                'query' => $query,
+            ]);
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
 
         $statusCode = $response->getStatusCode();
         if ($statusCode !== 200) {
@@ -191,14 +217,21 @@ class TypecastClient
      */
     public function getVoiceV2(string $voiceId, ?string $model = null): VoiceV2
     {
+        if (trim($voiceId) === '') {
+            throw new \InvalidArgumentException('voiceId must not be empty');
+        }
         $query = ['voice_id' => $voiceId];
         if ($model !== null) {
             $query['model'] = $model;
         }
 
-        $response = $this->httpClient->request('GET', '/v2/voices', [
-            'query' => $query,
-        ]);
+        try {
+            $response = $this->httpClient->request('GET', '/v2/voices', [
+                'query' => $query,
+            ]);
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
 
         $statusCode = $response->getStatusCode();
         if ($statusCode !== 200) {
