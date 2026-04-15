@@ -34,6 +34,8 @@ This monorepo contains official SDK clients for the [Typecast](https://typecast.
 |      <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/swift/swift-original.svg" alt="Swift" width="24"/>      | [**typecast-swift**](./typecast-swift)   | Swift Package Manager                       |
 |       <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/rust/rust-original.svg" alt="Rust" width="24"/>       | [**typecast-rust**](./typecast-rust)     | `cargo add typecast-rust`                   |
 |          <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/c/c-original.svg" alt="C" width="24"/>          | [**typecast-c**](./typecast-c)           | CMake                                       |
+|       <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/zig/zig-original.svg" alt="Zig" width="24"/>       | [**typecast-zig**](./typecast-zig)       | `zig fetch --save`                          |
+|        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/php/php-original.svg" alt="PHP" width="24"/>        | [**typecast-php**](./typecast-php)       | `composer require neosapience/typecast-php`  |
 
 <br/>
 
@@ -105,6 +107,8 @@ Each SDK is licensed under either the **MIT License** or **Apache License 2.0**.
 | typecast-swift | Apache 2.0 |
 | typecast-rust | MIT |
 | typecast-c | MIT |
+| typecast-zig | MIT |
+| typecast-php | MIT |
 
 <br/>
 
@@ -149,6 +153,8 @@ Every SDK in this monorepo targets **100% code coverage** (line + function + bra
 | [typecast-python](./typecast-python) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-python) |
 | [typecast-rust](./typecast-rust) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-rust) |
 | [typecast-swift](./typecast-swift) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-swift) |
+| [typecast-zig](./typecast-zig) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-zig) |
+| [typecast-php](./typecast-php) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-php) |
 
 Click any SDK name or badge to jump to that SDK's directory. Each SDK's
 README documents its installation, usage, and coverage workflow.
