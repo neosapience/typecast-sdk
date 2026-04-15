@@ -147,6 +147,9 @@ class TypecastClient
      */
     public function getVoices(?string $model = null): array
     {
+        if ($model !== null && trim($model) === '') {
+            throw new \InvalidArgumentException('model must not be empty');
+        }
         $query = ['page' => 0, 'page_size' => 100];
         if ($model !== null) {
             $query['model'] = $model;
