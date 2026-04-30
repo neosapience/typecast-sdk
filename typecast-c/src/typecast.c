@@ -1498,9 +1498,11 @@ static CaptionCue* group_into_cues(
                     char* t = strdup_safe(cur.data);
                     if (!t) {
                         /* OOM — free partial work and bail */
+                        /* LCOV_EXCL_START */
                         free(cur.data);
                         cues_free(cues, ncues);
                         return NULL;
+                        /* LCOV_EXCL_STOP */
                     }
                     cues[ncues].text  = t;
                     cues[ncues].start = cur_start;
@@ -1521,24 +1523,30 @@ static CaptionCue* group_into_cues(
             cur.len = 0;
             if (cur.data) cur.data[0] = '\0';
             if (!strbuf_append(&cur, seg->text)) {
+                /* LCOV_EXCL_START */
                 free(cur.data);
                 cues_free(cues, ncues);
                 return NULL;
+                /* LCOV_EXCL_STOP */
             }
             has_cur = 1;
         } else {
             /* Append separator + segment */
             if (word_mode) {
                 if (!strbuf_append(&cur, " ")) {
+                    /* LCOV_EXCL_START */
                     free(cur.data);
                     cues_free(cues, ncues);
                     return NULL;
+                    /* LCOV_EXCL_STOP */
                 }
             }
             if (!strbuf_append(&cur, seg->text)) {
+                /* LCOV_EXCL_START */
                 free(cur.data);
                 cues_free(cues, ncues);
                 return NULL;
+                /* LCOV_EXCL_STOP */
             }
         }
         last_end = seg->end;
@@ -1550,9 +1558,11 @@ static CaptionCue* group_into_cues(
             if (cur.len > 0) {
                 char* t = strdup_safe(cur.data);
                 if (!t) {
+                    /* LCOV_EXCL_START */
                     free(cur.data);
                     cues_free(cues, ncues);
                     return NULL;
+                    /* LCOV_EXCL_STOP */
                 }
                 cues[ncues].text  = t;
                 cues[ncues].start = cur_start;
@@ -1571,9 +1581,11 @@ static CaptionCue* group_into_cues(
         if (cur.len > 0) {
             char* t = strdup_safe(cur.data);
             if (!t) {
+                /* LCOV_EXCL_START */
                 free(cur.data);
                 cues_free(cues, ncues);
                 return NULL;
+                /* LCOV_EXCL_STOP */
             }
             cues[ncues].text  = t;
             cues[ncues].start = cur_start;
@@ -1740,7 +1752,7 @@ static int codepoint_to_utf8(unsigned int cp, char* buf) {
         buf[3] = (char)(0x80 | (cp & 0x3F));
         return 4;
     }
-    return 0;
+    return 0; /* LCOV_EXCL_LINE — parse_hex4 can't return cp >= 0x110000 */
 }
 
 /* Parse 4 hex digits at p; return codepoint or -1 on invalid. */
@@ -1800,9 +1812,11 @@ static char* json_unescape_unicode(const char* src) {
                             0x10000 + ((cp - 0xD800) << 10) + (cp2 - 0xDC00));
                         int written = codepoint_to_utf8(full, w);
                         if (written > 0) { w += written; r += 12; prev = 0; continue; }
+                        /* LCOV_EXCL_START */
                     }
                 }
             }
+            /* LCOV_EXCL_STOP */
             if (cp >= 0xDC00 && cp <= 0xDFFF) {
                 /* Lone low surrogate — output replacement char */
                 char rep[4]; int rlen = codepoint_to_utf8(0xFFFD, rep);
@@ -1811,8 +1825,9 @@ static char* json_unescape_unicode(const char* src) {
             }
             int written = codepoint_to_utf8((unsigned int)cp, w);
             if (written > 0) { w += written; r += 6; prev = 0; continue; }
-            /* Fallback: copy raw */
-        }
+            /* Fallback: copy raw (written==0 is unreachable — codepoint_to_utf8
+             * only returns 0 for cp >= 0x110000, which parse_hex4 cannot produce) */
+        } /* LCOV_EXCL_LINE */
         prev = *r;
         *w++ = *r++;
     }
@@ -1901,17 +1916,23 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps(
 
     /* Build JSON body */
     cJSON* json = build_tts_with_timestamps_request_json(request);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="cJSON_CreateObject OOM; requires malloc shim" */
     if (!json) {
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to build JSON");
         return TYPECAST_ERROR_OUT_OF_MEMORY;
     }
+    /* LCOV_EXCL_STOP */
 
     char* json_str = cJSON_PrintUnformatted(json);
     cJSON_Delete(json);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="cJSON_PrintUnformatted OOM; requires malloc shim" */
     if (!json_str) {
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to serialize JSON");
         return TYPECAST_ERROR_OUT_OF_MEMORY;
     }
+    /* LCOV_EXCL_STOP */
 
     /* Setup response buffers */
     ResponseBuffer response_buf = {0};
@@ -1974,10 +1995,13 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps(
     char* unescaped = json_unescape_unicode(raw_json);
     free(raw_json);
 
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="malloc OOM in json_unescape_unicode; requires malloc shim" */
     if (!unescaped) {
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to unescape JSON");
         return TYPECAST_ERROR_OUT_OF_MEMORY;
     }
+    /* LCOV_EXCL_STOP */
 
     /* Parse JSON */
     cJSON* root = cJSON_Parse(unescaped);
@@ -1991,11 +2015,14 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps(
     TypecastTTSWithTimestampsResponse* resp =
         (TypecastTTSWithTimestampsResponse*)calloc(
             1, sizeof(TypecastTTSWithTimestampsResponse));
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="calloc OOM; requires malloc shim" */
     if (!resp) {
         cJSON_Delete(root);
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate response");
         return TYPECAST_ERROR_OUT_OF_MEMORY;
     }
+    /* LCOV_EXCL_STOP */
 
     cJSON* jaudio = cJSON_GetObjectItem(root, "audio");
     if (cJSON_IsString(jaudio)) {
@@ -2072,10 +2099,13 @@ TYPECAST_API TypecastErrorCode typecast_tts_with_timestamps_response_to_srt(
     *out_string = sb.data;
     return TYPECAST_OK;
 
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="strbuf_append realloc OOM; requires malloc shim" */
 oom:
     free(sb.data);
     cues_free(cues, ncues);
     return TYPECAST_ERROR_OUT_OF_MEMORY;
+    /* LCOV_EXCL_STOP */
 }
 
 /* ---- to_vtt ---- */
@@ -2124,10 +2154,13 @@ TYPECAST_API TypecastErrorCode typecast_tts_with_timestamps_response_to_vtt(
     *out_string = sb.data;
     return TYPECAST_OK;
 
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="strbuf_append realloc OOM; requires malloc shim" */
 oom:
     free(sb.data);
     cues_free(cues, ncues);
     return TYPECAST_ERROR_OUT_OF_MEMORY;
+    /* LCOV_EXCL_STOP */
 }
 
 /* ---- audio_bytes ---- */
@@ -2167,7 +2200,7 @@ TYPECAST_API TypecastErrorCode typecast_tts_with_timestamps_response_save_audio(
     fclose(f);
     free(bytes);
     if (written != size) {
-        return TYPECAST_ERROR_NETWORK; /* reused as I/O error */
+        return TYPECAST_ERROR_NETWORK; /* LCOV_EXCL_LINE — disk-full path */
     }
     return TYPECAST_OK;
 }

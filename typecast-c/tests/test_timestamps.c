@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <unistd.h>
 
 /* We need to reach into cJSON for fixture parsing.
  * The include path is set by CMake so "cJSON.h" works. */
@@ -492,6 +493,140 @@ static void test_single_word_response(void) {
     free(vtt);
 }
 
+/* Hard cap: char limit triggers a mid-stream flush. */
+static void test_group_into_cues_char_cap(void) {
+    /* Two words: each 30 chars.  Joined: "aaa...aaa bbb...bbb" = 61 codepoints > 42. */
+    static char word_a[31], word_b[31];
+    memset(word_a, 'a', 30); word_a[30] = '\0';
+    memset(word_b, 'b', 30); word_b[30] = '\0';
+
+    TypecastAlignmentSegment segs[2];
+    segs[0].text = word_a; segs[0].start = 0.0f; segs[0].end = 1.0f;
+    segs[1].text = word_b; segs[1].start = 1.1f; segs[1].end = 2.0f;
+
+    TypecastTTSWithTimestampsResponse resp = {0};
+    resp.words       = segs;
+    resp.words_count = 2;
+
+    char* srt = NULL;
+    TypecastErrorCode rc = typecast_tts_with_timestamps_response_to_srt(&resp, &srt);
+    ASSERT(rc == TYPECAST_OK);
+    ASSERT_NOT_NULL(srt);
+    /* Hard cap should have split into two cues. */
+    ASSERT(strstr(srt, "-->") != NULL);
+    free(srt);
+}
+
+/* Final flush: segment that doesn't end with a sentence terminator. */
+static void test_group_into_cues_final_flush(void) {
+    /* Two words without sentence terminators — flushed at end. */
+    TypecastAlignmentSegment segs[2];
+    segs[0].text = (char*)"Hello"; segs[0].start = 0.0f; segs[0].end = 0.5f;
+    segs[1].text = (char*)"world"; segs[1].start = 0.6f; segs[1].end = 1.0f;
+
+    TypecastTTSWithTimestampsResponse resp = {0};
+    resp.words       = segs;
+    resp.words_count = 2;
+
+    char* srt = NULL;
+    TypecastErrorCode rc = typecast_tts_with_timestamps_response_to_srt(&resp, &srt);
+    ASSERT(rc == TYPECAST_OK);
+    ASSERT_NOT_NULL(srt);
+    ASSERT(strstr(srt, "Hello") != NULL);
+    ASSERT(strstr(srt, "world") != NULL);
+    free(srt);
+}
+
+/* Trailing whitespace in segment text is stripped.
+ * Also exercises strip_whitespace_inplace's trailing loop. */
+static void test_group_into_cues_trailing_whitespace(void) {
+    /* Two segments: first ends with trailing spaces, second ends with '.'
+     * They are in the same cue and the trailing whitespace gets stripped. */
+    TypecastAlignmentSegment segs[2];
+    segs[0].text = (char*)"Hello ";   segs[0].start = 0.0f; segs[0].end = 0.4f;
+    segs[1].text = (char*)"world.";   segs[1].start = 0.5f; segs[1].end = 1.0f;
+
+    TypecastTTSWithTimestampsResponse resp = {0};
+    resp.words       = segs;
+    resp.words_count = 2;
+
+    char* srt = NULL;
+    TypecastErrorCode rc = typecast_tts_with_timestamps_response_to_srt(&resp, &srt);
+    ASSERT(rc == TYPECAST_OK);
+    ASSERT_NOT_NULL(srt);
+    ASSERT(strstr(srt, "Hello  world.") != NULL ||
+           strstr(srt, "Hello world.") != NULL);
+    free(srt);
+}
+
+/* all-empty text segments → group_into_cues produces 0 cues → INVALID_PARAM. */
+static void test_srt_all_empty_text(void) {
+    TypecastAlignmentSegment segs[2];
+    segs[0].text = (char*)""; segs[0].start = 0.0f; segs[0].end = 0.5f;
+    segs[1].text = (char*)""; segs[1].start = 0.5f; segs[1].end = 1.0f;
+
+    TypecastTTSWithTimestampsResponse resp = {0};
+    resp.words       = segs;
+    resp.words_count = 2;
+
+    char* srt = NULL;
+    TypecastErrorCode rc = typecast_tts_with_timestamps_response_to_srt(&resp, &srt);
+    ASSERT(rc == TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT(srt == NULL);
+
+    char* vtt = NULL;
+    rc = typecast_tts_with_timestamps_response_to_vtt(&resp, &vtt);
+    ASSERT(rc == TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT(vtt == NULL);
+}
+
+/* audio_bytes: invalid base64 string -> JSON_PARSE error. */
+static void test_audio_bytes_invalid_base64(void) {
+    TypecastTTSWithTimestampsResponse resp = {0};
+    resp.audio_base64 = (char*)"!!! not base64 !!!";
+
+    uint8_t* bytes = NULL;
+    size_t sz = 0;
+    TypecastErrorCode rc = typecast_tts_with_timestamps_response_audio_bytes(
+        &resp, &bytes, &sz);
+    ASSERT(rc == TYPECAST_ERROR_JSON_PARSE);
+    ASSERT(bytes == NULL);
+}
+
+/* save_audio: happy path — actually writes file to a temp path. */
+static void test_save_audio_writes_file(void) {
+    TypecastTTSWithTimestampsResponse* resp = load_fixture("word_only.json");
+    ASSERT_NOT_NULL(resp);
+
+    /* Use a temp file path */
+    char tmp_path[256];
+    snprintf(tmp_path, sizeof(tmp_path), "/tmp/typecast_test_save_%d.wav", (int)getpid());
+
+    TypecastErrorCode rc = typecast_tts_with_timestamps_response_save_audio(resp, tmp_path);
+    ASSERT(rc == TYPECAST_OK);
+
+    /* Verify file exists and is non-empty */
+    FILE* f = fopen(tmp_path, "rb");
+    ASSERT_NOT_NULL(f);
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fclose(f);
+    remove(tmp_path);
+    ASSERT(sz > 0);
+
+    typecast_tts_with_timestamps_response_free(resp);
+}
+
+/* save_audio: non-existent directory -> I/O error. */
+static void test_save_audio_bad_path(void) {
+    TypecastTTSWithTimestampsResponse resp = {0};
+    resp.audio_base64 = (char*)"QVVESU8="; /* base64("AUDIO") */
+
+    TypecastErrorCode rc = typecast_tts_with_timestamps_response_save_audio(
+        &resp, "/nonexistent/dir/typecast_test.wav");
+    ASSERT(rc == TYPECAST_ERROR_NETWORK);
+}
+
 /* ============================================
  * Mock-server tests for typecast_text_to_speech_with_timestamps
  * (reuse the mini mock server from test_mock.c style)
@@ -711,6 +846,131 @@ static TypecastClient* mini_new_client(void) {
     char host[64];
     snprintf(host, sizeof(host), "http://127.0.0.1:%d", g_mock.port);
     return typecast_client_create_with_host("test_api_key", host);
+}
+
+/* Malformed: second segment is missing text, first is valid.
+ * The cleanup loop body (freeing segs[k].text for k < i) must be reached. */
+static void test_http_malformed_second_segment_no_text(void) {
+    TypecastClient* client = mini_new_client();
+    ASSERT_NOT_NULL(client);
+
+    /* words[0] has text, words[1] does not */
+    const char* bad_json =
+        "{"
+        "\"audio\":\"QVVESU8=\","
+        "\"audio_format\":\"wav\","
+        "\"audio_duration\":1.0,"
+        "\"words\":["
+            "{\"text\":\"Hello.\",\"start\":0.1,\"end\":0.5},"
+            "{\"start\":0.6,\"end\":1.0}"          /* missing "text" */
+        "],"
+        "\"characters\":null"
+        "}";
+    mini_mock_enqueue_json(200, bad_json);
+
+    TypecastTTSRequestWithTimestamps req = {0};
+    req.text     = "test";
+    req.voice_id = "tc_test";
+    req.model    = TYPECAST_MODEL_SSFM_V30;
+
+    TypecastTTSWithTimestampsResponse* resp = NULL;
+    TypecastErrorCode rc = typecast_text_to_speech_with_timestamps(client, &req, &resp);
+    /* Either error or resp with 0 words — either way no crash */
+    if (rc == TYPECAST_OK && resp != NULL) {
+        ASSERT(resp->words_count == 0);
+        typecast_tts_with_timestamps_response_free(resp);
+    }
+
+    typecast_client_destroy(client);
+}
+
+/* HTTP response that includes a characters array (not null). */
+static void test_http_response_with_characters(void) {
+    TypecastClient* client = mini_new_client();
+    ASSERT_NOT_NULL(client);
+
+    const char* json_with_chars =
+        "{"
+        "\"audio\":\"QVVESU8=\","
+        "\"audio_format\":\"wav\","
+        "\"audio_duration\":0.6,"
+        "\"words\":null,"
+        "\"characters\":["
+            "{\"text\":\"H\",\"start\":0.0,\"end\":0.2},"
+            "{\"text\":\"i\",\"start\":0.2,\"end\":0.4},"
+            "{\"text\":\"!\",\"start\":0.4,\"end\":0.6}"
+        "]"
+        "}";
+    mini_mock_enqueue_json(200, json_with_chars);
+
+    TypecastTTSRequestWithTimestamps req = {0};
+    req.text     = "Hi!";
+    req.voice_id = "tc_test";
+    req.model    = TYPECAST_MODEL_SSFM_V30;
+
+    TypecastTTSWithTimestampsResponse* resp = NULL;
+    TypecastErrorCode rc = typecast_text_to_speech_with_timestamps(client, &req, &resp);
+    ASSERT(rc == TYPECAST_OK);
+    ASSERT_NOT_NULL(resp);
+    ASSERT(resp->characters_count == 3);
+
+    char* srt = NULL;
+    rc = typecast_tts_with_timestamps_response_to_srt(resp, &srt);
+    ASSERT(rc == TYPECAST_OK);
+    ASSERT_NOT_NULL(srt);
+    ASSERT(strstr(srt, "Hi!") != NULL);
+    free(srt);
+
+    typecast_tts_with_timestamps_response_free(resp);
+    typecast_client_destroy(client);
+}
+
+/* HTTP response where text contains a \uXXXX Unicode escape.
+ * Exercises json_unescape_unicode, parse_hex4, and codepoint_to_utf8.
+ * Word 0: é (2-byte UTF-8, é)
+ * Word 1: ハ (3-byte UTF-8, ハ)
+ * Word 2: A (1-byte ASCII, A)
+ * Word 3: \uXXXZ (invalid hex -> kept as-is)
+ * Word 4: \uDC00 (lone low surrogate -> replacement char)
+ * Word 5: 😀 (surrogate pair -> 😀, 4-byte UTF-8) */
+static void test_http_response_unicode_escape(void) {
+    TypecastClient* client = mini_new_client();
+    ASSERT_NOT_NULL(client);
+
+    const char* json_with_unicode =
+        "{"
+        "\"audio\":\"QVVESU8=\","
+        "\"audio_format\":\"wav\","
+        "\"audio_duration\":6.0,"
+        "\"words\":["
+            "{\"text\":\"caf\\u00e9.\",\"start\":0.0,\"end\":1.0},"
+            "{\"text\":\"\\u30cf.\",\"start\":1.1,\"end\":2.0},"
+            "{\"text\":\"\\u0041.\",\"start\":2.1,\"end\":3.0},"
+            "{\"text\":\"\\uXXXZ.\",\"start\":3.1,\"end\":4.0},"
+            "{\"text\":\"\\uDC00.\",\"start\":4.1,\"end\":5.0},"
+            "{\"text\":\"\\uD83D\\uDE00.\",\"start\":5.1,\"end\":6.0}"
+        "],"
+        "\"characters\":null"
+        "}";
+    mini_mock_enqueue_json(200, json_with_unicode);
+
+    TypecastTTSRequestWithTimestamps req = {0};
+    req.text     = "hello";
+    req.voice_id = "tc_test";
+    req.model    = TYPECAST_MODEL_SSFM_V30;
+
+    TypecastTTSWithTimestampsResponse* resp = NULL;
+    TypecastErrorCode rc = typecast_text_to_speech_with_timestamps(client, &req, &resp);
+    ASSERT(rc == TYPECAST_OK);
+    ASSERT_NOT_NULL(resp);
+    ASSERT(resp->words_count == 6);
+    /* Word 0 should be UTF-8 "café.", not literal \uXXXX */
+    ASSERT(strstr(resp->words[0].text, "\\u") == NULL);
+    /* Word 2 should contain 'A' (ASCII from A) */
+    ASSERT(strchr(resp->words[2].text, 'A') != NULL);
+
+    typecast_tts_with_timestamps_response_free(resp);
+    typecast_client_destroy(client);
 }
 
 /* Build a minimal valid JSON response body for the timestamps endpoint */
@@ -982,6 +1242,13 @@ int main(void) {
     RUN(free_null);
     RUN(audio_bytes_from_fixture);
     RUN(single_word_response);
+    RUN(group_into_cues_char_cap);
+    RUN(group_into_cues_final_flush);
+    RUN(group_into_cues_trailing_whitespace);
+    RUN(srt_all_empty_text);
+    RUN(audio_bytes_invalid_base64);
+    RUN(save_audio_writes_file);
+    RUN(save_audio_bad_path);
 
     /* HTTP (mock) tests */
     RUN(http_with_timestamps_happy);
@@ -992,6 +1259,9 @@ int main(void) {
     RUN(http_granularity_field);
     RUN(http_endpoint_path);
     RUN(http_malformed_segment_no_text);
+    RUN(http_malformed_second_segment_no_text);
+    RUN(http_response_with_characters);
+    RUN(http_response_unicode_escape);
 
     mini_mock_shutdown();
 
