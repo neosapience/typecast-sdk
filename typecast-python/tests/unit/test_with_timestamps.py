@@ -193,3 +193,63 @@ class TestToVtt:
             before_arrow = ts_line.split(" --> ")[0]
             assert "." in before_arrow
             assert "," not in before_arrow
+
+
+class TestSyncClient:
+    def test_calls_endpoint_with_no_granularity(self, mocker):
+        from typecast.client import Typecast
+        from typecast.models import TTSRequestWithTimestamps, TTSWithTimestampsResponse
+
+        client = Typecast(api_key="test-key")
+        fixture = _load("both.json")
+        mock_resp = mocker.Mock(status_code=200, text="", headers={})
+        mock_resp.json = mocker.Mock(return_value=fixture)
+        mock_post = mocker.patch.object(client.session, "post", return_value=mock_resp)
+
+        req = TTSRequestWithTimestamps(
+            voice_id="tc_x", text="Hello.", model="ssfm-v30", language="eng"
+        )
+        out = client.text_to_speech_with_timestamps(req)
+
+        mock_post.assert_called_once()
+        called_url = mock_post.call_args.args[0]
+        assert called_url == f"{client.host}/v1/text-to-speech/with-timestamps"
+        assert "params" not in mock_post.call_args.kwargs or not mock_post.call_args.kwargs.get("params")
+        assert isinstance(out, TTSWithTimestampsResponse)
+        assert out.audio_format in {"wav", "mp3"}
+
+    def test_passes_granularity_query(self, mocker):
+        from typecast.client import Typecast
+        from typecast.models import TTSRequestWithTimestamps
+
+        client = Typecast(api_key="test-key")
+        fixture = _load("word_only.json")
+        mock_resp = mocker.Mock(status_code=200, text="", headers={})
+        mock_resp.json = mocker.Mock(return_value=fixture)
+        mock_post = mocker.patch.object(client.session, "post", return_value=mock_resp)
+
+        req = TTSRequestWithTimestamps(voice_id="tc_x", text="Hello.", model="ssfm-v30")
+        client.text_to_speech_with_timestamps(req, granularity="word")
+        assert mock_post.call_args.kwargs["params"] == {"granularity": "word"}
+
+    def test_rejects_invalid_granularity(self):
+        from typecast.client import Typecast
+        from typecast.models import TTSRequestWithTimestamps
+
+        client = Typecast(api_key="test-key")
+        req = TTSRequestWithTimestamps(voice_id="tc_x", text="Hi", model="ssfm-v30")
+        with pytest.raises(ValueError, match="granularity"):
+            client.text_to_speech_with_timestamps(req, granularity="words")  # type: ignore[arg-type]
+
+    def test_handles_402_error(self, mocker):
+        from typecast.client import Typecast
+        from typecast.exceptions import PaymentRequiredError
+        from typecast.models import TTSRequestWithTimestamps
+
+        client = Typecast(api_key="test-key")
+        mock_resp = mocker.Mock(status_code=402, text="Insufficient credit")
+        mocker.patch.object(client.session, "post", return_value=mock_resp)
+
+        req = TTSRequestWithTimestamps(voice_id="tc_x", text="Hi", model="ssfm-v30")
+        with pytest.raises(PaymentRequiredError):
+            client.text_to_speech_with_timestamps(req)
