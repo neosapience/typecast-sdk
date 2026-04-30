@@ -253,3 +253,76 @@ class TestSyncClient:
         req = TTSRequestWithTimestamps(voice_id="tc_x", text="Hi", model="ssfm-v30")
         with pytest.raises(PaymentRequiredError):
             client.text_to_speech_with_timestamps(req)
+
+
+class TestAsyncClient:
+    @pytest.mark.asyncio
+    async def test_async_calls_endpoint_no_granularity(self, mocker):
+        """Async client returns parsed response when granularity is omitted."""
+        from typecast.async_client import AsyncTypecast
+        from typecast.models import TTSRequestWithTimestamps, TTSWithTimestampsResponse
+
+        async with AsyncTypecast(api_key="test-key") as client:
+            fixture = _load("both.json")
+            mock_resp = mocker.AsyncMock()
+            mock_resp.status = 200
+            mock_resp.json = mocker.AsyncMock(return_value=fixture)
+            mock_resp.text = mocker.AsyncMock(return_value="")
+
+            mock_cm = mocker.MagicMock()
+            mock_cm.__aenter__ = mocker.AsyncMock(return_value=mock_resp)
+            mock_cm.__aexit__ = mocker.AsyncMock(return_value=None)
+            mock_post = mocker.patch.object(client.session, "post", return_value=mock_cm)
+
+            req = TTSRequestWithTimestamps(voice_id="tc_x", text="Hi", model="ssfm-v30")
+            out = await client.text_to_speech_with_timestamps(req)
+
+            mock_post.assert_called_once()
+            called_url = mock_post.call_args.args[0]
+            assert called_url == f"{client.host}/v1/text-to-speech/with-timestamps"
+            kwargs = mock_post.call_args.kwargs
+            assert kwargs.get("params") is None
+            assert isinstance(out, TTSWithTimestampsResponse)
+
+    @pytest.mark.asyncio
+    async def test_async_passes_granularity_query(self, mocker):
+        from typecast.async_client import AsyncTypecast
+        from typecast.models import TTSRequestWithTimestamps
+
+        async with AsyncTypecast(api_key="test-key") as client:
+            fixture = _load("word_only.json")
+            mock_resp = mocker.AsyncMock()
+            mock_resp.status = 200
+            mock_resp.json = mocker.AsyncMock(return_value=fixture)
+            mock_resp.text = mocker.AsyncMock(return_value="")
+
+            mock_cm = mocker.MagicMock()
+            mock_cm.__aenter__ = mocker.AsyncMock(return_value=mock_resp)
+            mock_cm.__aexit__ = mocker.AsyncMock(return_value=None)
+            mock_post = mocker.patch.object(client.session, "post", return_value=mock_cm)
+
+            req = TTSRequestWithTimestamps(voice_id="tc_x", text="Hi", model="ssfm-v30")
+            await client.text_to_speech_with_timestamps(req, granularity="word")
+            assert mock_post.call_args.kwargs["params"] == {"granularity": "word"}
+
+    @pytest.mark.asyncio
+    async def test_async_rejects_invalid_granularity(self):
+        from typecast.async_client import AsyncTypecast
+        from typecast.models import TTSRequestWithTimestamps
+
+        async with AsyncTypecast(api_key="test-key") as client:
+            req = TTSRequestWithTimestamps(voice_id="tc_x", text="Hi", model="ssfm-v30")
+            with pytest.raises(ValueError, match="granularity"):
+                await client.text_to_speech_with_timestamps(req, granularity="words")  # type: ignore[arg-type]
+
+    @pytest.mark.asyncio
+    async def test_async_raises_when_session_not_initialized(self):
+        from typecast.async_client import AsyncTypecast
+        from typecast.exceptions import TypecastError
+        from typecast.models import TTSRequestWithTimestamps
+
+        client = AsyncTypecast(api_key="test-key")
+        # No `async with`, so session is None
+        req = TTSRequestWithTimestamps(voice_id="tc_x", text="Hi", model="ssfm-v30")
+        with pytest.raises(TypecastError, match="session"):
+            await client.text_to_speech_with_timestamps(req)
