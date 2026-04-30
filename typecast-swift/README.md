@@ -29,6 +29,7 @@ Convert text to lifelike speech using AI-powered voices
 - [Usage](#usage)
   - [Configuration](#configuration)
   - [Text to Speech](#text-to-speech)
+  - [Text to Speech with Timestamps](#text-to-speech-with-timestamps)
   - [Voice Discovery](#voice-discovery)
   - [Emotion Control](#emotion-control)
   - [Audio Output Settings](#audio-output-settings)
@@ -121,6 +122,7 @@ print("Saved: \(url.path) (\(audio.duration)s)")
 | **37 Languages** | English, Korean, Japanese, Chinese, Spanish, and 32 more |
 | **Emotion Control** | Preset emotions or smart context-aware inference |
 | **Audio Customization** | Volume, pitch, tempo, and format (WAV/MP3) |
+| **Timestamps** | Word/character alignment for SRT and WebVTT caption generation |
 | **Voice Discovery** | Filter voices by model, gender, age, and use cases |
 | **Swift Concurrency** | Full async/await support |
 | **Cross-Platform** | iOS, macOS, tvOS, watchOS, and visionOS |
@@ -183,6 +185,79 @@ let audio = try await client.speak(
     intensity: 1.5
 )
 ```
+
+### Text to Speech with Timestamps
+
+The `textToSpeechWithTimestamps` method calls `POST /v1/text-to-speech/with-timestamps` and returns the audio (base64-encoded) together with word- and/or character-level alignment segments. Use these segments to generate SRT or WebVTT captions that are byte-for-byte identical across all Typecast SDKs.
+
+#### Basic usage
+
+```swift
+let request = TTSRequestWithTimestamps(
+    voiceId: "tc_672c5f5ce59fac2a48faeaee",
+    text: "Hello. How are you?",
+    model: .ssfmV30
+)
+let response = try await client.textToSpeechWithTimestamps(request)
+
+// Save audio
+let audioURL = URL(fileURLWithPath: "output.wav")
+try response.saveAudio(to: audioURL)
+
+// Generate captions
+let srt = try response.toSrt()  // SRT format
+let vtt = try response.toVtt()  // WebVTT format
+print(srt)
+```
+
+#### Granularity control
+
+Pass `granularity` to request specific alignment data: `"word"`, `"character"`, or `"both"` (default).
+
+```swift
+// Word-level only
+let wordResponse = try await client.textToSpeechWithTimestamps(request, granularity: "word")
+
+// Character-level only (recommended for languages without whitespace, e.g. Japanese, Chinese)
+let charResponse = try await client.textToSpeechWithTimestamps(request, granularity: "character")
+```
+
+#### Working with alignment segments
+
+```swift
+let response = try await client.textToSpeechWithTimestamps(request)
+
+// Access word segments
+if let words = response.words {
+    for word in words {
+        print("\(word.text): \(word.start)s – \(word.end)s")
+    }
+}
+
+// Access character segments
+if let characters = response.characters {
+    for char in characters {
+        print("\(char.text): \(char.start)s – \(char.end)s")
+    }
+}
+
+// Write captions to files
+let srtURL = URL(fileURLWithPath: "captions.srt")
+try response.toSrt().write(to: srtURL, atomically: true, encoding: .utf8)
+
+let vttURL = URL(fileURLWithPath: "captions.vtt")
+try response.toVtt().write(to: vttURL, atomically: true, encoding: .utf8)
+```
+
+#### Caption formatting rules
+
+The `toSrt()` and `toVtt()` methods apply the same rules used by all Typecast SDKs:
+
+- **Hard cap — time**: split before a segment if the cue would exceed 7 seconds.
+- **Hard cap — length**: split before a segment if the joined text would exceed 42 Unicode codepoints.
+- **Sentence boundary**: flush the cue immediately after a segment ending with `.` `?` `!` `。` `？` `！`.
+- **Word mode**: segments are joined with a space (used when `words` has ≥ 2 entries).
+- **Character mode**: segments are concatenated without a separator (used when only `characters` is present, or `words` has exactly 1 entry).
 
 ### Voice Discovery
 

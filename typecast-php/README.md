@@ -37,6 +37,7 @@ echo "Duration: {$response->duration}s\n";
 ## Features
 
 - Text-to-Speech (binary response)
+- Text-to-Speech with word/character timestamps (SRT/VTT caption generation)
 - Streaming TTS (chunked audio)
 - Voice listing (V1 and V2 APIs)
 - Subscription info
@@ -60,6 +61,33 @@ $response = $client->textToSpeech(new TTSRequest(
     prompt: new PresetPrompt(emotionPreset: 'happy', emotionIntensity: 1.5),
     output: new Output(volume: 100, audioFormat: 'mp3'),
 ));
+```
+
+### Text-to-Speech with Timestamps
+
+```php
+use Neosapience\Typecast\Models\TTSRequestWithTimestamps;
+
+$response = $client->textToSpeechWithTimestamps(
+    new TTSRequestWithTimestamps(
+        voiceId: 'tc_xxx',
+        text: 'Hello, world!',
+        model: 'ssfm-v30',
+    ),
+    // Optional: 'word' or 'char' granularity (default: server decides)
+);
+
+// Save audio
+$response->saveAudio('output.wav');
+
+// Generate subtitles
+file_put_contents('output.srt', $response->toSrt());
+file_put_contents('output.vtt', $response->toVtt());
+
+// Access raw alignment data
+foreach ($response->words ?? [] as $word) {
+    echo "{$word->text}: {$word->start}s — {$word->end}s\n";
+}
 ```
 
 ### Streaming TTS

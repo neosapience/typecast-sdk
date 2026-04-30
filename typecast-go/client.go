@@ -154,6 +154,40 @@ func (c *Client) TextToSpeech(ctx context.Context, request *TTSRequest) (*TTSRes
 	}, nil
 }
 
+// TextToSpeechWithTimestamps synthesizes speech and returns base64 audio plus
+// alignment timestamps. The optional granularity parameter ("word", "char", or "")
+// filters the returned alignment arrays.
+func (c *Client) TextToSpeechWithTimestamps(ctx context.Context, request *TTSRequestWithTimestamps, granularity string) (*TTSWithTimestampsResponse, error) {
+	if request == nil {
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+	if granularity != "" && granularity != "word" && granularity != "char" {
+		return nil, fmt.Errorf("granularity must be empty, \"word\", or \"char\"; got %q", granularity)
+	}
+	if err := request.Validate(); err != nil {
+		return nil, err
+	}
+	path := "/v1/text-to-speech/with-timestamps"
+	if granularity != "" {
+		path = path + "?granularity=" + granularity
+	}
+	resp, err := c.doRequest(ctx, http.MethodPost, path, request)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+
+	var out TTSWithTimestampsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("failed to decode timestamps response: %w", err)
+	}
+	return &out, nil
+}
+
 // TextToSpeechStream converts text to speech using the streaming endpoint.
 // The returned io.ReadCloser delivers chunked audio bytes (a WAV header
 // followed by PCM data, or independently-decodable MP3 chunks). The caller

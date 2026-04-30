@@ -17,7 +17,9 @@ use Neosapience\Typecast\Exceptions\UnprocessableEntityException;
 use Neosapience\Typecast\Models\SubscriptionResponse;
 use Neosapience\Typecast\Models\TTSRequest;
 use Neosapience\Typecast\Models\TTSRequestStream;
+use Neosapience\Typecast\Models\TTSRequestWithTimestamps;
 use Neosapience\Typecast\Models\TTSResponse;
+use Neosapience\Typecast\Models\TTSWithTimestampsResponse;
 use Neosapience\Typecast\Models\Voice;
 use Neosapience\Typecast\Models\VoiceV2;
 use Neosapience\Typecast\Models\VoicesV2Filter;
@@ -81,6 +83,46 @@ class TypecastClient
             duration: $duration,
             format: $format,
         );
+    }
+
+    /**
+     * Convert text to speech with word- and character-level timestamps.
+     *
+     * @param string|null $granularity Optional granularity override: 'word' or 'char'.
+     *                                 When null the server uses its default.
+     * @throws \InvalidArgumentException on invalid granularity value
+     * @throws TypecastException
+     */
+    public function textToSpeechWithTimestamps(
+        TTSRequestWithTimestamps $request,
+        ?string $granularity = null,
+    ): TTSWithTimestampsResponse {
+        if ($granularity !== null && !in_array($granularity, ['word', 'char'], true)) {
+            throw new \InvalidArgumentException("granularity must be 'word' or 'char', got '{$granularity}'");
+        }
+
+        $uri = '/v1/text-to-speech/with-timestamps';
+        if ($granularity !== null) {
+            $uri .= '?granularity=' . $granularity;
+        }
+
+        try {
+            $response = $this->httpClient->request('POST', $uri, [
+                'json' => $request->toArray(),
+            ]);
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
+
+        $statusCode = $response->getStatusCode();
+        if ($statusCode !== 200) {
+            $this->handleError($statusCode, (string) $response->getBody());
+        }
+
+        /** @var array<string, mixed> $data */
+        $data = $this->decodeJson((string) $response->getBody());
+
+        return TTSWithTimestampsResponse::fromArray($data);
     }
 
     /**

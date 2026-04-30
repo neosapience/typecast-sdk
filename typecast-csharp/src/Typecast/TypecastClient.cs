@@ -69,6 +69,57 @@ public class TypecastClient : IDisposable
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
 
+    #region Text-to-Speech with Timestamps
+
+    /// <summary>
+    /// Synthesizes text to speech and returns audio together with word/character
+    /// alignment timestamps, enabling subtitle generation.
+    /// </summary>
+    /// <param name="request">The TTS request.</param>
+    /// <param name="granularity">
+    /// Alignment granularity: <c>"word"</c>, <c>"char"</c>, or <c>"both"</c>.
+    /// When <see langword="null"/> the API returns its default (typically both).
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>
+    /// A <see cref="TTSWithTimestampsResponse"/> containing base64-encoded audio
+    /// and alignment segment lists.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="request"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="granularity"/> is not one of the accepted values.</exception>
+    /// <exception cref="TypecastException">Thrown when the API returns an error.</exception>
+    public async Task<TTSWithTimestampsResponse> TextToSpeechWithTimestampsAsync(
+        TTSRequestWithTimestamps request,
+        string? granularity = null,
+        CancellationToken ct = default)
+    {
+        if (request == null) throw new ArgumentNullException(nameof(request));
+        request.Validate();
+
+        if (granularity != null)
+        {
+            var allowed = new[] { "word", "char", "both" };
+            if (!Array.Exists(allowed, g => g == granularity))
+            {
+                throw new ArgumentException(
+                    $"Invalid granularity '{granularity}'. Must be one of: word, char, both.",
+                    nameof(granularity));
+            }
+        }
+
+        var url = $"{_apiHost}/v1/text-to-speech/with-timestamps";
+        if (granularity != null)
+            url += $"?granularity={Uri.EscapeDataString(granularity)}";
+
+        var json = SerializeTimestampRequest(request);
+        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+        using var response = await _httpClient.PostAsync(url, content, ct).ConfigureAwait(false);
+
+        return await HandleJsonResponseAsync<TTSWithTimestampsResponse>(response, ct).ConfigureAwait(false);
+    }
+
+    #endregion
+
     #region Text-to-Speech
 
     /// <summary>
@@ -321,6 +372,44 @@ public class TypecastClient : IDisposable
     #endregion
 
     #region Helper Methods
+
+    private string SerializeTimestampRequest(TTSRequestWithTimestamps request)
+    {
+        var dict = new Dictionary<string, object>
+        {
+            ["text"] = request.Text,
+            ["voice_id"] = request.VoiceId,
+            ["model"] = request.Model.ToApiString()
+        };
+
+        if (request.Language.HasValue)
+            dict["language"] = request.Language.Value.ToApiString();
+
+        if (request.Prompt != null)
+            dict["prompt"] = SerializePrompt(request.Prompt);
+
+        if (request.Output != null)
+        {
+            var outputDict = new Dictionary<string, object>();
+            if (request.Output.Volume.HasValue)
+                outputDict["volume"] = request.Output.Volume.Value;
+            if (request.Output.TargetLufs.HasValue)
+                outputDict["target_lufs"] = request.Output.TargetLufs.Value;
+            if (request.Output.AudioPitch.HasValue)
+                outputDict["audio_pitch"] = request.Output.AudioPitch.Value;
+            if (request.Output.AudioTempo.HasValue)
+                outputDict["audio_tempo"] = request.Output.AudioTempo.Value;
+            if (request.Output.AudioFormat.HasValue)
+                outputDict["audio_format"] = request.Output.AudioFormat.Value.ToApiString();
+            if (outputDict.Count > 0)
+                dict["output"] = outputDict;
+        }
+
+        if (request.Seed.HasValue)
+            dict["seed"] = request.Seed.Value;
+
+        return JsonSerializer.Serialize(dict, JsonOptions);
+    }
 
     private string SerializeRequest(TTSRequest request)
     {

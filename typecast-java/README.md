@@ -23,6 +23,7 @@
 | Feature                 | Description                                             |
 | ----------------------- | ------------------------------------------------------- |
 | **Text-to-Speech**      | Convert text to natural-sounding speech                 |
+| **Timestamp TTS**       | TTS with word/character-level timing and SRT/VTT export |
 | **37 Languages**        | Support for multiple languages with automatic detection |
 | **Emotion Control**     | Preset and smart context-aware emotion synthesis        |
 | **Voice Discovery**     | Browse and filter available voices                      |
@@ -167,6 +168,46 @@ TTSRequest request = TTSRequest.builder()
 
 TTSResponse response = client.textToSpeech(request);
 byte[] audioData = response.getAudioData();
+```
+
+</details>
+
+<details>
+<summary><b>Timestamp TTS (SRT/VTT Captions)</b></summary>
+
+```java
+TTSRequestWithTimestamps request = TTSRequestWithTimestamps.builder()
+        .voiceId("tc_voice_id")
+        .text("Hello, world! How are you today?")
+        .model(TTSModel.SSFM_V30)
+        .build();
+
+// Request both word and character alignment (granularity = null)
+TTSWithTimestampsResponse response =
+        client.textToSpeechWithTimestamps(request, null);
+
+// Save the audio file
+response.saveAudio(Paths.get("output.wav"));
+
+// Export caption files
+String srt = response.toSrt(); // SRT format (HH:MM:SS,mmm)
+String vtt = response.toVtt(); // WebVTT format (HH:MM:SS.mmm)
+
+Files.writeString(Paths.get("captions.srt"), srt);
+Files.writeString(Paths.get("captions.vtt"), vtt);
+```
+
+Pass `"word"` or `"char"` as the second argument to restrict which alignment
+data the API returns:
+
+```java
+// Word-level alignment only
+TTSWithTimestampsResponse wordResp =
+        client.textToSpeechWithTimestamps(request, "word");
+
+// Character-level alignment only
+TTSWithTimestampsResponse charResp =
+        client.textToSpeechWithTimestamps(request, "char");
 ```
 
 </details>
@@ -397,15 +438,16 @@ mvn clean install
 
 ### TypecastClient
 
-| Method                        | Description                          |
-| ----------------------------- | ------------------------------------ |
-| `textToSpeech(TTSRequest)`    | Convert text to speech audio         |
-| `getVoicesV2()`               | Get all available voices (V2 API)    |
-| `getVoicesV2(VoicesV2Filter)` | Get filtered voices (V2 API)         |
-| `getVoiceV2(String voiceId)`  | Get a specific voice by ID           |
-| `getVoices()`                 | Get voices (V1 API, deprecated)      |
-| `getVoice(String voiceId)`    | Get voice by ID (V1 API, deprecated) |
-| `close()`                     | Release resources                    |
+| Method                                                    | Description                          |
+| --------------------------------------------------------- | ------------------------------------ |
+| `textToSpeech(TTSRequest)`                                | Convert text to speech audio         |
+| `textToSpeechWithTimestamps(TTSRequestWithTimestamps, String)` | TTS with word/char alignment + SRT/VTT |
+| `getVoicesV2()`                                           | Get all available voices (V2 API)    |
+| `getVoicesV2(VoicesV2Filter)`                             | Get filtered voices (V2 API)         |
+| `getVoiceV2(String voiceId)`                              | Get a specific voice by ID           |
+| `getVoices()`                                             | Get voices (V1 API, deprecated)      |
+| `getVoice(String voiceId)`                                | Get voice by ID (V1 API, deprecated) |
+| `close()`                                                 | Release resources                    |
 
 ### TTSRequest
 

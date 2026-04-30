@@ -1,6 +1,7 @@
 const std = @import("std");
 const models = @import("models.zig");
 const json_helpers = @import("json.zig");
+const timestamps = @import("timestamps.zig");
 
 pub const Client = struct {
     allocator: std.mem.Allocator,
@@ -117,6 +118,66 @@ pub const Client = struct {
         if (response_body.len > 0) {
             try on_chunk(response_body);
         }
+    }
+
+    /// POST /v1/text-to-speech/with-timestamps — returns audio + alignment data.
+    ///
+    /// `granularity` controls which alignment segments the API returns:
+    ///   - null or ""  -> API default (both words and characters)
+    ///   - "word"      -> word-level only
+    ///   - "char"      -> character-level only
+    ///
+    /// The returned `TTSWithTimestampsResponse` owns all allocated memory.
+    /// Call `response.deinit()` to release it.
+    pub fn textToSpeechWithTimestamps(
+        self: *Client,
+        request: timestamps.TTSRequestWithTimestamps,
+        granularity: ?[]const u8,
+    ) !timestamps.TTSWithTimestampsResponse {
+        // Validate granularity against the allowed whitelist before sending.
+        if (granularity) |g| {
+            if (g.len > 0 and !std.mem.eql(u8, g, "word") and !std.mem.eql(u8, g, "char")) {
+                return error.InvalidGranularity;
+            }
+        }
+        const body = try timestamps.serializeTtsRequestWithTimestamps(
+            self.allocator,
+            request,
+            null, // granularity is sent as a query parameter, not in the body
+        );
+        defer self.allocator.free(body);
+
+        const path = "/v1/text-to-speech/with-timestamps";
+        // Granularity is a query parameter: ?granularity=word or ?granularity=char
+        var query_buf: [64]u8 = undefined;
+        const query: ?[]const u8 = if (granularity) |g| blk: {
+            if (g.len == 0) break :blk null;
+            const q = std.fmt.bufPrint(&query_buf, "granularity={s}", .{g}) catch break :blk null;
+            break :blk q;
+        } else null;
+        const uri = try buildUri(self.base_url, path, query);
+
+        var req = try self.http_client.request(.POST, uri, .{
+            .extra_headers = &.{
+                .{ .name = "X-API-KEY", .value = self.api_key },
+                .{ .name = "Content-Type", .value = "application/json" },
+            },
+        });
+        defer req.deinit();
+
+        try req.sendBodyComplete(@constCast(body));
+
+        var redirect_buf: [4096]u8 = undefined;
+        var response = try req.receiveHead(&redirect_buf);
+
+        try mapStatusError(response.head.status);
+
+        var transfer_buf: [65536]u8 = undefined;
+        const reader = response.reader(&transfer_buf);
+        const json_data = try reader.allocRemaining(self.allocator, .unlimited);
+        defer self.allocator.free(json_data);
+
+        return timestamps.parseWithTimestampsResponse(self.allocator, json_data);
     }
 
     /// GET /v1/users/me/subscription

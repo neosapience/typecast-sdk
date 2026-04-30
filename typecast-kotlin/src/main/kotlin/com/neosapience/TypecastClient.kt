@@ -160,6 +160,42 @@ class TypecastClient private constructor(
     }
 
     /**
+     * Converts text to speech with word and/or character-level timestamps.
+     *
+     * @param request     the TTS request parameters
+     * @param granularity alignment granularity — "word", "char", or null to request both
+     * @return the response containing base64 audio and alignment segments
+     * @throws IllegalArgumentException if granularity is not null, "word", or "char"
+     * @throws TypecastException if the API call fails
+     */
+    fun textToSpeechWithTimestamps(
+        request: TTSRequestWithTimestamps,
+        granularity: String?,
+    ): TTSWithTimestampsResponse {
+        if (granularity != null && granularity != "word" && granularity != "char") {
+            throw IllegalArgumentException(
+                "granularity must be \"word\", \"char\", or null; got: $granularity"
+            )
+        }
+
+        val urlBuilder = "$baseUrl/v1/text-to-speech/with-timestamps".toHttpUrl().newBuilder()
+        if (granularity != null) {
+            urlBuilder.addQueryParameter("granularity", granularity)
+        }
+
+        val jsonBody = json.encodeToString(request)
+
+        val httpRequest = Request.Builder()
+            .url(urlBuilder.build())
+            .addHeader(API_KEY_HEADER, apiKey)
+            .addHeader("Content-Type", "application/json")
+            .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+
+        return executeRequest(httpRequest)
+    }
+
+    /**
      * Gets all available voices (V1 API).
      *
      * @param model Optional model filter

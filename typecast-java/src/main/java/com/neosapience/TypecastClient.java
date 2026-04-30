@@ -200,6 +200,133 @@ public class TypecastClient {
     }
 
     /**
+     * Converts text to speech and returns audio with word/character-level timestamps.
+     *
+     * <p>Calls {@code POST /v1/text-to-speech/with-timestamps}. An optional
+     * {@code granularity} query parameter ({@code "word"} or {@code "char"}) restricts
+     * the alignment data returned by the API.</p>
+     *
+     * @param request     the TTS request parameters
+     * @param granularity alignment granularity — {@code "word"}, {@code "char"}, or
+     *                    {@code null} to request both
+     * @return the response containing base64 audio and alignment segments
+     * @throws IllegalArgumentException if {@code granularity} is not null, "word", or "char"
+     * @throws TypecastException if the API call fails
+     */
+    public TTSWithTimestampsResponse textToSpeechWithTimestamps(
+            TTSRequestWithTimestamps request, String granularity) {
+        if (request == null) {
+            throw new IllegalArgumentException("request cannot be null");
+        }
+        if (granularity != null && !granularity.equals("word") && !granularity.equals("char")) {
+            throw new IllegalArgumentException(
+                    "granularity must be \"word\", \"char\", or null; got: " + granularity);
+        }
+
+        HttpUrl.Builder urlBuilder =
+                HttpUrl.parse(baseUrl + "/v1/text-to-speech/with-timestamps").newBuilder();
+        if (granularity != null) {
+            urlBuilder.addQueryParameter("granularity", granularity);
+        }
+
+        String jsonBody = buildTTSRequestWithTimestampsJson(request);
+
+        Request httpRequest = new Request.Builder()
+                .url(urlBuilder.build())
+                .addHeader(API_KEY_HEADER, apiKey)
+                .addHeader("Content-Type", CONTENT_TYPE_JSON)
+                .post(RequestBody.create(jsonBody, JSON_MEDIA_TYPE))
+                .build();
+
+        try (Response response = httpClient.newCall(httpRequest).execute()) {
+            ResponseBody body = response.body();
+            if (!response.isSuccessful()) {
+                throw createException(response.code(), body.string());
+            }
+            String responseJson = body.string();
+            return gson.fromJson(responseJson, TTSWithTimestampsResponse.class);
+        } catch (IOException e) {
+            throw new TypecastException("Failed to make API request", e);
+        }
+    }
+
+    private String buildTTSRequestWithTimestampsJson(TTSRequestWithTimestamps request) {
+        JsonObject json = new JsonObject();
+        json.addProperty("voice_id", request.getVoiceId());
+        json.addProperty("text", request.getText());
+        json.addProperty("model", request.getModel().getValue());
+
+        if (request.getLanguage() != null) {
+            json.addProperty("language", request.getLanguage().getValue());
+        }
+
+        if (request.getSeed() != null) {
+            json.addProperty("seed", request.getSeed());
+        }
+
+        if (request.getPrompt() != null) {
+            Object prompt = request.getPrompt();
+            JsonObject promptJson = new JsonObject();
+
+            if (prompt instanceof Prompt) {
+                Prompt p = (Prompt) prompt;
+                if (p.getEmotionPreset() != null) {
+                    promptJson.addProperty("emotion_preset", p.getEmotionPreset().getValue());
+                }
+                if (p.getEmotionIntensity() != null) {
+                    promptJson.addProperty("emotion_intensity", p.getEmotionIntensity());
+                }
+            } else if (prompt instanceof PresetPrompt) {
+                PresetPrompt p = (PresetPrompt) prompt;
+                promptJson.addProperty("emotion_type", p.getEmotionType());
+                if (p.getEmotionPreset() != null) {
+                    promptJson.addProperty("emotion_preset", p.getEmotionPreset().getValue());
+                }
+                if (p.getEmotionIntensity() != null) {
+                    promptJson.addProperty("emotion_intensity", p.getEmotionIntensity());
+                }
+            } else {
+                // Must be SmartPrompt
+                SmartPrompt p = (SmartPrompt) prompt;
+                promptJson.addProperty("emotion_type", p.getEmotionType());
+                if (p.getPreviousText() != null) {
+                    promptJson.addProperty("previous_text", p.getPreviousText());
+                }
+                if (p.getNextText() != null) {
+                    promptJson.addProperty("next_text", p.getNextText());
+                }
+            }
+
+            json.add("prompt", promptJson);
+        }
+
+        if (request.getOutput() != null) {
+            Output output = request.getOutput();
+            JsonObject outputJson = new JsonObject();
+
+            if (output.getVolume() != null) {
+                outputJson.addProperty("volume", output.getVolume());
+            }
+            if (output.getTargetLufs() != null) {
+                outputJson.addProperty("target_lufs", output.getTargetLufs());
+            }
+            if (output.getAudioPitch() != null) {
+                outputJson.addProperty("audio_pitch", output.getAudioPitch());
+            }
+            if (output.getAudioTempo() != null) {
+                outputJson.addProperty("audio_tempo", output.getAudioTempo());
+            }
+            if (output.getAudioFormat() != null) {
+                outputJson.addProperty("audio_format", output.getAudioFormat().getValue());
+            }
+
+            json.add("output", outputJson);
+        }
+
+        return json.toString();
+    }
+
+    /**
      * Streams synthesized audio from {@code POST /v1/text-to-speech/stream}.
      *
      * <p>Returns the raw response body as an {@link InputStream}. The caller is

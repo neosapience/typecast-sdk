@@ -10,7 +10,7 @@
 
 use typecast_rust::{
     AudioFormat, ClientConfig, EmotionPreset, Gender, Output, PresetPrompt, SmartPrompt,
-    TTSModel, TTSRequest, TypecastClient, VoicesV2Filter,
+    TTSModel, TTSRequest, TTSRequestWithTimestamps, TypecastClient, VoicesV2Filter,
 };
 
 fn get_client() -> TypecastClient {
@@ -307,4 +307,88 @@ async fn test_client_with_custom_config() {
     
     assert!(!voices.is_empty(), "Should have at least one voice");
     println!("Client with custom config works! Found {} voices", voices.len());
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Text-to-Speech with Timestamps E2E tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TIMESTAMP_VOICE: &str = "tc_60e5426de8b95f1d3000d7b5";
+
+fn build_timestamp_request(text: &str, language: &str) -> TTSRequestWithTimestamps {
+    TTSRequestWithTimestamps::new(TIMESTAMP_VOICE, text, TTSModel::SsfmV30)
+        .language(language)
+        .prompt(serde_json::json!({
+            "emotion_type": "preset",
+            "emotion_preset": "normal",
+            "emotion_intensity": 1.0
+        }))
+        .seed(42)
+}
+
+#[tokio::test]
+async fn test_with_timestamps_no_granularity() {
+    let client = get_client();
+    let req = build_timestamp_request("Hello.", "eng");
+
+    let resp = client
+        .text_to_speech_with_timestamps(&req, None)
+        .await
+        .expect("text_to_speech_with_timestamps failed");
+
+    assert!(resp.audio_duration > 0.0, "audio_duration should be > 0");
+    let words = resp.words.as_ref().expect("words should not be None");
+    assert!(!words.is_empty(), "words should be non-empty");
+    let chars = resp.characters.as_ref().expect("characters should not be None");
+    assert!(!chars.is_empty(), "characters should be non-empty");
+    println!("no_granularity: duration={:.2} words={} chars={}", resp.audio_duration, words.len(), chars.len());
+}
+
+#[tokio::test]
+async fn test_with_timestamps_word_granularity() {
+    let client = get_client();
+    let req = build_timestamp_request("Hello.", "eng");
+
+    let resp = client
+        .text_to_speech_with_timestamps(&req, Some("word"))
+        .await
+        .expect("text_to_speech_with_timestamps (word) failed");
+
+    let words = resp.words.as_ref().expect("words should not be None");
+    assert!(!words.is_empty(), "words should be non-empty for word granularity");
+    let chars_empty = resp.characters.as_ref().map(|c| c.is_empty()).unwrap_or(true);
+    assert!(chars_empty, "characters should be None/empty for word granularity");
+    println!("word granularity: words={}", words.len());
+}
+
+#[tokio::test]
+async fn test_with_timestamps_char_granularity() {
+    let client = get_client();
+    let req = build_timestamp_request("Hello.", "eng");
+
+    let resp = client
+        .text_to_speech_with_timestamps(&req, Some("char"))
+        .await
+        .expect("text_to_speech_with_timestamps (char) failed");
+
+    let chars = resp.characters.as_ref().expect("characters should not be None");
+    assert!(!chars.is_empty(), "characters should be non-empty for char granularity");
+    let words_empty = resp.words.as_ref().map(|w| w.is_empty()).unwrap_or(true);
+    assert!(words_empty, "words should be None/empty for char granularity");
+    println!("char granularity: chars={}", chars.len());
+}
+
+#[tokio::test]
+async fn test_with_timestamps_jpn_char() {
+    let client = get_client();
+    let req = build_timestamp_request("こんにちは。お元気ですか?", "jpn");
+
+    let resp = client
+        .text_to_speech_with_timestamps(&req, Some("char"))
+        .await
+        .expect("text_to_speech_with_timestamps (jpn+char) failed");
+
+    let chars = resp.characters.as_ref().expect("characters should not be None for jpn+char");
+    assert!(chars.len() >= 5, "Expected >= 5 character segments for Japanese, got {}", chars.len());
+    println!("jpn+char: chars={}", chars.len());
 }

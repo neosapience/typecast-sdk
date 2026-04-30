@@ -35,6 +35,18 @@ pub fn build(b: *std.Build) void {
     const mock_test_step = b.step("test-mock", "Run mock tests");
     mock_test_step.dependOn(&run_mock_tests.step);
 
+    // Timestamps tests (fixture byte-equality + mock HTTP)
+    const timestamps_test_mod = b.createModule(.{
+        .root_source_file = b.path("tests/timestamps_test.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "typecast", .module = typecast_mod }},
+    });
+    const timestamps_tests = b.addTest(.{ .root_module = timestamps_test_mod });
+    const run_timestamps_tests = b.addRunArtifact(timestamps_tests);
+    const timestamps_test_step = b.step("test-timestamps", "Run timestamps tests");
+    timestamps_test_step.dependOn(&run_timestamps_tests.step);
+
     // Integration tests (only when -Dintegration=true)
     const integration = b.option(bool, "integration", "Run integration tests") orelse false;
     if (integration) {
@@ -67,4 +79,20 @@ pub fn build(b: *std.Build) void {
     example_step.dependOn(&run_example.step);
 
     b.installArtifact(tts_example);
+
+    // WithTimestamps example
+    const with_timestamps_mod = b.createModule(.{
+        .root_source_file = b.path("examples/with_timestamps.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "typecast", .module = typecast_mod }},
+    });
+    const with_timestamps_example = b.addExecutable(.{
+        .name = "with_timestamps",
+        .root_module = with_timestamps_mod,
+    });
+    const run_with_timestamps = b.addRunArtifact(with_timestamps_example);
+    const with_timestamps_step = b.step("example-with-timestamps", "Run TTS with timestamps example");
+    with_timestamps_step.dependOn(&run_with_timestamps.step);
+    b.installArtifact(with_timestamps_example);
 }

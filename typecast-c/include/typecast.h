@@ -73,9 +73,9 @@ extern "C" {
 
 /* Library version */
 #define TYPECAST_VERSION_MAJOR 1
-#define TYPECAST_VERSION_MINOR 0
-#define TYPECAST_VERSION_PATCH 3
-#define TYPECAST_VERSION "1.0.3"
+#define TYPECAST_VERSION_MINOR 2
+#define TYPECAST_VERSION_PATCH 0
+#define TYPECAST_VERSION "1.2.0"
 
 /*
  * DLL Export/Import macros for Windows
@@ -226,6 +226,49 @@ typedef struct {
     TypecastOutput* output;  /* Optional: Audio output settings */
     int seed;                /* Optional: Random seed (0 = not set) */
 } TypecastTTSRequest;
+
+/* ============================================
+ * Timestamp TTS Structures
+ * ============================================ */
+
+/**
+ * A single alignment segment (word-level or character-level).
+ * Both word and character granularities share the same struct.
+ */
+typedef struct {
+    char* text;     /* Text of the segment (heap-allocated, freed by response free) */
+    float start;    /* Start time in seconds */
+    float end;      /* End time in seconds */
+} TypecastAlignmentSegment;
+
+/**
+ * TTS with timestamps request structure.
+ * Mirrors TypecastTTSRequest with an added granularity field.
+ */
+typedef struct {
+    const char* text;        /* Required: Text to convert (max 2000 chars) */
+    const char* voice_id;    /* Required: Voice ID */
+    TypecastModel model;     /* Required: ssfm-v21 or ssfm-v30 */
+    const char* language;    /* Optional: ISO 639-3 code */
+    TypecastPrompt* prompt;  /* Optional: Emotion settings */
+    TypecastOutput* output;  /* Optional: Audio output settings */
+    int seed;                /* Optional: Random seed (0 = not set) */
+    const char* granularity; /* Optional: "word", "char", or NULL (both) */
+} TypecastTTSRequestWithTimestamps;
+
+/**
+ * TTS with timestamps response structure.
+ * Contains base64-encoded audio plus optional word/character alignment arrays.
+ */
+typedef struct {
+    char* audio_base64;                      /* Base64-encoded audio (heap-allocated) */
+    char* audio_format;                      /* "wav" or "mp3" (heap-allocated) */
+    float audio_duration;                    /* Duration in seconds */
+    TypecastAlignmentSegment* words;         /* Word-level segments (may be NULL) */
+    size_t words_count;                      /* Number of word segments */
+    TypecastAlignmentSegment* characters;    /* Character-level segments (may be NULL) */
+    size_t characters_count;                 /* Number of character segments */
+} TypecastTTSWithTimestampsResponse;
 
 /**
  * Output settings for streaming TTS request.
@@ -412,6 +455,87 @@ TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
  * @param response Pointer to TTSResponse
  */
 TYPECAST_API void typecast_tts_response_free(TypecastTTSResponse* response);
+
+/* ============================================
+ * Text-to-Speech with Timestamps API
+ * ============================================ */
+
+/**
+ * Convert text to speech and return audio with word/character-level timestamps.
+ *
+ * @param client      Pointer to TypecastClient (required)
+ * @param request     TTS with timestamps request (required)
+ * @param out_response Output pointer; set to a heap-allocated response on success
+ *                    (must be freed with typecast_tts_with_timestamps_response_free)
+ * @return TYPECAST_OK on success, otherwise an error code
+ */
+TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps(
+    TypecastClient* client,
+    const TypecastTTSRequestWithTimestamps* request,
+    TypecastTTSWithTimestampsResponse** out_response
+);
+
+/**
+ * Return SRT caption string for a timestamps response.
+ * Caller must free the returned string with free().
+ *
+ * @param response Pointer to a TypecastTTSWithTimestampsResponse
+ * @param out_string Output pointer set to a heap-allocated NUL-terminated string
+ * @return TYPECAST_OK on success, TYPECAST_ERROR_INVALID_PARAM if no segments
+ */
+TYPECAST_API TypecastErrorCode typecast_tts_with_timestamps_response_to_srt(
+    const TypecastTTSWithTimestampsResponse* response,
+    char** out_string
+);
+
+/**
+ * Return WebVTT caption string for a timestamps response.
+ * Caller must free the returned string with free().
+ *
+ * @param response Pointer to a TypecastTTSWithTimestampsResponse
+ * @param out_string Output pointer set to a heap-allocated NUL-terminated string
+ * @return TYPECAST_OK on success, TYPECAST_ERROR_INVALID_PARAM if no segments
+ */
+TYPECAST_API TypecastErrorCode typecast_tts_with_timestamps_response_to_vtt(
+    const TypecastTTSWithTimestampsResponse* response,
+    char** out_string
+);
+
+/**
+ * Decode and return the raw audio bytes from a timestamps response.
+ * Caller must free the returned buffer with free().
+ *
+ * @param response  Pointer to a TypecastTTSWithTimestampsResponse
+ * @param out_bytes Output pointer set to heap-allocated audio bytes
+ * @param out_size  Set to the number of bytes written
+ * @return TYPECAST_OK on success
+ */
+TYPECAST_API TypecastErrorCode typecast_tts_with_timestamps_response_audio_bytes(
+    const TypecastTTSWithTimestampsResponse* response,
+    uint8_t** out_bytes,
+    size_t* out_size
+);
+
+/**
+ * Save decoded audio bytes to a file path.
+ *
+ * @param response Pointer to a TypecastTTSWithTimestampsResponse
+ * @param path     Destination file path
+ * @return TYPECAST_OK on success
+ */
+TYPECAST_API TypecastErrorCode typecast_tts_with_timestamps_response_save_audio(
+    const TypecastTTSWithTimestampsResponse* response,
+    const char* path
+);
+
+/**
+ * Free a TypecastTTSWithTimestampsResponse and all its members.
+ *
+ * @param response Pointer to response (may be NULL)
+ */
+TYPECAST_API void typecast_tts_with_timestamps_response_free(
+    TypecastTTSWithTimestampsResponse* response
+);
 
 /**
  * Streaming TTS chunk callback.
