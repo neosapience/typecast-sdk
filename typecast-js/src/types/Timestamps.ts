@@ -56,26 +56,44 @@ function groupIntoCues(segments: Segment[], wordMode: boolean): Cue[] {
   const cues: Cue[] = [];
   let parts: string[] = [];
   let curStart: number | null = null;
+  let lastEnd: number | null = null;
+
+  const joined = (): string =>
+    wordMode ? parts.join(' ').trim() : parts.join('').trim();
 
   const flush = (endTime: number): void => {
-    const joined = joinParts(parts, wordMode);
-    if (joined && curStart !== null) cues.push({ text: joined, start: curStart, end: endTime });
+    const text = joined();
+    if (text && curStart !== null) cues.push({ text, start: curStart, end: endTime });
   };
 
   for (const seg of segments) {
+    // If adding this segment would overflow an existing cue, flush first.
+    if (parts.length > 0 && curStart !== null && lastEnd !== null) {
+      const wouldBeText = wordMode
+        ? [...parts, seg.text].join(' ').trim()
+        : [...parts, seg.text].join('').trim();
+      const wouldExceedSeconds = seg.end - curStart >= MAX_CAPTION_SECONDS;
+      const wouldExceedChars = wouldBeText.length >= MAX_CAPTION_CHARS;
+      if (wouldExceedSeconds || wouldExceedChars) {
+        flush(lastEnd);
+        parts = [];
+        curStart = null;
+      }
+    }
+
     if (curStart === null) curStart = seg.start;
     parts.push(seg.text);
-    const joinedSoFar = joinParts(parts, wordMode);
+    lastEnd = seg.end;
+
+    // Sentence terminator splits AFTER appending.
     const endsInSentence = SENTENCE_TERMINATORS.some((t) => seg.text.trimEnd().endsWith(t));
-    const tooLongSeconds = seg.end - curStart >= MAX_CAPTION_SECONDS;
-    const tooLongChars = joinedSoFar.length >= MAX_CAPTION_CHARS;
-    if (endsInSentence || tooLongSeconds || tooLongChars) {
+    if (endsInSentence) {
       flush(seg.end);
       parts = [];
       curStart = null;
     }
   }
-  if (parts.length > 0) flush(segments[segments.length - 1].end);
+  if (parts.length > 0 && lastEnd !== null) flush(lastEnd);
   return cues;
 }
 

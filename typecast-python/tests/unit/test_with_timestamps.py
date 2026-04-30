@@ -215,6 +215,7 @@ class TestSyncClient:
         called_url = mock_post.call_args.args[0]
         assert called_url == f"{client.host}/v1/text-to-speech/with-timestamps"
         assert "params" not in mock_post.call_args.kwargs or not mock_post.call_args.kwargs.get("params")
+        assert mock_post.call_args.kwargs.get("timeout") == (10, 300)
         assert isinstance(out, TTSWithTimestampsResponse)
         assert out.audio_format in {"wav", "mp3"}
 
@@ -407,3 +408,25 @@ class TestCoverageGapsTimestamps:
         )
         with pytest.raises(ValueError, match="no alignment segments"):
             resp.to_vtt()
+
+    def test_hard_cap_flushes_before_exceeding_char_limit(self):
+        """Covers _group_into_cues lines 314-316: hard-cap flush before appending."""
+        from typecast.models import TTSWithTimestampsResponse, AlignmentSegmentWord
+
+        # Build a response with enough words to hit the 42-char hard cap on
+        # the fourth word being added.  Each word is 10 chars, so 4 words would
+        # give "word01234 word01234 word01234 word01234" = 39 chars (under cap).
+        # Use 14-char words: 3 × "word0123456789" = 44 chars >= 42 — flush fires.
+        resp = TTSWithTimestampsResponse(
+            audio="UklGRgAAAA==", audio_format="wav", audio_duration=5.0,
+            words=[
+                AlignmentSegmentWord(text="word0123456789", start=0.0, end=1.0),
+                AlignmentSegmentWord(text="word0123456789", start=1.0, end=2.0),
+                AlignmentSegmentWord(text="word0123456789", start=2.0, end=3.0),
+            ],
+            characters=None,
+        )
+        out = resp.to_srt()
+        # The hard cap must have split: first two words (29 chars with space) fit,
+        # adding a third would make 44 chars >= 42, so third word becomes its own cue.
+        assert out.count("\n\n") >= 2  # at least two cues separated by blank line

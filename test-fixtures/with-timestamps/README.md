@@ -19,7 +19,7 @@ All fixtures use voice `tc_60e5426de8b95f1d3000d7b5` ("Jack"), model `ssfm-v30`,
 
 Every SDK's helper applies the same rules:
 
-- Caption boundary on sentence terminators (`.` `?` `!` `。` `?` `!`) at the end of a segment text, OR when the cue would exceed 7.0 seconds, OR when the cue would exceed 42 characters.
+- Caption boundary on sentence terminators (`.` `?` `!` `。` `？` `！`) at the end of a segment text, OR when the cue would exceed 7.0 seconds, OR when the cue would exceed 42 characters.
 - For non-whitespace languages where `words` collapses to a single segment, the helper falls back to `characters` and applies the same rules at character granularity.
 - SRT timestamps `HH:MM:SS,mmm`, VTT timestamps `HH:MM:SS.mmm`, ms always padded to 3 digits.
 - SRT cue index starts at 1 (integer), VTT cue identifier omitted.

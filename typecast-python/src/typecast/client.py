@@ -196,6 +196,7 @@ class Typecast:
             f"{self.host}{endpoint}",
             json=request.model_dump(exclude_none=True),
             params=params,
+            timeout=(10, 300),
         )
         if response.status_code != 200:
             self._handle_error(response.status_code, response.text)

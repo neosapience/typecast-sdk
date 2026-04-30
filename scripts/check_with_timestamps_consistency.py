@@ -15,7 +15,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FIX = ROOT / "test-fixtures" / "with-timestamps"
 
-ALL_SDKS = ("python", "js")  # 후속 PR 에서 9개 추가
+ALL_SDKS = ("python", "js")  # Add the remaining 9 SDKs in a follow-up PR.
 
 FIXTURES = ("both", "word_only", "char_only", "jpn_char")
 

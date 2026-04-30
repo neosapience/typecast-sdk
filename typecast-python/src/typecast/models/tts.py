@@ -280,46 +280,54 @@ def _segments_for_captioning(words, characters):
 def _group_into_cues(segments, word_mode: bool = False):
     """Group segments into caption cues using shared rules:
     - Split on sentence terminator at end of segment text.
-    - Split when a cue would exceed 7.0 seconds OR 42 characters.
+    - Split BEFORE appending if adding the segment would push the cue past 7.0s or 42 chars (hard cap).
 
-    word_mode=True: parts are joined with a single space (word-level segments).
-    word_mode=False: parts are concatenated directly (character-level segments
-        which already contain whitespace tokens).
+    word_mode=True: parts are joined with a single space.
+    word_mode=False: parts are concatenated directly.
 
     Returns list[(text, start, end)] tuples.
     """
     cues = []
     cur_text_parts = []
     cur_start = None
+    last_end = None
+
+    def _joined():
+        if word_mode:
+            return " ".join(cur_text_parts).strip()
+        return "".join(cur_text_parts).strip()
 
     def _flush(end_time):
-        if word_mode:
-            joined = " ".join(cur_text_parts).strip()
-        else:
-            joined = "".join(cur_text_parts).strip()
-        if joined:
-            cues.append((joined, cur_start, end_time))
+        text = _joined()
+        if text:
+            cues.append((text, cur_start, end_time))
 
     for seg in segments:
+        if cur_text_parts and cur_start is not None and last_end is not None:
+            if word_mode:
+                would_be_text = " ".join([*cur_text_parts, seg.text]).strip()
+            else:
+                would_be_text = "".join([*cur_text_parts, seg.text]).strip()
+            would_exceed_seconds = (seg.end - cur_start) >= _MAX_CAPTION_SECONDS
+            would_exceed_chars = len(would_be_text) >= _MAX_CAPTION_CHARS
+            if would_exceed_seconds or would_exceed_chars:
+                _flush(last_end)
+                cur_text_parts = []
+                cur_start = None
+
         if cur_start is None:
             cur_start = seg.start
         cur_text_parts.append(seg.text)
+        last_end = seg.end
 
-        if word_mode:
-            joined_so_far = " ".join(cur_text_parts).strip()
-        else:
-            joined_so_far = "".join(cur_text_parts).strip()
         ends_in_sentence = seg.text.rstrip().endswith(_SENTENCE_TERMINATORS)
-        too_long_seconds = (seg.end - cur_start) >= _MAX_CAPTION_SECONDS
-        too_long_chars = len(joined_so_far) >= _MAX_CAPTION_CHARS
-
-        if ends_in_sentence or too_long_seconds or too_long_chars:
+        if ends_in_sentence:
             _flush(seg.end)
             cur_text_parts = []
             cur_start = None
 
-    if cur_text_parts:
-        _flush(segments[-1].end)
+    if cur_text_parts and last_end is not None:
+        _flush(last_end)
     return cues
 
 
