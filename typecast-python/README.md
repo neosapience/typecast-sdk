@@ -28,6 +28,7 @@ Convert text to lifelike speech using AI-powered voices
   - [Voice Discovery](#voice-discovery)
   - [Emotion Control](#emotion-control)
   - [Async Client](#async-client)
+  - [Timestamp TTS](#timestamp-tts)
 - [Supported Languages](#supported-languages)
 - [Error Handling](#error-handling)
 - [License](#license)
@@ -223,6 +224,36 @@ async def main():
 
 asyncio.run(main())
 ```
+
+### Timestamp TTS
+
+Use `text_to_speech_with_timestamps()` to receive base64 audio plus
+word/character-level timestamps aligned with the synthesized speech. The
+result object exposes `save_audio()`, `to_srt()`, and `to_vtt()` helpers
+so you can finish the typical "audio + subtitles" flow in one line.
+
+```python
+from typecast import Typecast
+from typecast.models import TTSRequestWithTimestamps
+
+client = Typecast(api_key="YOUR_API_KEY")
+resp = client.text_to_speech_with_timestamps(
+    TTSRequestWithTimestamps(
+        voice_id="tc_60e5426de8b95f1d3000d7b5",
+        text="Hello. How are you?",
+        model="ssfm-v30",
+        language="eng",
+    ),
+)
+resp.save_audio("hello.wav")
+print(resp.to_srt())   # SRT subtitles
+print(resp.to_vtt())   # WebVTT subtitles
+```
+
+Pass `granularity="word"` or `granularity="char"` to receive only one of
+the two alignment arrays. For non-whitespace languages (Japanese,
+Chinese), pair with `granularity="char"` — word-level alignment will
+collapse the entire sentence into a single segment.
 
 ---
 
