@@ -253,6 +253,85 @@ class TTSRequestWithTimestamps(BaseModel):
     seed: Optional[int] = None
 
 
+# --- timestamp captioning helpers (module-level, shared by SRT/VTT) ---
+
+_SENTENCE_TERMINATORS = (".", "?", "!", "。", "？", "！")
+_MAX_CAPTION_SECONDS = 7.0
+_MAX_CAPTION_CHARS = 42
+
+
+def _segments_for_captioning(words, characters):
+    """Pick which segment list to use, returning (segments, word_mode) tuple.
+
+    - words with >= 2 entries -> words (word_mode=True: join parts with space)
+    - else if characters with >= 1 entry -> characters (word_mode=False: concat directly)
+    - single-entry words with no characters -> words (word_mode=True, one cue)
+    - else -> ValueError
+    """
+    if words and len(words) >= 2:
+        return words, True
+    if characters and len(characters) >= 1:
+        return characters, False
+    if words and len(words) == 1 and not characters:
+        return words, True  # English single-cue is still valid
+    raise ValueError("no alignment segments to caption from")
+
+
+def _group_into_cues(segments, word_mode: bool = False):
+    """Group segments into caption cues using shared rules:
+    - Split on sentence terminator at end of segment text.
+    - Split when a cue would exceed 7.0 seconds OR 42 characters.
+
+    word_mode=True: parts are joined with a single space (word-level segments).
+    word_mode=False: parts are concatenated directly (character-level segments
+        which already contain whitespace tokens).
+
+    Returns list[(text, start, end)] tuples.
+    """
+    cues = []
+    cur_text_parts = []
+    cur_start = None
+
+    def _flush(end_time):
+        if cur_text_parts:
+            if word_mode:
+                joined = " ".join(cur_text_parts).strip()
+            else:
+                joined = "".join(cur_text_parts).strip()
+            if joined:
+                cues.append((joined, cur_start, end_time))
+
+    for seg in segments:
+        if cur_start is None:
+            cur_start = seg.start
+        cur_text_parts.append(seg.text)
+
+        if word_mode:
+            joined_so_far = " ".join(cur_text_parts).strip()
+        else:
+            joined_so_far = "".join(cur_text_parts).strip()
+        ends_in_sentence = seg.text.rstrip().endswith(_SENTENCE_TERMINATORS)
+        too_long_seconds = (seg.end - cur_start) >= _MAX_CAPTION_SECONDS
+        too_long_chars = len(joined_so_far) >= _MAX_CAPTION_CHARS
+
+        if ends_in_sentence or too_long_seconds or too_long_chars:
+            _flush(seg.end)
+            cur_text_parts = []
+            cur_start = None
+
+    if cur_text_parts:
+        _flush(segments[-1].end)
+    return cues
+
+
+def _format_srt_time(seconds: float) -> str:
+    total_ms = int(round(seconds * 1000))
+    hh, rem = divmod(total_ms, 3600 * 1000)
+    mm, rem = divmod(rem, 60 * 1000)
+    ss, ms = divmod(rem, 1000)
+    return f"{hh:02d}:{mm:02d}:{ss:02d},{ms:03d}"
+
+
 class TTSWithTimestampsResponse(BaseModel):
     """Response payload for `POST /v1/text-to-speech/with-timestamps`.
 
@@ -283,3 +362,23 @@ class TTSWithTimestampsResponse(BaseModel):
         """Write decoded audio bytes to `path`."""
         with open(path, "wb") as f:
             f.write(self.audio_bytes)
+
+    def to_srt(self) -> str:
+        """Return SRT-formatted caption string for this TTS response.
+
+        Uses word-level segments when words has >= 2 entries; falls back to
+        character-level segments otherwise (e.g. jpn/zho collapsed words).
+        Cues are split on sentence terminators (. ? ! 。 ？ ！) or when a cue
+        would exceed 7.0 seconds or 42 characters.
+        """
+        segments, word_mode = _segments_for_captioning(self.words, self.characters)
+        cues = _group_into_cues(segments, word_mode=word_mode)
+        if not cues:
+            raise ValueError("no alignment segments to caption from")
+        lines = []
+        for idx, (text, start, end) in enumerate(cues, start=1):
+            lines.append(str(idx))
+            lines.append(f"{_format_srt_time(start)} --> {_format_srt_time(end)}")
+            lines.append(text)
+            lines.append("")
+        return "\n".join(lines) + "\n"

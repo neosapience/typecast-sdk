@@ -95,3 +95,64 @@ class TestAudioHelpers:
         assert out.exists()
         assert out.stat().st_size > 0
         assert out.read_bytes() == resp.audio_bytes
+
+
+EXPECTED_DIR = FIXTURE_DIR / "expected"
+
+
+def _load_text(name: str) -> str:
+    # Read with binary mode then decode to keep LF intact
+    return (EXPECTED_DIR / name).read_bytes().decode("utf-8")
+
+
+class TestToSrt:
+    @pytest.mark.parametrize("fixture", ["both", "word_only", "char_only", "jpn_char"])
+    def test_to_srt_matches_expected(self, fixture):
+        from typecast.models import TTSWithTimestampsResponse
+
+        resp = TTSWithTimestampsResponse.model_validate(_load(f"{fixture}.json"))
+        actual = resp.to_srt()
+        expected = _load_text(f"{fixture}.srt")
+        assert actual == expected, (
+            f"SRT byte mismatch for {fixture}\n"
+            f"--- expected (len={len(expected)}) ---\n{expected[:200]!r}\n"
+            f"--- actual   (len={len(actual)}) ---\n{actual[:200]!r}"
+        )
+
+    def test_to_srt_uses_characters_when_words_collapsed(self):
+        """If words has only one segment but characters has multiple,
+        captioning must drop to character granularity. Covers jpn/zho path."""
+        from typecast.models import (
+            TTSWithTimestampsResponse,
+            AlignmentSegmentWord,
+            AlignmentSegmentCharacter,
+        )
+
+        resp = TTSWithTimestampsResponse(
+            audio="UklGRgAAAA==",
+            audio_format="wav",
+            audio_duration=1.0,
+            words=[AlignmentSegmentWord(text="こんにちは。お元気ですか?", start=0.0, end=1.0)],
+            characters=[
+                AlignmentSegmentCharacter(text="こ", start=0.0, end=0.1),
+                AlignmentSegmentCharacter(text="ん", start=0.1, end=0.2),
+                AlignmentSegmentCharacter(text="に", start=0.2, end=0.3),
+                AlignmentSegmentCharacter(text="ち", start=0.3, end=0.4),
+                AlignmentSegmentCharacter(text="は", start=0.4, end=0.5),
+                AlignmentSegmentCharacter(text="。", start=0.5, end=0.6),
+            ],
+        )
+        srt = resp.to_srt()
+        # First cue must end at the period (0.6s) because '。' triggers a split
+        assert "00:00:00,600" in srt
+        assert srt.count("\n\n") >= 1  # at least one cue boundary
+
+    def test_to_srt_raises_when_both_arrays_empty(self):
+        from typecast.models import TTSWithTimestampsResponse
+
+        resp = TTSWithTimestampsResponse(
+            audio="UklGRgAAAA==", audio_format="wav", audio_duration=0.0,
+            words=None, characters=None,
+        )
+        with pytest.raises(ValueError, match="no alignment segments"):
+            resp.to_srt()
