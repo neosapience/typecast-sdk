@@ -177,6 +177,14 @@ signing {
 }
 
 // Central Portal Publishing Configuration
+nmcp {
+    publishAllPublicationsToCentralPortal {
+        username = System.getenv("CENTRAL_USERNAME") ?: findProperty("centralUsername")?.toString()
+        password = System.getenv("CENTRAL_PASSWORD") ?: findProperty("centralPassword")?.toString()
+        publishingType = "AUTOMATIC"
+    }
+}
+
 nmcpAggregation {
     centralPortal {
         username = System.getenv("CENTRAL_USERNAME") ?: findProperty("centralUsername")?.toString()
