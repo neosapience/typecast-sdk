@@ -82,6 +82,7 @@ const audio = await client.tts.speak({
 - **Emotion Control** — Fine-tune speech with emotion presets and parameters
 - **Multiple Formats** — Export as WAV, MP3, and more
 - **Streaming Support** — Real-time audio streaming for low-latency applications
+- **Word/Character Timestamps** — Alignment data + SRT/VTT export for subtitles, karaoke, and per-character highlighting
 - **Simple Integration** — Clean, idiomatic APIs for each language
 
 <br/>
