@@ -25,11 +25,11 @@ def run_python(name: str, fmt: str) -> str:
 import json, sys
 sys.path.insert(0, {json.dumps(str(ROOT / 'typecast-python' / 'src'))})
 from typecast.models.tts import TTSWithTimestampsResponse
-data = json.loads(open({json.dumps(str(FIX / f'{name}.json'))}).read())
+data = json.loads(open({json.dumps(str(FIX / f'{name}.json'))}, encoding="utf-8").read())
 resp = TTSWithTimestampsResponse.model_validate(data)
 sys.stdout.write(resp.to_{fmt}())
 """
-    return subprocess.check_output([sys.executable, "-c", code], text=True)
+    return subprocess.check_output([sys.executable, "-c", code], text=True, encoding="utf-8")
 
 
 def run_js(name: str, fmt: str) -> str:
@@ -44,7 +44,7 @@ const data = JSON.parse(fs.readFileSync({json.dumps(str(FIX / f"{name}.json"))},
 const r = new WithTimestampsResult(data);
 process.stdout.write(r.{method}());
 """
-    return subprocess.check_output(["node", "-e", script], text=True)
+    return subprocess.check_output(["node", "-e", script], text=True, encoding="utf-8")
 
 
 RUNNERS = {"python": run_python, "js": run_js}

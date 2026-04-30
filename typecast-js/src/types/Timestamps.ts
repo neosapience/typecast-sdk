@@ -132,7 +132,17 @@ export class WithTimestampsResult implements TTSWithTimestampsResponse {
   }
 
   get audioBytes(): Uint8Array {
-    return Uint8Array.from(Buffer.from(this.audio, 'base64'));
+    // Strict base64 validation: only A-Z a-z 0-9 + / and proper padding.
+    const trimmed = this.audio.replace(/\s/g, '');
+    if (!/^[A-Za-z0-9+/]*={0,2}$/.test(trimmed) || trimmed.length % 4 !== 0) {
+      throw new Error('Invalid base64 audio data');
+    }
+    const buf = Buffer.from(trimmed, 'base64');
+    // Round-trip check to detect malformed input that Buffer accepts permissively
+    if (buf.toString('base64').replace(/=+$/, '') !== trimmed.replace(/=+$/, '')) {
+      throw new Error('Invalid base64 audio data');
+    }
+    return Uint8Array.from(buf);
   }
 
   async saveAudio(path: string): Promise<void> {

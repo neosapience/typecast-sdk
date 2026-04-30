@@ -63,6 +63,16 @@ describe('WithTimestampsResult — SRT/VTT byte-equivalence', () => {
     expect(() => result.toSrt()).toThrow(/no alignment segments/);
   });
 
+  it('audioBytes throws on invalid base64', () => {
+    const result = new WithTimestampsResult({
+      audio: '!!! not base64 !!!',
+      audio_format: 'wav',
+      audio_duration: 0,
+      words: null, characters: null,
+    });
+    expect(() => result.audioBytes).toThrow(/[Ii]nvalid base64/);
+  });
+
   it('falls back to single-word when characters is empty array', () => {
     const result = new WithTimestampsResult({
       audio: 'UklGRgAAAA==',
