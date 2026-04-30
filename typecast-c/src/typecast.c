@@ -1292,3 +1292,940 @@ TYPECAST_API const char* typecast_error_message(TypecastErrorCode code) {
         default: return "Unknown error";
     }
 }
+
+/* ============================================
+ * Timestamp TTS — Captioning helpers
+ * ============================================ */
+
+/* Count UTF-8 codepoints: every byte that is NOT a continuation byte. */
+static size_t utf8_codepoint_count(const char* s) {
+    size_t count = 0;
+    const unsigned char* p = (const unsigned char*)s;
+    for (; *p; p++) {
+        if ((*p & 0xc0) != 0x80) count++;
+    }
+    return count;
+}
+
+/* Sentence-ending terminators (ASCII + full-width punctuation as UTF-8). */
+static const char* CAPTION_TERMINATORS[] = {
+    ".",
+    "?",
+    "!",
+    "\xe3\x80\x82",  /* 。 U+3002 */
+    "\xef\xbc\x9f",  /* ？ U+FF1F */
+    "\xef\xbc\x81",  /* ！ U+FF01 */
+    NULL
+};
+
+static const float CAPTION_MAX_SECONDS = 7.0f;
+static const size_t CAPTION_MAX_CHARS   = 42;
+
+/* Return 1 if haystack ends with needle (both NUL-terminated byte strings). */
+static int ends_with_str(const char* haystack, const char* needle) {
+    size_t hl = strlen(haystack), nl = strlen(needle);
+    if (nl > hl) return 0;
+    return memcmp(haystack + hl - nl, needle, nl) == 0;
+}
+
+/* Return 1 if text (after stripping trailing whitespace) ends in a sentence
+ * terminator.  Works with multi-byte UTF-8 terminators. */
+static int ends_in_sentence(const char* text) {
+    /* Make a mutable copy so we can trim in-place. */
+    char* trimmed = strdup_safe(text);
+    if (!trimmed) return 0;
+    size_t n = strlen(trimmed);
+    while (n > 0 && (trimmed[n-1] == ' ' || trimmed[n-1] == '\t' ||
+                     trimmed[n-1] == '\n' || trimmed[n-1] == '\r')) {
+        trimmed[--n] = '\0';
+    }
+    int found = 0;
+    for (int i = 0; CAPTION_TERMINATORS[i]; i++) {
+        if (ends_with_str(trimmed, CAPTION_TERMINATORS[i])) {
+            found = 1;
+            break;
+        }
+    }
+    free(trimmed);
+    return found;
+}
+
+/* Strip leading and trailing ASCII whitespace in-place on buf[0..len].
+ * Returns the new (possibly 0) length via *new_len. */
+static void strip_whitespace_inplace(char* buf, size_t* len) {
+    size_t n = *len;
+    /* Trailing */
+    while (n > 0 && (buf[n-1] == ' ' || buf[n-1] == '\t' ||
+                     buf[n-1] == '\n' || buf[n-1] == '\r')) {
+        buf[--n] = '\0';
+    }
+    /* Leading */
+    size_t lead = 0;
+    while (lead < n && (buf[lead] == ' ' || buf[lead] == '\t' ||
+                        buf[lead] == '\n' || buf[lead] == '\r')) {
+        lead++;
+    }
+    if (lead > 0) {
+        memmove(buf, buf + lead, n - lead + 1); /* +1 for '\0' */
+        n -= lead;
+    }
+    *len = n;
+}
+
+/* ---- Dynamic string builder ---- */
+typedef struct {
+    char*  data;
+    size_t len;
+    size_t cap;
+} StrBuf;
+
+static int strbuf_append(StrBuf* b, const char* s) {
+    size_t slen = strlen(s);
+    if (b->len + slen + 1 > b->cap) {
+        size_t new_cap = b->cap ? b->cap * 2 : 256;
+        while (new_cap < b->len + slen + 1) new_cap *= 2;
+        char* nd = (char*)realloc(b->data, new_cap);
+        if (!nd) return 0;
+        b->data = nd;
+        b->cap  = new_cap;
+    }
+    memcpy(b->data + b->len, s, slen);
+    b->len += slen;
+    b->data[b->len] = '\0';
+    return 1;
+}
+
+/* Format seconds -> HH:MM:SS,mmm (SRT) into caller-supplied buf (>=16 bytes) */
+static void fmt_srt_time(float sec, char* buf, size_t buf_size) {
+    int total_ms = (int)(sec * 1000.0f + 0.5f);
+    if (total_ms < 0) total_ms = 0;
+    int ms = total_ms % 1000;
+    int s  = (total_ms / 1000) % 60;
+    int m  = (total_ms / 60000) % 60;
+    int h  = (total_ms / 3600000);
+    snprintf(buf, buf_size, "%02d:%02d:%02d,%03d", h, m, s, ms);
+}
+
+/* Format seconds -> HH:MM:SS.mmm (VTT) */
+static void fmt_vtt_time(float sec, char* buf, size_t buf_size) {
+    int total_ms = (int)(sec * 1000.0f + 0.5f);
+    if (total_ms < 0) total_ms = 0;
+    int ms = total_ms % 1000;
+    int s  = (total_ms / 1000) % 60;
+    int m  = (total_ms / 60000) % 60;
+    int h  = (total_ms / 3600000);
+    snprintf(buf, buf_size, "%02d:%02d:%02d.%03d", h, m, s, ms);
+}
+
+/* ---- Caption cue ---- */
+typedef struct {
+    char*  text;   /* heap-allocated, caller frees */
+    float  start;
+    float  end;
+} CaptionCue;
+
+/* Free an array of CaptionCue.  cues[i].text is freed; then the array. */
+static void cues_free(CaptionCue* cues, int n) {
+    if (!cues) return;
+    for (int i = 0; i < n; i++) {
+        if (cues[i].text) free(cues[i].text);
+    }
+    free(cues);
+}
+
+/*
+ * Build caption cues from an alignment segment array.
+ *
+ * word_mode = 1  ->  parts joined with " "
+ * word_mode = 0  ->  parts concatenated directly (char mode)
+ *
+ * Returns heap-allocated array of CaptionCue (caller must call cues_free).
+ * *out_count is set to the number of cues.
+ *
+ * TODO(TASK-12430-followup): expose max_seconds / max_chars override to match Python/JS API surface. Default 7.0s / 42 chars (BBC/Netflix guideline).
+ * TODO(TASK-12430-followup): warn or error when alignment array contains majority-empty text segments — server contract should never produce these but defense-in-depth is desirable.
+ */
+static CaptionCue* group_into_cues(
+    const TypecastAlignmentSegment* segs,
+    size_t seg_count,
+    int word_mode,
+    int* out_count
+) {
+    *out_count = 0;
+    if (!segs || seg_count == 0) return NULL;
+
+    /* We build cue text into a dynamic string.
+     * Max cues possible = seg_count (one cue per segment in worst case). */
+    CaptionCue* cues = (CaptionCue*)calloc(seg_count, sizeof(CaptionCue));
+    if (!cues) return NULL;
+
+    int ncues = 0;
+
+    /* Current in-progress cue parts.  We accumulate a single string. */
+    StrBuf cur = {0};
+    float  cur_start = 0.0f;
+    float  last_end  = 0.0f;
+    int    has_cur   = 0;
+
+    for (size_t i = 0; i < seg_count; i++) {
+        const TypecastAlignmentSegment* seg = &segs[i];
+
+        if (has_cur) {
+            /* Build the candidate text if we include this segment. */
+            size_t candidate_len = cur.len
+                + (word_mode ? 1 : 0)   /* space separator */
+                + strlen(seg->text);
+            /* Temp buffer to compute codepoint count.  We only need the count,
+             * not the actual string, so compute it without a full strdup. */
+            size_t candidate_cp;
+            if (word_mode) {
+                /* count = cur codepoints + 1 (space) + seg codepoints */
+                candidate_cp = utf8_codepoint_count(cur.data)
+                             + 1
+                             + utf8_codepoint_count(seg->text);
+            } else {
+                candidate_cp = utf8_codepoint_count(cur.data)
+                             + utf8_codepoint_count(seg->text);
+            }
+            int would_exceed_sec  = (seg->end - cur_start) > CAPTION_MAX_SECONDS;
+            int would_exceed_chars = candidate_cp > CAPTION_MAX_CHARS;
+            (void)candidate_len; /* suppress unused-variable warning */
+
+            if (would_exceed_sec || would_exceed_chars) {
+                /* Flush current cue. */
+                strip_whitespace_inplace(cur.data, &cur.len);
+                if (cur.len > 0) {
+                    char* t = strdup_safe(cur.data);
+                    if (!t) {
+                        /* OOM — free partial work and bail */
+                        /* LCOV_EXCL_START */
+                        free(cur.data);
+                        cues_free(cues, ncues);
+                        return NULL;
+                        /* LCOV_EXCL_STOP */
+                    }
+                    cues[ncues].text  = t;
+                    cues[ncues].start = cur_start;
+                    cues[ncues].end   = last_end;
+                    ncues++;
+                }
+
+                /* Start fresh */
+                cur.len = 0;
+                if (cur.data) cur.data[0] = '\0';
+                has_cur = 0;
+            }
+        }
+
+        if (!has_cur) {
+            cur_start = seg->start;
+            /* Reset accumulated text */
+            cur.len = 0;
+            if (cur.data) cur.data[0] = '\0';
+            if (!strbuf_append(&cur, seg->text)) {
+                /* LCOV_EXCL_START */
+                free(cur.data);
+                cues_free(cues, ncues);
+                return NULL;
+                /* LCOV_EXCL_STOP */
+            }
+            has_cur = 1;
+        } else {
+            /* Append separator + segment */
+            if (word_mode) {
+                if (!strbuf_append(&cur, " ")) {
+                    /* LCOV_EXCL_START */
+                    free(cur.data);
+                    cues_free(cues, ncues);
+                    return NULL;
+                    /* LCOV_EXCL_STOP */
+                }
+            }
+            if (!strbuf_append(&cur, seg->text)) {
+                /* LCOV_EXCL_START */
+                free(cur.data);
+                cues_free(cues, ncues);
+                return NULL;
+                /* LCOV_EXCL_STOP */
+            }
+        }
+        last_end = seg->end;
+
+        if (ends_in_sentence(seg->text)) {
+            /* Flush */
+            strip_whitespace_inplace(cur.data, &cur.len);
+
+            if (cur.len > 0) {
+                char* t = strdup_safe(cur.data);
+                if (!t) {
+                    /* LCOV_EXCL_START */
+                    free(cur.data);
+                    cues_free(cues, ncues);
+                    return NULL;
+                    /* LCOV_EXCL_STOP */
+                }
+                cues[ncues].text  = t;
+                cues[ncues].start = cur_start;
+                cues[ncues].end   = seg->end;
+                ncues++;
+            }
+            cur.len = 0;
+            if (cur.data) cur.data[0] = '\0';
+            has_cur = 0;
+        }
+    }
+
+    /* Flush any remaining partial cue. */
+    if (has_cur && cur.len > 0) {
+        strip_whitespace_inplace(cur.data, &cur.len);
+        if (cur.len > 0) {
+            char* t = strdup_safe(cur.data);
+            if (!t) {
+                /* LCOV_EXCL_START */
+                free(cur.data);
+                cues_free(cues, ncues);
+                return NULL;
+                /* LCOV_EXCL_STOP */
+            }
+            cues[ncues].text  = t;
+            cues[ncues].start = cur_start;
+            cues[ncues].end   = last_end;
+            ncues++;
+        }
+    }
+
+    free(cur.data);
+    *out_count = ncues;
+    return cues;
+}
+
+/*
+ * Pick the segment list and word_mode from a response.
+ * Returns 1 on success; 0 if no usable segments.
+ */
+static int pick_segments(
+    const TypecastTTSWithTimestampsResponse* response,
+    const TypecastAlignmentSegment** segs_out,
+    size_t* count_out,
+    int* word_mode_out
+) {
+    if (response->words && response->words_count >= 2) {
+        *segs_out     = response->words;
+        *count_out    = response->words_count;
+        *word_mode_out = 1;
+        return 1;
+    }
+    if (response->characters && response->characters_count >= 1) {
+        *segs_out     = response->characters;
+        *count_out    = response->characters_count;
+        *word_mode_out = 0;
+        return 1;
+    }
+    /* Single-entry words with no characters -> still valid */
+    if (response->words && response->words_count == 1 &&
+        (!response->characters || response->characters_count == 0)) {
+        *segs_out     = response->words;
+        *count_out    = response->words_count;
+        *word_mode_out = 1;
+        return 1;
+    }
+    return 0;
+}
+
+/* ============================================
+ * Base64 decoder (public-domain algorithm)
+ * ============================================ */
+
+static const signed char B64_TABLE[256] = {
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,62, -1,-1,-1,63,
+    52,53,54,55, 56,57,58,59, 60,61,-1,-1, -1, 0,-1,-1,
+    -1, 0, 1, 2,  3, 4, 5, 6,  7, 8, 9,10, 11,12,13,14,
+    15,16,17,18, 19,20,21,22, 23,24,25,-1, -1,-1,-1,-1,
+    -1,26,27,28, 29,30,31,32, 33,34,35,36, 37,38,39,40,
+    41,42,43,44, 45,46,47,48, 49,50,51,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1,
+    -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1, -1,-1,-1,-1
+};
+
+/* Decode base64 src into newly allocated *out (caller frees).
+ * Sets *out_len to decoded byte count.
+ * Returns 0 on success, -1 on error. */
+static int base64_decode(const char* src, uint8_t** out, size_t* out_len) {
+    if (!src || !out || !out_len) return -1;
+
+    size_t src_len = strlen(src);
+    /* Remove padding from length calculation */
+    size_t padding = 0;
+    if (src_len >= 1 && src[src_len - 1] == '=') padding++;
+    if (src_len >= 2 && src[src_len - 2] == '=') padding++;
+
+    size_t decoded_len = (src_len / 4) * 3 - padding;
+    uint8_t* buf = (uint8_t*)malloc(decoded_len + 1);
+    if (!buf) return -1;
+
+    size_t j = 0;
+    for (size_t i = 0; i + 3 < src_len; i += 4) {
+        signed char a = B64_TABLE[(unsigned char)src[i]];
+        signed char b = B64_TABLE[(unsigned char)src[i+1]];
+        signed char c = B64_TABLE[(unsigned char)src[i+2]];
+        signed char d = B64_TABLE[(unsigned char)src[i+3]];
+
+        if (a < 0 || b < 0) { free(buf); return -1; }
+
+        buf[j++] = (uint8_t)((a << 2) | (b >> 4));
+        if (src[i+2] != '=') {
+            if (c < 0) { free(buf); return -1; }
+            buf[j++] = (uint8_t)((b << 4) | (c >> 2));
+        }
+        if (src[i+3] != '=') {
+            if (d < 0) { free(buf); return -1; }
+            buf[j++] = (uint8_t)((c << 6) | d);
+        }
+    }
+    buf[j] = 0;
+    *out     = buf;
+    *out_len = j;
+    return 0;
+}
+
+/* ============================================
+ * Timestamp TTS — JSON request builder
+ * ============================================ */
+
+static cJSON* build_tts_with_timestamps_request_json(
+    const TypecastTTSRequestWithTimestamps* request
+) {
+    /* Re-use the base TTS request builder by mapping fields. */
+    TypecastTTSRequest base = {0};
+    base.text     = request->text;
+    base.voice_id = request->voice_id;
+    base.model    = request->model;
+    base.language = request->language;
+    base.prompt   = request->prompt;
+    base.output   = request->output;
+    base.seed     = request->seed;
+
+    cJSON* root = build_tts_request_json(&base);
+    if (!root) return NULL;
+
+    /* granularity is sent as a query parameter, not in the JSON body */
+
+    return root;
+}
+
+/* ============================================
+ * JSON Unicode unescape helper
+ *
+ * The bundled cJSON replaces \uXXXX with '?' (intentional simplification).
+ * We pre-process the JSON body to convert \uXXXX (and surrogate pairs) to
+ * their UTF-8 byte sequences before passing to cJSON_Parse so that Japanese,
+ * Chinese, and other non-ASCII text survives the round-trip.
+ * ============================================ */
+
+/* Write a Unicode codepoint as UTF-8 into buf (must have >= 4 bytes).
+ * Returns number of bytes written, or 0 on error. */
+static int codepoint_to_utf8(unsigned int cp, char* buf) {
+    if (cp < 0x80) {
+        buf[0] = (char)(cp);
+        return 1;
+    } else if (cp < 0x800) {
+        buf[0] = (char)(0xC0 | (cp >> 6));
+        buf[1] = (char)(0x80 | (cp & 0x3F));
+        return 2;
+    } else if (cp < 0x10000) {
+        buf[0] = (char)(0xE0 | (cp >> 12));
+        buf[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
+        buf[2] = (char)(0x80 | (cp & 0x3F));
+        return 3;
+    } else if (cp < 0x110000) {
+        buf[0] = (char)(0xF0 | (cp >> 18));
+        buf[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
+        buf[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
+        buf[3] = (char)(0x80 | (cp & 0x3F));
+        return 4;
+    }
+    return 0; /* LCOV_EXCL_LINE — parse_hex4 can't return cp >= 0x110000 */
+}
+
+/* Parse 4 hex digits at p; return codepoint or -1 on invalid. */
+static int parse_hex4(const char* p) {
+    unsigned int cp = 0;
+    for (int i = 0; i < 4; i++) {
+        cp <<= 4;
+        char c = p[i];
+        if (c >= '0' && c <= '9') cp |= (unsigned int)(c - '0');
+        else if (c >= 'a' && c <= 'f') cp |= (unsigned int)(c - 'a' + 10);
+        else if (c >= 'A' && c <= 'F') cp |= (unsigned int)(c - 'A' + 10);
+        else return -1;
+    }
+    return (int)cp;
+}
+
+/*
+ * Scan the JSON string src and return a heap-allocated copy with all
+ * \uXXXX (and surrogate-pair \uD800\uDCxx) sequences replaced by their
+ * UTF-8 equivalents.  Caller frees the result.
+ *
+ * This runs before cJSON_Parse so that non-ASCII characters survive the
+ * bundled cJSON's simplified string parser.
+ */
+static char* json_unescape_unicode(const char* src) {
+    size_t src_len = strlen(src);
+    /* Worst case: each \uXXXX (6 chars) becomes 4 UTF-8 bytes, so output
+     * fits in src_len bytes (replacement is always shorter or equal). */
+    char* out = (char*)malloc(src_len + 1);
+    if (!out) return NULL;
+
+    const char* r = src;
+    char* w = out;
+    int in_string = 0;
+    char prev = 0;
+
+    while (*r) {
+        if (!in_string) {
+            if (*r == '"') { in_string = 1; *w++ = *r++; continue; }
+            *w++ = *r++;
+            continue;
+        }
+        /* inside a JSON string */
+        if (prev != '\\' && *r == '"') {
+            in_string = 0; *w++ = *r++; prev = '"'; continue;
+        }
+        if (*r == '\\' && r[1] == 'u' && r[2] && r[3] && r[4] && r[5]) {
+            int cp = parse_hex4(r + 2);
+            if (cp < 0) { *w++ = *r++; prev = r[-1]; continue; }
+            /* Handle UTF-16 surrogate pairs */
+            if (cp >= 0xD800 && cp <= 0xDBFF) {
+                /* High surrogate; check for low surrogate immediately after */
+                if (r[6] == '\\' && r[7] == 'u') {
+                    int cp2 = parse_hex4(r + 8);
+                    if (cp2 >= 0xDC00 && cp2 <= 0xDFFF) {
+                        unsigned int full = (unsigned int)(
+                            0x10000 + ((cp - 0xD800) << 10) + (cp2 - 0xDC00));
+                        int written = codepoint_to_utf8(full, w);
+                        if (written > 0) { w += written; r += 12; prev = 0; continue; }
+                        /* LCOV_EXCL_START */
+                    }
+                }
+            }
+            /* LCOV_EXCL_STOP */
+            if (cp >= 0xDC00 && cp <= 0xDFFF) {
+                /* Lone low surrogate — output replacement char */
+                char rep[4]; int rlen = codepoint_to_utf8(0xFFFD, rep);
+                if (rlen > 0) { memcpy(w, rep, (size_t)rlen); w += rlen; }
+                r += 6; prev = 0; continue;
+            }
+            int written = codepoint_to_utf8((unsigned int)cp, w);
+            if (written > 0) { w += written; r += 6; prev = 0; continue; }
+            /* Fallback: copy raw (written==0 is unreachable — codepoint_to_utf8
+             * only returns 0 for cp >= 0x110000, which parse_hex4 cannot produce) */
+        } /* LCOV_EXCL_LINE */
+        prev = *r;
+        *w++ = *r++;
+    }
+    *w = '\0';
+    return out;
+}
+
+/* ============================================
+ * Timestamp TTS — Segment array parser
+ * ============================================ */
+
+static TypecastAlignmentSegment* parse_segment_array(
+    cJSON* arr,
+    size_t* out_count
+) {
+    *out_count = 0;
+    if (!arr || !cJSON_IsArray(arr)) return NULL;
+
+    int n = cJSON_GetArraySize(arr);
+    if (n <= 0) return NULL;
+
+    TypecastAlignmentSegment* segs = (TypecastAlignmentSegment*)calloc(
+        (size_t)n, sizeof(TypecastAlignmentSegment));
+    if (!segs) return NULL;
+
+    for (int i = 0; i < n; i++) {
+        cJSON* item = cJSON_GetArrayItem(arr, i);
+        if (!cJSON_IsObject(item)) continue;
+
+        cJSON* jtext  = cJSON_GetObjectItem(item, "text");
+        cJSON* jstart = cJSON_GetObjectItem(item, "start");
+        cJSON* jend   = cJSON_GetObjectItem(item, "end");
+
+        if (cJSON_IsString(jtext)) {
+            segs[i].text = strdup_safe(jtext->valuestring);
+        } else {
+            /* Missing or non-string text field is malformed — abort. */
+            for (int k = 0; k < i; k++) {
+                if (segs[k].text) free(segs[k].text);
+            }
+            free(segs);
+            *out_count = 0;
+            return NULL;
+        }
+        if (cJSON_IsNumber(jstart)) {
+            segs[i].start = (float)jstart->valuedouble;
+        }
+        if (cJSON_IsNumber(jend)) {
+            segs[i].end = (float)jend->valuedouble;
+        }
+    }
+
+    *out_count = (size_t)n;
+    return segs;
+}
+
+/* ============================================
+ * Timestamp TTS — Public API Implementation
+ * ============================================ */
+
+TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps(
+    TypecastClient* client,
+    const TypecastTTSRequestWithTimestamps* request,
+    TypecastTTSWithTimestampsResponse** out_response
+) {
+    if (!client || !request || !out_response) {
+        if (client) set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Invalid parameters");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+    if (!request->text || !request->voice_id) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "text and voice_id are required");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+
+    *out_response = NULL;
+    clear_error(client);
+
+    /* Build URL */
+    char url[512];
+    if (request->granularity && strlen(request->granularity) > 0) {
+        snprintf(url, sizeof(url), "%s/v1/text-to-speech/with-timestamps?granularity=%s",
+                 client->host, request->granularity);
+    } else {
+        snprintf(url, sizeof(url), "%s/v1/text-to-speech/with-timestamps", client->host);
+    }
+
+    /* Build JSON body */
+    cJSON* json = build_tts_with_timestamps_request_json(request);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="cJSON_CreateObject OOM; requires malloc shim" */
+    if (!json) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to build JSON");
+        return TYPECAST_ERROR_OUT_OF_MEMORY;
+    }
+    /* LCOV_EXCL_STOP */
+
+    char* json_str = cJSON_PrintUnformatted(json);
+    cJSON_Delete(json);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="cJSON_PrintUnformatted OOM; requires malloc shim" */
+    if (!json_str) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to serialize JSON");
+        return TYPECAST_ERROR_OUT_OF_MEMORY;
+    }
+    /* LCOV_EXCL_STOP */
+
+    /* Setup response buffers */
+    ResponseBuffer response_buf = {0};
+
+    /* Setup CURL */
+    CURL* curl = client->curl;
+    curl_easy_reset(curl);
+
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+    char api_key_header[256];
+    snprintf(api_key_header, sizeof(api_key_header), "X-API-KEY: %s", client->api_key);
+    headers = curl_slist_append(headers, api_key_header);
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_str);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(json_str));
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_buf);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+
+    CURLcode res = curl_easy_perform(curl);
+    cJSON_free(json_str);
+    curl_slist_free_all(headers);
+
+    if (res != CURLE_OK) {
+        set_error(client, TYPECAST_ERROR_NETWORK, curl_easy_strerror(res));
+        if (response_buf.data) free(response_buf.data);
+        return TYPECAST_ERROR_NETWORK;
+    }
+
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+    if (http_code != 200) {
+        TypecastErrorCode err_code = http_status_to_error(http_code);
+        char* err_msg = NULL;
+        if (response_buf.data && response_buf.size > 0) {
+            cJSON* err_json = cJSON_Parse((const char*)response_buf.data);
+            if (err_json) {
+                cJSON* detail = cJSON_GetObjectItem(err_json, "detail");
+                if (cJSON_IsString(detail)) {
+                    err_msg = strdup_safe(detail->valuestring);
+                }
+                cJSON_Delete(err_json);
+            }
+        }
+        set_error(client, err_code, err_msg ? err_msg : typecast_error_message(err_code));
+        if (err_msg) free(err_msg);
+        if (response_buf.data) free(response_buf.data);
+        return err_code;
+    }
+
+    /* Pre-process JSON to convert \uXXXX escapes to UTF-8 before cJSON parse,
+     * because the bundled cJSON replaces \uXXXX with '?' (known limitation). */
+    char* raw_json = (char*)response_buf.data;
+    char* unescaped = json_unescape_unicode(raw_json);
+    free(raw_json);
+
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="malloc OOM in json_unescape_unicode; requires malloc shim" */
+    if (!unescaped) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to unescape JSON");
+        return TYPECAST_ERROR_OUT_OF_MEMORY;
+    }
+    /* LCOV_EXCL_STOP */
+
+    /* Parse JSON */
+    cJSON* root = cJSON_Parse(unescaped);
+    free(unescaped);
+
+    if (!root) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Failed to parse JSON response");
+        return TYPECAST_ERROR_JSON_PARSE;
+    }
+
+    TypecastTTSWithTimestampsResponse* resp =
+        (TypecastTTSWithTimestampsResponse*)calloc(
+            1, sizeof(TypecastTTSWithTimestampsResponse));
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="calloc OOM; requires malloc shim" */
+    if (!resp) {
+        cJSON_Delete(root);
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate response");
+        return TYPECAST_ERROR_OUT_OF_MEMORY;
+    }
+    /* LCOV_EXCL_STOP */
+
+    cJSON* jaudio = cJSON_GetObjectItem(root, "audio");
+    if (cJSON_IsString(jaudio)) {
+        resp->audio_base64 = strdup_safe(jaudio->valuestring);
+    }
+    cJSON* jfmt = cJSON_GetObjectItem(root, "audio_format");
+    if (cJSON_IsString(jfmt)) {
+        resp->audio_format = strdup_safe(jfmt->valuestring);
+    }
+    cJSON* jdur = cJSON_GetObjectItem(root, "audio_duration");
+    if (cJSON_IsNumber(jdur)) {
+        resp->audio_duration = (float)jdur->valuedouble;
+    }
+
+    cJSON* jwords = cJSON_GetObjectItem(root, "words");
+    if (cJSON_IsArray(jwords)) {
+        resp->words = parse_segment_array(jwords, &resp->words_count);
+    }
+    cJSON* jchars = cJSON_GetObjectItem(root, "characters");
+    if (cJSON_IsArray(jchars)) {
+        resp->characters = parse_segment_array(jchars, &resp->characters_count);
+    }
+
+    cJSON_Delete(root);
+    *out_response = resp;
+    return TYPECAST_OK;
+}
+
+/* ---- to_srt ---- */
+TYPECAST_API TypecastErrorCode typecast_tts_with_timestamps_response_to_srt(
+    const TypecastTTSWithTimestampsResponse* response,
+    char** out_string
+) {
+    if (!response || !out_string) return TYPECAST_ERROR_INVALID_PARAM;
+    *out_string = NULL;
+
+    const TypecastAlignmentSegment* segs;
+    size_t seg_count;
+    int word_mode;
+    if (!pick_segments(response, &segs, &seg_count, &word_mode)) {
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+
+    int ncues = 0;
+    CaptionCue* cues = group_into_cues(segs, seg_count, word_mode, &ncues);
+    if (!cues || ncues == 0) {
+        if (cues) cues_free(cues, ncues);
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+
+    StrBuf sb = {0};
+    char timebuf[32];
+    char linebuf[64];
+
+    for (int i = 0; i < ncues; i++) {
+        /* Index line */
+        snprintf(linebuf, sizeof(linebuf), "%d\n", i + 1);
+        if (!strbuf_append(&sb, linebuf)) goto oom;
+
+        /* Timecode line: start --> end */
+        fmt_srt_time(cues[i].start, timebuf, sizeof(timebuf));
+        if (!strbuf_append(&sb, timebuf)) goto oom;
+        if (!strbuf_append(&sb, " --> ")) goto oom;
+        fmt_srt_time(cues[i].end, timebuf, sizeof(timebuf));
+        if (!strbuf_append(&sb, timebuf)) goto oom;
+        if (!strbuf_append(&sb, "\n")) goto oom;
+
+        /* Text */
+        if (!strbuf_append(&sb, cues[i].text)) goto oom;
+        if (!strbuf_append(&sb, "\n\n")) goto oom;
+    }
+
+    cues_free(cues, ncues);
+    *out_string = sb.data;
+    return TYPECAST_OK;
+
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="strbuf_append realloc OOM; requires malloc shim" */
+oom:
+    free(sb.data);
+    cues_free(cues, ncues);
+    return TYPECAST_ERROR_OUT_OF_MEMORY;
+    /* LCOV_EXCL_STOP */
+}
+
+/* ---- to_vtt ---- */
+TYPECAST_API TypecastErrorCode typecast_tts_with_timestamps_response_to_vtt(
+    const TypecastTTSWithTimestampsResponse* response,
+    char** out_string
+) {
+    if (!response || !out_string) return TYPECAST_ERROR_INVALID_PARAM;
+    *out_string = NULL;
+
+    const TypecastAlignmentSegment* segs;
+    size_t seg_count;
+    int word_mode;
+    if (!pick_segments(response, &segs, &seg_count, &word_mode)) {
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+
+    int ncues = 0;
+    CaptionCue* cues = group_into_cues(segs, seg_count, word_mode, &ncues);
+    if (!cues || ncues == 0) {
+        if (cues) cues_free(cues, ncues);
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+
+    StrBuf sb = {0};
+    char timebuf[32];
+
+    /* VTT header */
+    if (!strbuf_append(&sb, "WEBVTT\n\n")) goto oom;
+
+    for (int i = 0; i < ncues; i++) {
+        /* Timecode line */
+        fmt_vtt_time(cues[i].start, timebuf, sizeof(timebuf));
+        if (!strbuf_append(&sb, timebuf)) goto oom;
+        if (!strbuf_append(&sb, " --> ")) goto oom;
+        fmt_vtt_time(cues[i].end, timebuf, sizeof(timebuf));
+        if (!strbuf_append(&sb, timebuf)) goto oom;
+        if (!strbuf_append(&sb, "\n")) goto oom;
+
+        /* Text */
+        if (!strbuf_append(&sb, cues[i].text)) goto oom;
+        if (!strbuf_append(&sb, "\n\n")) goto oom;
+    }
+
+    cues_free(cues, ncues);
+    *out_string = sb.data;
+    return TYPECAST_OK;
+
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="strbuf_append realloc OOM; requires malloc shim" */
+oom:
+    free(sb.data);
+    cues_free(cues, ncues);
+    return TYPECAST_ERROR_OUT_OF_MEMORY;
+    /* LCOV_EXCL_STOP */
+}
+
+/* ---- audio_bytes ---- */
+TYPECAST_API TypecastErrorCode typecast_tts_with_timestamps_response_audio_bytes(
+    const TypecastTTSWithTimestampsResponse* response,
+    uint8_t** out_bytes,
+    size_t* out_size
+) {
+    if (!response || !out_bytes || !out_size) return TYPECAST_ERROR_INVALID_PARAM;
+    if (!response->audio_base64) return TYPECAST_ERROR_INVALID_PARAM;
+
+    if (base64_decode(response->audio_base64, out_bytes, out_size) != 0) {
+        return TYPECAST_ERROR_JSON_PARSE;
+    }
+    return TYPECAST_OK;
+}
+
+/* ---- save_audio ---- */
+TYPECAST_API TypecastErrorCode typecast_tts_with_timestamps_response_save_audio(
+    const TypecastTTSWithTimestampsResponse* response,
+    const char* path
+) {
+    if (!response || !path) return TYPECAST_ERROR_INVALID_PARAM;
+
+    uint8_t* bytes = NULL;
+    size_t   size  = 0;
+    TypecastErrorCode rc = typecast_tts_with_timestamps_response_audio_bytes(
+        response, &bytes, &size);
+    if (rc != TYPECAST_OK) return rc;
+
+    FILE* f = fopen(path, "wb");
+    if (!f) {
+        free(bytes);
+        return TYPECAST_ERROR_NETWORK; /* reuse as I/O error */
+    }
+    size_t written = fwrite(bytes, 1, size, f);
+    fclose(f);
+    free(bytes);
+    if (written != size) {
+        return TYPECAST_ERROR_NETWORK; /* LCOV_EXCL_LINE — disk-full path */
+    }
+    return TYPECAST_OK;
+}
+
+/* ---- free ---- */
+TYPECAST_API void typecast_tts_with_timestamps_response_free(
+    TypecastTTSWithTimestampsResponse* response
+) {
+    if (!response) return;
+
+    if (response->audio_base64) free(response->audio_base64);
+    if (response->audio_format)  free(response->audio_format);
+
+    if (response->words) {
+        for (size_t i = 0; i < response->words_count; i++) {
+            if (response->words[i].text) free(response->words[i].text);
+        }
+        free(response->words);
+    }
+    if (response->characters) {
+        for (size_t i = 0; i < response->characters_count; i++) {
+            if (response->characters[i].text) free(response->characters[i].text);
+        }
+        free(response->characters);
+    }
+
+    free(response);
+}

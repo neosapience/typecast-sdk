@@ -24,6 +24,7 @@ Convert text to lifelike speech using AI-powered voices
   - [Configuration](#configuration)
   - [Text to Speech](#text-to-speech)
   - [Streaming](#streaming)
+  - [Text to Speech with Timestamps](#text-to-speech-with-timestamps)
   - [Voice Discovery](#voice-discovery)
   - [Emotion Control](#emotion-control)
 - [Supported Languages](#supported-languages)
@@ -104,6 +105,7 @@ pub fn main() !void {
 | **Emotion Control** | Preset emotions or smart context-aware inference |
 | **Audio Customization** | Volume, pitch, tempo, and format (WAV/MP3) |
 | **Streaming** | Chunked audio delivery via callback for low-latency playback |
+| **Timestamp TTS** | Word/character alignment data with SRT/VTT subtitle generation |
 | **Voice Discovery** | Filter voices by model, gender, age, and use cases |
 | **Zero Dependencies** | Uses only the Zig standard library |
 
@@ -188,6 +190,56 @@ try client.textToSpeechStream(.{
     }
 }.onChunk);
 ```
+
+### Text to Speech with Timestamps
+
+Get word- or character-level alignment data together with audio, and generate
+SRT or WebVTT subtitle files:
+
+```zig
+// Returns audio + alignment segments in one call.
+var resp = try client.textToSpeechWithTimestamps(
+    .{
+        .voice_id = "tc_672c5f5ce59fac2a48faeaee",
+        .text = "Hello. How are you?",
+        .model = .ssfm_v30,
+    },
+    null, // granularity: null or "" = both words and chars, "word", or "char"
+);
+defer resp.deinit();
+
+// Inspect word-level alignment.
+if (resp.words) |words| {
+    for (words) |w| {
+        std.debug.print("{s}  {d:.3}s – {d:.3}s\n", .{ w.text, w.start, w.end });
+    }
+}
+
+// Generate SRT captions (caller owns the returned slice).
+const srt = try resp.toSrt(allocator);
+defer allocator.free(srt);
+try std.fs.cwd().writeFile(.{ .sub_path = "output.srt", .data = srt });
+
+// Generate WebVTT captions.
+const vtt = try resp.toVtt(allocator);
+defer allocator.free(vtt);
+try std.fs.cwd().writeFile(.{ .sub_path = "output.vtt", .data = vtt });
+
+// Decode the raw audio bytes.
+const audio = try resp.audioBytes(allocator);
+defer allocator.free(audio);
+
+// Or save audio directly to a file.
+try resp.saveAudio("output.wav", allocator);
+```
+
+Captioning rules applied automatically:
+
+- Cue boundary on sentence terminators (`.` `?` `!` `。` `？` `！`).
+- Max 7 seconds or 42 characters per cue.
+- For non-whitespace languages (Japanese, Chinese) where word segments
+  collapse to a single entry, the helper automatically falls back to
+  character granularity.
 
 ### Voice Discovery
 
@@ -349,6 +401,7 @@ const response = client.textToSpeech(request) catch |err| switch (err) {
 |--------|-------------|
 | `textToSpeech(request)` | Convert text to speech (full response) |
 | `textToSpeechStream(request, callback)` | Stream audio chunks via callback |
+| `textToSpeechWithTimestamps(request, granularity)` | TTS with word/character alignment data |
 | `getVoicesV2(filter)` | List available voices with filtering |
 | `getVoiceV2(voice_id, model)` | Get specific voice details |
 | `getVoices(model)` | List voices (V1 API) |

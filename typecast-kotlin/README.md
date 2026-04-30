@@ -65,6 +65,7 @@ client.close()
 ## Features
 
 - **Text-to-Speech**: Convert text to natural-sounding speech
+- **TTS with Timestamps**: Generate audio with word/character-level alignment, export SRT/VTT captions
 - **Voice Discovery**: Browse available voices with filtering options
 - **Emotion Control**: Use preset emotions or context-aware smart emotions
 - **Audio Customization**: Control volume, pitch, tempo, and output format
@@ -153,6 +154,47 @@ val request = TTSRequest.builder()
 
 val response = client.textToSpeech(request)
 ```
+
+### Text-to-Speech with Timestamps
+
+Get word/character-level alignment data alongside the generated audio, and export
+SRT or WebVTT caption files:
+
+```kotlin
+import com.neosapience.TypecastClient
+import com.neosapience.models.*
+import java.nio.file.Paths
+
+val client = TypecastClient.create("your-api-key")
+
+val request = TTSRequestWithTimestamps(
+    voiceId = "tc_60e5426de8b95f1d3000d7b5",
+    text = "Hello, world!",
+    model = TTSModel.SSFM_V30,
+    language = LanguageCode.ENG,
+)
+
+// Request both word and character alignment (granularity = null means both)
+val response = client.textToSpeechWithTimestamps(request, null)
+
+// Save the audio file
+response.saveAudio(Paths.get("output.wav"))
+
+// Export captions
+val srt = response.toSrt()          // SRT format
+val vtt = response.toVtt()          // WebVTT format
+
+// Or request only word-level alignment
+val wordResponse = client.textToSpeechWithTimestamps(request, "word")
+```
+
+The `granularity` parameter controls what alignment data is returned:
+- `null` — both word and character level
+- `"word"` — word-level only
+- `"char"` — character-level only
+
+The caption exporter automatically picks the best available granularity:
+words (if ≥ 2 words present) → characters (if present) → single word.
 
 ### Using with Seed for Reproducibility
 

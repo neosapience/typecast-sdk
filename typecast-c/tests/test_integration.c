@@ -379,6 +379,132 @@ TEST(unauthorized_request) {
 }
 
 /* ============================================
+ * Text-to-Speech with Timestamps Tests
+ * ============================================ */
+
+#define TS_VOICE "tc_60e5426de8b95f1d3000d7b5"
+
+TEST(tts_with_timestamps_no_granularity) {
+    printf("  Testing TTS with timestamps (no granularity)...\n");
+
+    TypecastPrompt prompt = {0};
+    prompt.emotion_type = TYPECAST_EMOTION_TYPE_PRESET;
+    prompt.emotion_preset = TYPECAST_EMOTION_NORMAL;
+    prompt.emotion_intensity = 1.0f;
+
+    TypecastTTSRequestWithTimestamps request = {0};
+    request.text = "Hello.";
+    request.voice_id = TS_VOICE;
+    request.model = TYPECAST_MODEL_SSFM_V30;
+    request.language = "eng";
+    request.prompt = &prompt;
+    request.seed = 42;
+    /* granularity NULL -> both words and characters */
+
+    TypecastTTSWithTimestampsResponse* resp = NULL;
+    TypecastErrorCode rc = typecast_text_to_speech_with_timestamps(g_client, &request, &resp);
+
+    ASSERT(rc == TYPECAST_OK, "Expected TYPECAST_OK");
+    ASSERT(resp != NULL, "Response should not be NULL");
+    ASSERT(resp->audio_duration > 0.0f, "audio_duration should be > 0");
+    ASSERT(resp->words != NULL && resp->words_count > 0, "words should be non-empty");
+    ASSERT(resp->characters != NULL && resp->characters_count > 0, "characters should be non-empty");
+    printf("  no_granularity: duration=%.2f words=%zu chars=%zu\n",
+        resp->audio_duration, resp->words_count, resp->characters_count);
+    typecast_tts_with_timestamps_response_free(resp);
+    TEST_PASS();
+}
+
+TEST(tts_with_timestamps_word_granularity) {
+    printf("  Testing TTS with timestamps (word granularity)...\n");
+
+    TypecastPrompt prompt = {0};
+    prompt.emotion_type = TYPECAST_EMOTION_TYPE_PRESET;
+    prompt.emotion_preset = TYPECAST_EMOTION_NORMAL;
+    prompt.emotion_intensity = 1.0f;
+
+    TypecastTTSRequestWithTimestamps request = {0};
+    request.text = "Hello.";
+    request.voice_id = TS_VOICE;
+    request.model = TYPECAST_MODEL_SSFM_V30;
+    request.language = "eng";
+    request.prompt = &prompt;
+    request.seed = 42;
+    request.granularity = "word";
+
+    TypecastTTSWithTimestampsResponse* resp = NULL;
+    TypecastErrorCode rc = typecast_text_to_speech_with_timestamps(g_client, &request, &resp);
+
+    ASSERT(rc == TYPECAST_OK, "Expected TYPECAST_OK");
+    ASSERT(resp != NULL, "Response should not be NULL");
+    ASSERT(resp->words != NULL && resp->words_count > 0, "words should be non-empty");
+    ASSERT(resp->characters_count == 0, "characters should be empty for word granularity");
+    printf("  word granularity: words=%zu\n", resp->words_count);
+    typecast_tts_with_timestamps_response_free(resp);
+    TEST_PASS();
+}
+
+TEST(tts_with_timestamps_char_granularity) {
+    printf("  Testing TTS with timestamps (char granularity)...\n");
+
+    TypecastPrompt prompt = {0};
+    prompt.emotion_type = TYPECAST_EMOTION_TYPE_PRESET;
+    prompt.emotion_preset = TYPECAST_EMOTION_NORMAL;
+    prompt.emotion_intensity = 1.0f;
+
+    TypecastTTSRequestWithTimestamps request = {0};
+    request.text = "Hello.";
+    request.voice_id = TS_VOICE;
+    request.model = TYPECAST_MODEL_SSFM_V30;
+    request.language = "eng";
+    request.prompt = &prompt;
+    request.seed = 42;
+    request.granularity = "char";
+
+    TypecastTTSWithTimestampsResponse* resp = NULL;
+    TypecastErrorCode rc = typecast_text_to_speech_with_timestamps(g_client, &request, &resp);
+
+    ASSERT(rc == TYPECAST_OK, "Expected TYPECAST_OK");
+    ASSERT(resp != NULL, "Response should not be NULL");
+    ASSERT(resp->characters != NULL && resp->characters_count > 0, "characters should be non-empty");
+    ASSERT(resp->words_count == 0, "words should be empty for char granularity");
+    printf("  char granularity: chars=%zu\n", resp->characters_count);
+    typecast_tts_with_timestamps_response_free(resp);
+    TEST_PASS();
+}
+
+TEST(tts_with_timestamps_jpn_char) {
+    printf("  Testing TTS with timestamps (Japanese + char granularity)...\n");
+
+    TypecastPrompt prompt = {0};
+    prompt.emotion_type = TYPECAST_EMOTION_TYPE_PRESET;
+    prompt.emotion_preset = TYPECAST_EMOTION_NORMAL;
+    prompt.emotion_intensity = 1.0f;
+
+    TypecastTTSRequestWithTimestamps request = {0};
+    /* UTF-8 encoded Japanese: "こんにちは。お元気ですか?" */
+    request.text = "\xe3\x81\x93\xe3\x82\x93\xe3\x81\xab\xe3\x81\xa1\xe3\x81\xaf\xe3\x80\x82"
+                   "\xe3\x81\x8a\xe5\x85\x83\xe6\xb0\x97\xe3\x81\xa7\xe3\x81\x99\xe3\x81\x8b\xef\xbc\x9f";
+    request.voice_id = TS_VOICE;
+    request.model = TYPECAST_MODEL_SSFM_V30;
+    request.language = "jpn";
+    request.prompt = &prompt;
+    request.seed = 42;
+    request.granularity = "char";
+
+    TypecastTTSWithTimestampsResponse* resp = NULL;
+    TypecastErrorCode rc = typecast_text_to_speech_with_timestamps(g_client, &request, &resp);
+
+    ASSERT(rc == TYPECAST_OK, "Expected TYPECAST_OK for jpn+char");
+    ASSERT(resp != NULL, "Response should not be NULL");
+    ASSERT(resp->characters != NULL && resp->characters_count >= 5,
+        "Expected >= 5 character segments for Japanese");
+    printf("  jpn+char: chars=%zu\n", resp->characters_count);
+    typecast_tts_with_timestamps_response_free(resp);
+    TEST_PASS();
+}
+
+/* ============================================
  * Main
  * ============================================ */
 
@@ -429,6 +555,10 @@ int main(int argc, char* argv[]) {
     RUN_TEST(text_to_speech_korean);
     RUN_TEST(text_to_speech_invalid_voice);
     RUN_TEST(unauthorized_request);
+    RUN_TEST(tts_with_timestamps_no_granularity);
+    RUN_TEST(tts_with_timestamps_word_granularity);
+    RUN_TEST(tts_with_timestamps_char_granularity);
+    RUN_TEST(tts_with_timestamps_jpn_char);
     
     /* Cleanup */
     typecast_client_destroy(g_client);

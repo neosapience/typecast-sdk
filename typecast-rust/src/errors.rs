@@ -51,6 +51,18 @@ pub enum TypecastError {
     /// Unknown error with status code
     #[error("API error (status {status_code}): {detail}")]
     Unknown { status_code: u16, detail: String },
+
+    /// Base64 decode error
+    #[error("Decode error: {0}")]
+    DecodeError(String),
+
+    /// I/O error
+    #[error("I/O error: {0}")]
+    IoError(String),
+
+    /// Captioning error (no alignment segments available)
+    #[error("Captioning error: {0}")]
+    CaptioningError(String),
 }
 
 impl TypecastError {

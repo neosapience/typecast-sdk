@@ -127,3 +127,113 @@ test "integration: getMySubscription returns plan" {
     try testing.expect(sub.credits.plan_credits >= 0);
     try testing.expect(sub.limits.concurrency_limit > 0);
 }
+
+// ── Text-to-Speech with Timestamps ───────────────────────────────────
+
+const TIMESTAMP_VOICE = "tc_60e5426de8b95f1d3000d7b5";
+
+test "integration: textToSpeechWithTimestamps no granularity returns words and characters" {
+    const api_key = try getEnvOrSkip("TYPECAST_API_KEY");
+    const host = std.posix.getenv("TYPECAST_API_HOST") orelse "https://api.typecast.ai";
+
+    var client = makeClient(testing.allocator, api_key, host);
+    defer client.deinit();
+
+    const req = typecast.TTSRequestWithTimestamps{
+        .voice_id = TIMESTAMP_VOICE,
+        .text = "Hello.",
+        .model = .ssfm_v30,
+        .language = "eng",
+        .prompt = .{ .preset = .{ .emotion_preset = .normal, .emotion_intensity = 1.0 } },
+        .seed = 42,
+    };
+
+    var resp = try client.textToSpeechWithTimestamps(req, null);
+    defer resp.deinit();
+
+    try testing.expect(resp.audio_duration > 0.0);
+    const words = resp.words orelse return error.MissingWords;
+    try testing.expect(words.len > 0);
+    const chars = resp.characters orelse return error.MissingCharacters;
+    try testing.expect(chars.len > 0);
+    std.debug.print("no_granularity: duration={d:.2} words={d} chars={d}\n",
+        .{ resp.audio_duration, words.len, chars.len });
+}
+
+test "integration: textToSpeechWithTimestamps word granularity returns words only" {
+    const api_key = try getEnvOrSkip("TYPECAST_API_KEY");
+    const host = std.posix.getenv("TYPECAST_API_HOST") orelse "https://api.typecast.ai";
+
+    var client = makeClient(testing.allocator, api_key, host);
+    defer client.deinit();
+
+    const req = typecast.TTSRequestWithTimestamps{
+        .voice_id = TIMESTAMP_VOICE,
+        .text = "Hello.",
+        .model = .ssfm_v30,
+        .language = "eng",
+        .prompt = .{ .preset = .{ .emotion_preset = .normal, .emotion_intensity = 1.0 } },
+        .seed = 42,
+    };
+
+    var resp = try client.textToSpeechWithTimestamps(req, "word");
+    defer resp.deinit();
+
+    const words = resp.words orelse return error.MissingWords;
+    try testing.expect(words.len > 0);
+    // characters should be null or empty for word granularity
+    const chars_empty = if (resp.characters) |c| c.len == 0 else true;
+    try testing.expect(chars_empty);
+    std.debug.print("word granularity: words={d}\n", .{words.len});
+}
+
+test "integration: textToSpeechWithTimestamps char granularity returns characters only" {
+    const api_key = try getEnvOrSkip("TYPECAST_API_KEY");
+    const host = std.posix.getenv("TYPECAST_API_HOST") orelse "https://api.typecast.ai";
+
+    var client = makeClient(testing.allocator, api_key, host);
+    defer client.deinit();
+
+    const req = typecast.TTSRequestWithTimestamps{
+        .voice_id = TIMESTAMP_VOICE,
+        .text = "Hello.",
+        .model = .ssfm_v30,
+        .language = "eng",
+        .prompt = .{ .preset = .{ .emotion_preset = .normal, .emotion_intensity = 1.0 } },
+        .seed = 42,
+    };
+
+    var resp = try client.textToSpeechWithTimestamps(req, "char");
+    defer resp.deinit();
+
+    const chars = resp.characters orelse return error.MissingCharacters;
+    try testing.expect(chars.len > 0);
+    // words should be null or empty for char granularity
+    const words_empty = if (resp.words) |w| w.len == 0 else true;
+    try testing.expect(words_empty);
+    std.debug.print("char granularity: chars={d}\n", .{chars.len});
+}
+
+test "integration: textToSpeechWithTimestamps jpn char returns at least 5 segments" {
+    const api_key = try getEnvOrSkip("TYPECAST_API_KEY");
+    const host = std.posix.getenv("TYPECAST_API_HOST") orelse "https://api.typecast.ai";
+
+    var client = makeClient(testing.allocator, api_key, host);
+    defer client.deinit();
+
+    const req = typecast.TTSRequestWithTimestamps{
+        .voice_id = TIMESTAMP_VOICE,
+        .text = "こんにちは。お元気ですか?",
+        .model = .ssfm_v30,
+        .language = "jpn",
+        .prompt = .{ .preset = .{ .emotion_preset = .normal, .emotion_intensity = 1.0 } },
+        .seed = 42,
+    };
+
+    var resp = try client.textToSpeechWithTimestamps(req, "char");
+    defer resp.deinit();
+
+    const chars = resp.characters orelse return error.MissingCharacters;
+    try testing.expect(chars.len >= 5);
+    std.debug.print("jpn+char: chars={d}\n", .{chars.len});
+}

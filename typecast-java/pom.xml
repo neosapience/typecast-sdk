@@ -6,7 +6,7 @@
 
     <groupId>com.neosapience</groupId>
     <artifactId>typecast-java</artifactId>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
     <packaging>jar</packaging>
 
     <name>Typecast Java SDK</name>
@@ -123,6 +123,10 @@
                         <phase>verify</phase>
                         <goals><goal>check</goal></goals>
                         <configuration>
+                            <excludes>
+                                <!-- Example runnable classes require real API keys; excluded from coverage gate -->
+                                <exclude>com/neosapience/examples/**</exclude>
+                            </excludes>
                             <rules>
                                 <rule>
                                     <element>BUNDLE</element>

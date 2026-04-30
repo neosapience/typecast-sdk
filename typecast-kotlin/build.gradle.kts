@@ -14,7 +14,7 @@ jacoco {
 }
 
 group = "com.neosapience"
-version = "1.1.0"
+version = "1.2.0"
 
 repositories {
     mavenCentral()
@@ -71,10 +71,13 @@ tasks.register<Test>("e2eTest") {
 //  - $Companion$1:        synthetic lambda inside companion (one per @Serializable type)
 // These are pure framework plumbing emitted by the kotlinx.serialization
 // compiler plugin and contain no project logic.
+//
 val coverageExclusions = listOf(
     "**/*\$\$serializer.*",
     "**/*\$Companion.*",
-    "**/*\$Companion\$*.*"
+    "**/*\$Companion\$*.*",
+    // Example runnable classes require a real API key and are not unit-testable
+    "**/examples/**"
 )
 
 tasks.jacocoTestReport {
@@ -179,5 +182,12 @@ nmcpAggregation {
         username = System.getenv("CENTRAL_USERNAME") ?: findProperty("centralUsername")?.toString()
         password = System.getenv("CENTRAL_PASSWORD") ?: findProperty("centralPassword")?.toString()
         publishingType = "AUTOMATIC"
+    }
+}
+
+tasks.register("printRuntimeClasspath") {
+    doLast {
+        val cp = configurations.runtimeClasspath.get().asPath
+        println("CLASSPATH=$cp")
     }
 }

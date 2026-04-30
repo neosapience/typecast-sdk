@@ -13,7 +13,7 @@
 #   cmake --build .
 
 cmake_minimum_required(VERSION 3.14)
-project(typecast VERSION 1.1.0 LANGUAGES C)
+project(typecast VERSION 1.2.0 LANGUAGES C)
 
 # Options
 option(TYPECAST_BUILD_SHARED "Build shared library" ON)
@@ -121,6 +121,14 @@ if(TYPECAST_BUILD_EXAMPLES)
             $<TARGET_FILE_DIR:example_simple>
         )
     endif()
+
+    add_executable(example_with_timestamps examples/with_timestamps.c)
+    target_include_directories(example_with_timestamps PRIVATE include)
+    if(TYPECAST_BUILD_SHARED)
+        target_link_libraries(example_with_timestamps PRIVATE typecast)
+    elseif(TYPECAST_BUILD_STATIC)
+        target_link_libraries(example_with_timestamps PRIVATE typecast_static CURL::libcurl)
+    endif()
 endif()
 
 # Tests
@@ -153,6 +161,22 @@ if(TYPECAST_BUILD_TESTS)
     endif()
 
     add_test(NAME typecast_mock_tests COMMAND test_mock)
+
+    # Timestamp TTS tests (fixture byte-equality, no API key required)
+    add_executable(test_timestamps tests/test_timestamps.c)
+    target_include_directories(test_timestamps PRIVATE include src)
+
+    if(TYPECAST_BUILD_SHARED)
+        target_link_libraries(test_timestamps PRIVATE typecast)
+    elseif(TYPECAST_BUILD_STATIC)
+        target_link_libraries(test_timestamps PRIVATE typecast_static CURL::libcurl)
+    endif()
+    if(NOT WIN32)
+        target_link_libraries(test_timestamps PRIVATE Threads::Threads)
+    endif()
+
+    add_test(NAME typecast_timestamp_tests COMMAND test_timestamps
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
     # Integration test (requires API key)
     add_executable(test_integration tests/test_integration.c)

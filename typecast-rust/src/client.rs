@@ -423,6 +423,73 @@ impl TypecastClient {
         Ok(voice)
     }
 
+    /// Convert text to speech with word- and/or character-level timestamps.
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The TTS request with timestamps parameters.
+    /// * `granularity` - Optional granularity: `None` (both), `"word"`, or `"char"`.
+    ///
+    /// # Returns
+    ///
+    /// A [`crate::timestamps::TTSWithTimestampsResponse`] containing the Base64-encoded audio
+    /// and alignment segment arrays.  Use the response's `.to_srt()` / `.to_vtt()` methods to
+    /// generate subtitle files.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use typecast_rust::{TypecastClient, TTSModel};
+    /// use typecast_rust::timestamps::TTSRequestWithTimestamps;
+    ///
+    /// # async fn example() -> typecast_rust::Result<()> {
+    /// let client = TypecastClient::from_env()?;
+    /// let request = TTSRequestWithTimestamps::new(
+    ///     "tc_60e5426de8b95f1d3000d7b5",
+    ///     "Hello, world!",
+    ///     TTSModel::SsfmV30,
+    /// );
+    /// let response = client.text_to_speech_with_timestamps(&request, None).await?;
+    /// let srt = response.to_srt()?;
+    /// println!("{}", srt);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn text_to_speech_with_timestamps(
+        &self,
+        request: &crate::timestamps::TTSRequestWithTimestamps,
+        granularity: Option<&str>,
+    ) -> Result<crate::timestamps::TTSWithTimestampsResponse> {
+        if let Some(g) = granularity {
+            if g != "word" && g != "char" {
+                return Err(TypecastError::ValidationError {
+                    detail: format!(
+                        "granularity must be None, \"word\", or \"char\"; got {:?}",
+                        g
+                    ),
+                });
+            }
+        }
+
+        let url = match granularity {
+            Some(g) => self.build_url(
+                "/v1/text-to-speech/with-timestamps",
+                Some(vec![("granularity", g.to_string())]),
+            ),
+            None => self.build_url("/v1/text-to-speech/with-timestamps", None),
+        };
+
+        let response = self.client.post(&url).json(request).send().await?;
+
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+
+        let parsed: crate::timestamps::TTSWithTimestampsResponse =
+            response.json().await.map_err(|e| TypecastError::DecodeError(e.to_string()))?;
+        Ok(parsed)
+    }
+
     /// Get the authenticated user's subscription
     ///
     /// # Returns

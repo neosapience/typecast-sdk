@@ -13,6 +13,7 @@ Official C# SDK for the [Typecast](https://typecast.ai/?lang=en) Text-to-Speech 
 - Multiple TTS models (ssfm-v21, ssfm-v30)
 - Emotion control (preset and smart modes)
 - Audio customization (volume, pitch, tempo, format)
+- **Timestamp TTS**: word and character alignment for SRT/WebVTT subtitle generation
 - Voice discovery and filtering
 - Unity and Blazor compatible
 - Zero external dependencies for core functionality
@@ -228,6 +229,57 @@ var request = new TTSRequest("Hello, world!", voiceId, TTSModel.SsfmV30)
     )
 };
 ```
+
+### Timestamp TTS (Word / Character Alignment)
+
+Use `TextToSpeechWithTimestampsAsync` to get audio together with word or character
+timing data. The response includes helper methods to generate SRT and WebVTT subtitle
+files directly.
+
+```csharp
+using Typecast;
+using Typecast.Models;
+
+using var client = new TypecastClient("your-api-key");
+
+var request = new TTSRequestWithTimestamps(
+    text: "Hello. How are you?",
+    voiceId: "your-voice-id",
+    model: TTSModel.SsfmV30
+);
+
+// Request both word and character alignment
+var response = await client.TextToSpeechWithTimestampsAsync(request, granularity: "both");
+
+// Save the audio file
+await response.SaveAudioAsync("output.wav");
+
+// Generate subtitles
+string srt = response.ToSrt();   // SRT format (uses word segments if available)
+string vtt = response.ToVtt();   // WebVTT format
+
+await File.WriteAllTextAsync("subtitles.srt", srt);
+await File.WriteAllTextAsync("subtitles.vtt", vtt);
+
+Console.WriteLine($"Audio duration: {response.AudioDuration:F2}s");
+Console.WriteLine($"Word segments: {response.Words?.Count}");
+Console.WriteLine($"Character segments: {response.Characters?.Count}");
+```
+
+**Granularity values:**
+
+| Value   | Description                               |
+| ------- | ----------------------------------------- |
+| `"word"` | Word-level timestamps only               |
+| `"char"` | Character-level timestamps only          |
+| `"both"` | Both word and character timestamps       |
+| `null`   | API default (typically both)             |
+
+**Caption formatting rules:**
+
+- `ToSrt()` / `ToVtt()` prefer word-level segments, fall back to character-level.
+- Cues are split automatically when duration exceeds 7 seconds or 42 codepoints.
+- Sentence terminators (`. ? ! 。 ？ ！`) trigger an immediate cue flush.
 
 ### Configuration Options
 
@@ -592,19 +644,23 @@ The SDK supports 37 languages with ISO 639-3 codes:
 
 ### TypecastClient Methods
 
-| Method                              | Description                                |
-| ----------------------------------- | ------------------------------------------ |
-| `TextToSpeechAsync(TTSRequest)`     | Synthesize text to speech (async)          |
-| `TextToSpeech(TTSRequest)`          | Synthesize text to speech (sync)           |
-| `GetVoicesV2Async(VoicesV2Filter?)` | Get available voices with metadata (async) |
-| `GetVoicesV2(VoicesV2Filter?)`      | Get available voices with metadata (sync)  |
-| `GetVoiceV2Async(string voiceId)`   | Get a specific voice by ID (async)         |
-| `GetVoiceV2(string voiceId)`        | Get a specific voice by ID (sync)          |
+| Method                                                            | Description                                             |
+| ----------------------------------------------------------------- | ------------------------------------------------------- |
+| `TextToSpeechAsync(TTSRequest)`                                   | Synthesize text to speech (async)                       |
+| `TextToSpeech(TTSRequest)`                                        | Synthesize text to speech (sync)                        |
+| `TextToSpeechWithTimestampsAsync(TTSRequestWithTimestamps, ...)`  | Synthesize with word/character alignment timestamps     |
+| `GetVoicesV2Async(VoicesV2Filter?)`                               | Get available voices with metadata (async)              |
+| `GetVoicesV2(VoicesV2Filter?)`                                    | Get available voices with metadata (sync)               |
+| `GetVoiceV2Async(string voiceId)`                                 | Get a specific voice by ID (async)                      |
+| `GetVoiceV2(string voiceId)`                                      | Get a specific voice by ID (sync)                       |
 
 ### Models
 
 - `TTSRequest` - Text-to-speech request
+- `TTSRequestWithTimestamps` - Text-to-speech request with timestamp alignment
 - `TTSResponse` - Contains audio data, duration, and format
+- `TTSWithTimestampsResponse` - Contains base64 audio, alignment segments, and `ToSrt()`/`ToVtt()` helpers
+- `WordSegment` / `CharacterSegment` - Alignment segment with text, start, and end time
 - `Output` - Audio output settings
 - `Prompt` / `PresetPrompt` / `SmartPrompt` - Emotion control
 - `VoiceV2Response` - Voice information with metadata

@@ -750,6 +750,329 @@ class CoverageTest {
         assertEquals(1.0, def.audioTempo)
     }
 
+    // ==================== Timestamps data class coverage ====================
+
+    @Test
+    fun alignmentSegmentWord_dataClassMethods() {
+        val w1 = com.neosapience.models.AlignmentSegmentWord("hello", 0.1, 0.5)
+        val w2 = w1.copy()
+        assertEquals(w1, w2)
+        assertEquals(w1.hashCode(), w2.hashCode())
+        assertFalse(w1.equals(null))
+        assertFalse(w1.equals("other"))
+        assertTrue(w1.toString().contains("hello"))
+        assertEquals("hello", w1.component1())
+        assertEquals(0.1, w1.component2())
+        assertEquals(0.5, w1.component3())
+    }
+
+    @Test
+    fun alignmentSegmentCharacter_dataClassMethods() {
+        val c1 = com.neosapience.models.AlignmentSegmentCharacter("あ", 0.2, 0.4)
+        val c2 = c1.copy()
+        assertEquals(c1, c2)
+        assertEquals(c1.hashCode(), c2.hashCode())
+        assertFalse(c1.equals(null))
+        assertTrue(c1.toString().contains("あ"))
+        assertEquals("あ", c1.component1())
+        assertEquals(0.2, c1.component2())
+        assertEquals(0.4, c1.component3())
+    }
+
+    @Test
+    fun ttsRequestWithTimestamps_dataClassMethods() {
+        val r = com.neosapience.models.TTSRequestWithTimestamps(
+            voiceId = "tc_x",
+            text = "hello",
+            model = TTSModel.SSFM_V30,
+            language = LanguageCode.ENG,
+            seed = 7,
+        )
+        // Access all properties to trigger JVM getters
+        assertEquals("tc_x", r.voiceId)
+        assertEquals("hello", r.text)
+        assertEquals(TTSModel.SSFM_V30, r.model)
+        assertEquals(LanguageCode.ENG, r.language)
+        assertNull(r.prompt)
+        assertNull(r.output)
+        assertEquals(7, r.seed)
+
+        val copy = r.copy()
+        assertEquals(r, copy)
+        assertEquals(r.hashCode(), copy.hashCode())
+        assertFalse(r.equals(null))
+        assertFalse(r.equals("other"))
+        assertTrue(r.toString().contains("tc_x"))
+        assertEquals("tc_x", r.component1())
+        assertEquals("hello", r.component2())
+        assertEquals(TTSModel.SSFM_V30, r.component3())
+        assertEquals(LanguageCode.ENG, r.component4())
+        assertNull(r.component5()) // prompt
+        assertNull(r.component6()) // output
+        assertEquals(7, r.component7())
+        // Inequality on different fields
+        val other = r.copy(voiceId = "tc_y")
+        assertNotEquals(r, other)
+    }
+
+    @Test
+    fun ttsWithTimestampsResponse_dataClassMethods() {
+        val words = listOf(com.neosapience.models.AlignmentSegmentWord("hi", 0.0, 0.5))
+        val chars = listOf(com.neosapience.models.AlignmentSegmentCharacter("h", 0.0, 0.2))
+        val resp = com.neosapience.models.TTSWithTimestampsResponse(
+            audio = "AAEC", // valid base64
+            audioFormat = "wav",
+            audioDuration = 1.0,
+            words = words,
+            characters = chars,
+        )
+        // Access all properties to trigger JVM getters
+        assertEquals("AAEC", resp.audio)
+        assertEquals("wav", resp.audioFormat)
+        assertEquals(1.0, resp.audioDuration)
+        assertEquals(words, resp.words)
+        assertEquals(chars, resp.characters)
+
+        val copy = resp.copy()
+        assertEquals(resp, copy)
+        assertEquals(resp.hashCode(), copy.hashCode())
+        assertFalse(resp.equals(null))
+        assertFalse(resp.equals("other"))
+        assertTrue(resp.toString().contains("wav"))
+        assertEquals("AAEC", resp.component1())
+        assertEquals("wav", resp.component2())
+        assertEquals(1.0, resp.component3())
+        assertEquals(words, resp.component4())
+        assertEquals(chars, resp.component5())
+        // Inequality
+        val other = resp.copy(audioFormat = "mp3")
+        assertNotEquals(resp, other)
+    }
+
+    @Test
+    fun ttsWithTimestampsResponse_noWordsNoCharsThrows() {
+        val resp = com.neosapience.models.TTSWithTimestampsResponse(
+            audio = "AAEC",
+            audioFormat = "wav",
+            audioDuration = 1.0,
+            words = null,
+            characters = null,
+        )
+        assertThrows(IllegalStateException::class.java) { resp.toSrt() }
+        assertThrows(IllegalStateException::class.java) { resp.toVtt() }
+    }
+
+    @Test
+    fun ttsWithTimestampsResponse_emptyCuesThrows() {
+        // A single word with empty text produces no cues -> error
+        val resp = com.neosapience.models.TTSWithTimestampsResponse(
+            audio = "AAEC",
+            audioFormat = "wav",
+            audioDuration = 1.0,
+            words = listOf(com.neosapience.models.AlignmentSegmentWord("", 0.0, 0.1)),
+            characters = null,
+        )
+        assertThrows(IllegalStateException::class.java) { resp.toSrt() }
+    }
+
+    @Test
+    fun ttsWithTimestampsResponse_emptyCharsFallsToSingleWord() {
+        // characters is non-null but empty -> falls through to single-word check (w != null && size == 1)
+        val resp = com.neosapience.models.TTSWithTimestampsResponse(
+            audio = "AAEC",
+            audioFormat = "wav",
+            audioDuration = 1.0,
+            words = listOf(com.neosapience.models.AlignmentSegmentWord("Hello.", 0.0, 0.5)),
+            characters = emptyList(),
+        )
+        val srt = resp.toSrt()
+        assertTrue(srt.contains("Hello."))
+    }
+
+    @Test
+    fun ttsWithTimestampsResponse_wordsNullEmptyCharsThrows() {
+        // words == null, characters empty -> no segments -> error
+        val resp = com.neosapience.models.TTSWithTimestampsResponse(
+            audio = "AAEC",
+            audioFormat = "wav",
+            audioDuration = 1.0,
+            words = null,
+            characters = emptyList(),
+        )
+        assertThrows(IllegalStateException::class.java) { resp.toSrt() }
+    }
+
+    @Test
+    fun ttsWithTimestampsResponse_emptyWordsNullCharsThrows() {
+        // words is non-null but empty (size != 1), chars null -> error
+        // Exercises: w != null && w.size == 1 → false (size == 0) branch
+        val resp = com.neosapience.models.TTSWithTimestampsResponse(
+            audio = "AAEC",
+            audioFormat = "wav",
+            audioDuration = 1.0,
+            words = emptyList(),
+            characters = null,
+        )
+        assertThrows(IllegalStateException::class.java) { resp.toSrt() }
+    }
+
+    @Test
+    fun ttsWithTimestampsResponse_singleWordFallback() {
+        // words.size == 1 branch in pickSegments: falls through to single-word path
+        val resp = com.neosapience.models.TTSWithTimestampsResponse(
+            audio = "AAEC",
+            audioFormat = "wav",
+            audioDuration = 1.0,
+            words = listOf(com.neosapience.models.AlignmentSegmentWord("Hello.", 0.0, 0.5)),
+            characters = null,
+        )
+        val srt = resp.toSrt()
+        assertTrue(srt.contains("Hello."))
+    }
+
+    @Test
+    fun ttsWithTimestampsResponse_defaultConstructor() {
+        // Exercise the synthetic default-arg constructor (optional fields)
+        val resp = com.neosapience.models.TTSWithTimestampsResponse(
+            audio = "AAEC",
+            audioFormat = "wav",
+            audioDuration = 0.5,
+        )
+        assertNull(resp.words)
+        assertNull(resp.characters)
+    }
+
+    @Test
+    fun captioningHelpers_dataClassMethods() {
+        val seg1 = com.neosapience.internal.CaptioningHelpers.Segment("hi", 0.0, 0.5)
+        val seg2 = seg1.copy()
+        assertEquals(seg1, seg2)
+        assertEquals(seg1.hashCode(), seg2.hashCode())
+        assertTrue(seg1.toString().contains("hi"))
+        assertEquals("hi", seg1.component1())
+        assertEquals(0.0, seg1.component2())
+        assertEquals(0.5, seg1.component3())
+        assertFalse(seg1.equals(null))
+        assertFalse(seg1.equals("other"))
+        assertNotEquals(seg1, seg1.copy(text = "other"))
+
+        val cue1 = com.neosapience.internal.CaptioningHelpers.Cue("cue text", 0.1, 0.9)
+        val cue2 = cue1.copy()
+        assertEquals(cue1, cue2)
+        assertEquals(cue1.hashCode(), cue2.hashCode())
+        assertTrue(cue1.toString().contains("cue text"))
+        assertEquals("cue text", cue1.component1())
+        assertEquals(0.1, cue1.component2())
+        assertEquals(0.9, cue1.component3())
+        assertFalse(cue1.equals(null))
+        assertFalse(cue1.equals("other"))
+        assertNotEquals(cue1, cue1.copy(text = "other"))
+    }
+
+    @Test
+    fun captioningHelpers_allBranches() {
+        val helpers = com.neosapience.internal.CaptioningHelpers
+
+        // endsInSentence with all terminators
+        for (t in helpers.SENTENCE_TERMINATORS) {
+            assertTrue(helpers.endsInSentence("word$t"))
+            assertTrue(helpers.endsInSentence("word$t  ")) // trailing space
+        }
+        assertFalse(helpers.endsInSentence("no terminator"))
+
+        // joinParts char mode
+        assertEquals("abc", helpers.joinParts(listOf("a", "b", "c"), false))
+        // joinParts word mode
+        assertEquals("a b c", helpers.joinParts(listOf("a", "b", "c"), true))
+        // joinParts empty
+        assertEquals("", helpers.joinParts(emptyList(), true))
+
+        // formatSrtTime and formatVttTime
+        assertEquals("00:00:01,000", helpers.formatSrtTime(1.0))
+        assertEquals("01:02:03,456", helpers.formatSrtTime(3723.456))
+        assertEquals("00:00:01.000", helpers.formatVttTime(1.0))
+
+        // groupIntoCues: empty list
+        assertEquals(emptyList<Any>(), helpers.groupIntoCues(emptyList(), true))
+
+        // groupIntoCues: hard cap by seconds (exceed 7.0 s)
+        val longSegs = listOf(
+            com.neosapience.internal.CaptioningHelpers.Segment("word1", 0.0, 1.0),
+            com.neosapience.internal.CaptioningHelpers.Segment("word2", 1.0, 8.1), // gap > 7s
+        )
+        val cues = helpers.groupIntoCues(longSegs, true)
+        assertEquals(2, cues.size)
+
+        // groupIntoCues: hard cap by chars (> 42 codepoints)
+        val longWord = "a".repeat(43)
+        val charSegs = listOf(
+            com.neosapience.internal.CaptioningHelpers.Segment("short", 0.0, 0.5),
+            com.neosapience.internal.CaptioningHelpers.Segment(longWord, 0.5, 1.0),
+        )
+        val charCues = helpers.groupIntoCues(charSegs, true)
+        assertEquals(2, charCues.size)
+
+        // groupIntoCues: hard cap with empty current text -> not flushed (isEmpty check)
+        val emptyThenLong = listOf(
+            com.neosapience.internal.CaptioningHelpers.Segment("  ", 0.0, 0.5), // all whitespace, trims to ""
+            com.neosapience.internal.CaptioningHelpers.Segment("next", 0.5, 1.0),
+        )
+        // "  " trims to "" so the cue is not added; "next" is flushed at tail
+        val emptyThenLongCues = helpers.groupIntoCues(emptyThenLong, true)
+        assertEquals(1, emptyThenLongCues.size)
+        assertEquals("next", emptyThenLongCues[0].text)
+
+        // groupIntoCues: sentence terminator flush (char mode)
+        val charMode = listOf(
+            com.neosapience.internal.CaptioningHelpers.Segment("H", 0.0, 0.1),
+            com.neosapience.internal.CaptioningHelpers.Segment("i", 0.1, 0.2),
+            com.neosapience.internal.CaptioningHelpers.Segment(".", 0.2, 0.3),
+            com.neosapience.internal.CaptioningHelpers.Segment("B", 0.3, 0.4),
+        )
+        val charCues2 = helpers.groupIntoCues(charMode, false)
+        assertEquals(2, charCues2.size)
+        assertEquals("Hi.", charCues2[0].text)
+        assertEquals("B", charCues2[1].text)
+
+        // groupIntoCues: trailing flush (no terminator at end)
+        val trailing = listOf(
+            com.neosapience.internal.CaptioningHelpers.Segment("no", 0.0, 0.1),
+            com.neosapience.internal.CaptioningHelpers.Segment("end", 0.1, 0.2),
+        )
+        val trailingCues = helpers.groupIntoCues(trailing, true)
+        assertEquals(1, trailingCues.size)
+        assertEquals("no end", trailingCues[0].text)
+
+        // groupIntoCues: trailing flush with empty text (all spaces trim to "") -> not added
+        val trailingEmpty = listOf(
+            com.neosapience.internal.CaptioningHelpers.Segment("  ", 0.0, 0.5),
+        )
+        assertEquals(0, helpers.groupIntoCues(trailingEmpty, true).size)
+
+        // groupIntoCues: all empty text -> empty cues list
+        val emptySegs = listOf(
+            com.neosapience.internal.CaptioningHelpers.Segment("", 0.0, 0.5),
+        )
+        val emptyCues = helpers.groupIntoCues(emptySegs, true)
+        assertEquals(0, emptyCues.size)
+
+        // groupIntoCues: sentence terminator flush produces empty text -> not added
+        val emptyTerm = listOf(
+            com.neosapience.internal.CaptioningHelpers.Segment(".", 0.0, 0.1), // single terminator with trimmable result
+        )
+        // "." trims to "." which is non-empty; this is normal (1 cue)
+        assertEquals(1, helpers.groupIntoCues(emptyTerm, true).size)
+
+        // groupIntoCues: hard cap fires on second segment, but first-segment text is empty -> not flushed
+        val hardCapEmptyFirst = listOf(
+            com.neosapience.internal.CaptioningHelpers.Segment(" ", 0.0, 0.5), // trims to ""
+            com.neosapience.internal.CaptioningHelpers.Segment(" ".repeat(43), 0.5, 1.0), // would exceed chars
+        )
+        val hardCapEmptyFirstCues = helpers.groupIntoCues(hardCapEmptyFirst, true)
+        // After hard cap with empty text, we start fresh; trailing " ".repeat(43) trims to ""
+        assertEquals(0, hardCapEmptyFirstCues.size)
+    }
+
     // ==================== TTSPromptSerializer coverage ====================
 
     @Test

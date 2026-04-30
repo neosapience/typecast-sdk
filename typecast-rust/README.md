@@ -184,17 +184,66 @@ The API supports 37 languages with ssfm-v30 model:
 | rus | Russian | ara | Arabic | hin | Hindi |
 | ... and more |
 
+## Timestamp TTS
+
+Generate speech with word- and/or character-level alignment data, then convert
+it to SRT or WebVTT subtitles with a single method call.
+
+```rust
+use typecast_rust::{TypecastClient, TTSModel};
+use typecast_rust::timestamps::TTSRequestWithTimestamps;
+
+#[tokio::main]
+async fn main() -> typecast_rust::Result<()> {
+    let client = TypecastClient::from_env()?;
+
+    let request = TTSRequestWithTimestamps::new(
+        "tc_60e5426de8b95f1d3000d7b5",
+        "Hello. How are you?",
+        TTSModel::SsfmV30,
+    );
+
+    // Pass None for both word+char, "word" or "char" for a single granularity.
+    let response = client.text_to_speech_with_timestamps(&request, None).await?;
+
+    // Write audio to disk
+    response.save_audio("output.wav")?;
+
+    // Generate subtitle files
+    let srt = response.to_srt()?;
+    let vtt = response.to_vtt()?;
+
+    std::fs::write("output.srt", srt)?;
+    std::fs::write("output.vtt", vtt)?;
+
+    println!("Audio duration: {:.2}s", response.audio_duration);
+    Ok(())
+}
+```
+
+### Captioning rules
+
+- Word segments are used when two or more words are present; character segments
+  are used otherwise (useful for languages without whitespace such as Japanese
+  or Chinese).
+- A cue is flushed when: a sentence-terminating punctuation mark is encountered
+  (`. ? ! 。 ？ ！`), the cue duration would exceed 7 seconds, or the cue text
+  would exceed 42 Unicode codepoints.
+
 ## Running Tests
 
 ```bash
 # Set your API key
 export TYPECAST_API_KEY=your_api_key
 
-# Run all tests
+# Run all tests (unit + timestamp + doc tests)
 cargo test
 
-# Run integration tests only
-cargo test --test integration_test
+# Run timestamp tests only
+cargo test --test timestamps_test
+
+# Run integration tests only (requires TYPECAST_API_KEY)
+cargo test --features e2e --test e2e_test
 ```
 
 ## License

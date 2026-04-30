@@ -1,6 +1,6 @@
 [package]
 name = "typecast-rust"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Neosapience <help@typecast.ai>"]
 description = "Official Rust SDK for Typecast Text-to-Speech API"
@@ -26,6 +26,7 @@ thiserror = "2.0"
 tokio = { version = "1", features = ["full"] }
 bytes = "1"
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
+base64 = "0.22"
 
 [dev-dependencies]
 tokio-test = "0.4"

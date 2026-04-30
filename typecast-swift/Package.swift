@@ -29,5 +29,10 @@ let package = Package(
             dependencies: ["Typecast"],
             path: "Tests/TypecastTests"
         ),
+        .executableTarget(
+            name: "WithTimestampsExample",
+            dependencies: ["Typecast"],
+            path: "Sources/WithTimestampsExample"
+        ),
     ]
 )

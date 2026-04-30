@@ -142,6 +142,35 @@ audio, err := client.TextToSpeech(ctx, &typecast.TTSRequest{
 })
 ```
 
+### Timestamp TTS
+
+Use `TextToSpeechWithTimestamps` to receive base64 audio plus word/character-level
+timestamps aligned with the synthesized speech. The result has `AudioBytes()`,
+`SaveAudio()`, `ToSRT()`, and `ToVTT()` helpers.
+
+```go
+client := typecast.NewClient(&typecast.ClientConfig{APIKey: "YOUR_API_KEY"})
+req := &typecast.TTSRequestWithTimestamps{
+    VoiceID:  "tc_60e5426de8b95f1d3000d7b5",
+    Text:     "Hello. How are you?",
+    Model:    typecast.ModelSSFMV30,
+    Language: "eng",
+}
+resp, err := client.TextToSpeechWithTimestamps(context.Background(), req, "")
+if err != nil {
+    log.Fatal(err)
+}
+_ = resp.SaveAudio("hello.wav")
+srt, _ := resp.ToSRT()
+vtt, _ := resp.ToVTT()
+fmt.Println(srt)
+fmt.Println(vtt)
+```
+
+Pass `"word"` or `"char"` to receive only one of the alignment arrays. For
+non-whitespace languages (Japanese, Chinese), pair with `"char"` — word-level
+alignment will collapse the entire sentence into a single segment.
+
 ### Voice Discovery
 
 ```go

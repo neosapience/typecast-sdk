@@ -26,7 +26,8 @@
 //!     let response = client.text_to_speech(&request).await?;
 //!     
 //!     // Save audio to file
-//!     std::fs::write("output.wav", &response.audio_data)?;
+//!     std::fs::write("output.wav", &response.audio_data)
+//!         .map_err(|e| typecast_rust::TypecastError::IoError(e.to_string()))?;
 //!     println!("Audio saved! Duration: {} seconds", response.duration);
 //!
 //!     Ok(())
@@ -77,6 +78,7 @@
 pub mod client;
 pub mod errors;
 pub mod models;
+pub mod timestamps;
 
 // Re-export main types for convenience
 pub use client::{ClientConfig, TypecastClient, DEFAULT_BASE_URL, DEFAULT_TIMEOUT_SECS};
@@ -85,4 +87,8 @@ pub use models::{
     Age, AudioFormat, Credits, EmotionPreset, ErrorResponse, Gender, Limits, ModelInfo, Output,
     OutputStream, PlanTier, PresetPrompt, Prompt, SmartPrompt, SubscriptionResponse, TTSModel,
     TTSPrompt, TTSRequest, TTSRequestStream, TTSResponse, UseCase, VoiceV2, VoicesV2Filter,
+};
+pub use timestamps::{
+    AlignmentSegmentCharacter, AlignmentSegmentWord, TTSRequestWithTimestamps,
+    TTSWithTimestampsResponse,
 };

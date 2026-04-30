@@ -152,6 +152,39 @@ public final class TypecastClient: Sendable {
         }
     }
 
+    // MARK: - Text to Speech with Timestamps
+
+    /// Convert text to speech and receive word/character-level alignment timestamps.
+    ///
+    /// - Parameters:
+    ///   - request: TTS request parameters (voice, text, model, …).
+    ///   - granularity: Alignment granularity — `"word"` (words only) or `"char"` (characters only).
+    ///     Defaults to both when `nil`.
+    /// - Returns: `TTSWithTimestampsResponse` containing base64 audio, duration, and alignment segments.
+    public func textToSpeechWithTimestamps(
+        _ request: TTSRequestWithTimestamps,
+        granularity: String? = nil
+    ) async throws -> TTSWithTimestampsResponse {
+        try request.validate()
+
+        let validGranularities = ["word", "char"]
+        if let g = granularity, !validGranularities.contains(g) {
+            throw TimestampError.invalidGranularity(g)
+        }
+
+        var queryParams: [String: String]? = nil
+        if let g = granularity {
+            queryParams = ["granularity": g]
+        }
+
+        let url = try buildURL(path: "/v1/text-to-speech/with-timestamps", queryParams: queryParams)
+        let bodyData = try encoder.encode(request)
+        let urlRequest = createRequest(url: url, method: "POST", body: bodyData)
+
+        let (data, response) = try await session.data(for: urlRequest)
+        return try handleResponse(data: data, response: response)
+    }
+
     // MARK: - Voices V2 API
     
     /// Get voices with enhanced metadata (V2 API)
