@@ -326,3 +326,84 @@ class TestAsyncClient:
         req = TTSRequestWithTimestamps(voice_id="tc_x", text="Hi", model="ssfm-v30")
         with pytest.raises(TypecastError, match="session"):
             await client.text_to_speech_with_timestamps(req)
+
+    @pytest.mark.asyncio
+    async def test_async_error_path_handles_402(self, mocker):
+        """Async client maps non-200 status to specific exception (covers async_client.py:210-211)."""
+        from typecast.async_client import AsyncTypecast
+        from typecast.exceptions import PaymentRequiredError
+        from typecast.models import TTSRequestWithTimestamps
+
+        async with AsyncTypecast(api_key="k") as client:
+            mock_resp = mocker.AsyncMock()
+            mock_resp.status = 402
+            mock_resp.text = mocker.AsyncMock(return_value="Insufficient credit")
+            mock_cm = mocker.MagicMock()
+            mock_cm.__aenter__ = mocker.AsyncMock(return_value=mock_resp)
+            mock_cm.__aexit__ = mocker.AsyncMock(return_value=None)
+            mocker.patch.object(client.session, "post", return_value=mock_cm)
+
+            req = TTSRequestWithTimestamps(voice_id="tc_x", text="Hi", model="ssfm-v30")
+            with pytest.raises(PaymentRequiredError):
+                await client.text_to_speech_with_timestamps(req)
+
+
+class TestCoverageGapsTimestamps:
+    def test_to_srt_with_single_word_no_characters(self):
+        """Covers _segments_for_captioning line 276: 1 word + characters=None."""
+        from typecast.models import TTSWithTimestampsResponse, AlignmentSegmentWord
+
+        resp = TTSWithTimestampsResponse(
+            audio="UklGRgAAAA==", audio_format="wav", audio_duration=1.0,
+            words=[AlignmentSegmentWord(text="Hello.", start=0.0, end=1.0)],
+            characters=None,
+        )
+        out = resp.to_srt()
+        assert "Hello." in out
+        assert "00:00:00,000 --> 00:00:01,000" in out
+
+    def test_to_srt_handles_segments_without_terminator(self):
+        """Covers _group_into_cues line 323 (leftover parts at end of loop)."""
+        from typecast.models import TTSWithTimestampsResponse, AlignmentSegmentWord
+
+        # Two short word segments, neither ends in sentence terminator and total stays under 7s/42 chars
+        resp = TTSWithTimestampsResponse(
+            audio="UklGRgAAAA==", audio_format="wav", audio_duration=1.0,
+            words=[
+                AlignmentSegmentWord(text="Hello", start=0.0, end=0.5),
+                AlignmentSegmentWord(text="world", start=0.5, end=1.0),
+            ],
+            characters=None,
+        )
+        out = resp.to_srt()
+        assert "Hello world" in out  # joined as a single cue via leftover-flush path
+        assert "00:00:00,000 --> 00:00:01,000" in out
+
+    def test_to_srt_raises_when_segments_yield_empty_cues(self):
+        """Covers tts.py line 386 + 301->exit: every segment text is empty after strip."""
+        from typecast.models import TTSWithTimestampsResponse, AlignmentSegmentCharacter
+
+        resp = TTSWithTimestampsResponse(
+            audio="UklGRgAAAA==", audio_format="wav", audio_duration=1.0,
+            words=None,
+            characters=[
+                AlignmentSegmentCharacter(text="", start=0.0, end=0.5),
+                AlignmentSegmentCharacter(text="", start=0.5, end=1.0),
+            ],
+        )
+        with pytest.raises(ValueError, match="no alignment segments"):
+            resp.to_srt()
+
+    def test_to_vtt_raises_when_segments_yield_empty_cues(self):
+        """Covers tts.py line 406."""
+        from typecast.models import TTSWithTimestampsResponse, AlignmentSegmentCharacter
+
+        resp = TTSWithTimestampsResponse(
+            audio="UklGRgAAAA==", audio_format="wav", audio_duration=1.0,
+            words=None,
+            characters=[
+                AlignmentSegmentCharacter(text="", start=0.0, end=0.5),
+            ],
+        )
+        with pytest.raises(ValueError, match="no alignment segments"):
+            resp.to_vtt()

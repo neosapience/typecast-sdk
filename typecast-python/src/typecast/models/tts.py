@@ -293,13 +293,12 @@ def _group_into_cues(segments, word_mode: bool = False):
     cur_start = None
 
     def _flush(end_time):
-        if cur_text_parts:
-            if word_mode:
-                joined = " ".join(cur_text_parts).strip()
-            else:
-                joined = "".join(cur_text_parts).strip()
-            if joined:
-                cues.append((joined, cur_start, end_time))
+        if word_mode:
+            joined = " ".join(cur_text_parts).strip()
+        else:
+            joined = "".join(cur_text_parts).strip()
+        if joined:
+            cues.append((joined, cur_start, end_time))
 
     for seg in segments:
         if cur_start is None:
