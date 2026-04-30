@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import type { TTSModel, LanguageCode } from './TextToSpeech';
+import type { TTSModel } from './TextToSpeech';
 
 export interface AlignmentSegmentWord {
   text: string;
@@ -17,7 +17,7 @@ export interface TTSRequestWithTimestamps {
   voice_id: string;
   text: string;
   model: TTSModel;
-  language?: LanguageCode | string;
+  language?: string;
   prompt?: unknown;
   output?: unknown;
   seed?: number;
@@ -66,10 +66,6 @@ function pickSegments(
   }
 
   return { segments: segs, wordMode };
-}
-
-function joinParts(parts: string[], wordMode: boolean): string {
-  return wordMode ? parts.join(' ').trim() : parts.join('').trim();
 }
 
 function groupIntoCues(
