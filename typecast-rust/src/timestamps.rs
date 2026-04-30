@@ -182,54 +182,50 @@ struct Cue {
 
 /// Choose which set of segments to use for captioning, and whether word-joining
 /// (space-separated) mode applies.
+///
+/// Priority: words (≥ 2) → characters (non-empty) → words (exactly 1) → error.
 fn pick_segments(
     resp: &TTSWithTimestampsResponse,
 ) -> Result<(Vec<Segment>, bool)> {
+    let word_segs = |words: &[crate::timestamps::AlignmentSegmentWord]| -> Vec<Segment> {
+        words
+            .iter()
+            .map(|w| Segment {
+                text: w.text.clone(),
+                start: w.start,
+                end: w.end,
+            })
+            .collect()
+    };
+    let char_segs = |chars: &[crate::timestamps::AlignmentSegmentCharacter]| -> Vec<Segment> {
+        chars
+            .iter()
+            .map(|c| Segment {
+                text: c.text.clone(),
+                start: c.start,
+                end: c.end,
+            })
+            .collect()
+    };
+
     // Prefer words when there are at least 2 (single-word edge case falls through).
-    if let Some(words) = &resp.words {
-        if words.len() >= 2 {
-            let segs = words
-                .iter()
-                .map(|w| Segment {
-                    text: w.text.clone(),
-                    start: w.start,
-                    end: w.end,
-                })
-                .collect();
-            return Ok((segs, true));
-        }
-    }
+    let multi_words = resp.words.as_deref().filter(|w| w.len() >= 2);
     // Fall back to characters.
-    if let Some(chars) = &resp.characters {
-        if !chars.is_empty() {
-            let segs = chars
-                .iter()
-                .map(|c| Segment {
-                    text: c.text.clone(),
-                    start: c.start,
-                    end: c.end,
-                })
-                .collect();
-            return Ok((segs, false));
-        }
-    }
+    let chars = resp.characters.as_deref().filter(|c| !c.is_empty());
     // Single-word fallback.
-    if let Some(words) = &resp.words {
-        if words.len() == 1 {
-            let segs = words
-                .iter()
-                .map(|w| Segment {
-                    text: w.text.clone(),
-                    start: w.start,
-                    end: w.end,
-                })
-                .collect();
-            return Ok((segs, true));
-        }
+    let single_word = resp.words.as_deref().filter(|w| w.len() == 1);
+
+    if let Some(words) = multi_words {
+        Ok((word_segs(words), true))
+    } else if let Some(c) = chars {
+        Ok((char_segs(c), false))
+    } else if let Some(words) = single_word {
+        Ok((word_segs(words), true))
+    } else {
+        Err(TypecastError::CaptioningError(
+            "no alignment segments to caption from".into(),
+        ))
     }
-    Err(TypecastError::CaptioningError(
-        "no alignment segments to caption from".into(),
-    ))
 }
 
 /// Concatenate parts into a cue text.  In word mode parts are joined with a
@@ -253,69 +249,51 @@ fn ends_in_sentence(text: &str) -> bool {
 fn group_into_cues(segs: &[Segment], word_mode: bool) -> Vec<Cue> {
     let mut cues: Vec<Cue> = Vec::new();
     let mut parts: Vec<String> = Vec::new();
-    let mut cur_start: Option<f64> = None;
-    let mut last_end: Option<f64> = None;
+    // Invariant: cur_start and last_end are always set whenever parts is non-empty.
+    // Using 0.0 as default sentinels; they are only read when parts is non-empty.
+    let mut cur_start: f64 = 0.0;
+    let mut last_end: f64 = 0.0;
+
+    /// Appends a cue only when its text is non-empty.
+    fn emit(cues: &mut Vec<Cue>, text: String, start: f64, end: f64) {
+        if !text.is_empty() {
+            cues.push(Cue { text, start, end });
+        }
+    }
 
     for seg in segs {
         // If we already have content, check whether adding this segment would
         // violate a hard limit.
         if !parts.is_empty() {
-            if let (Some(cs), Some(le)) = (cur_start, last_end) {
-                let mut tentative = parts.clone();
-                tentative.push(seg.text.clone());
-                let would_be = join_parts(&tentative, word_mode);
-                let too_long_secs = (seg.end - cs) > MAX_CAPTION_SECONDS;
-                let too_long_chars = would_be.chars().count() > MAX_CAPTION_CHARS;
-                if too_long_secs || too_long_chars {
-                    // Flush the current cue before starting a new one.
-                    let text = join_parts(&parts, word_mode);
-                    if !text.is_empty() {
-                        cues.push(Cue {
-                            text,
-                            start: cs,
-                            end: le,
-                        });
-                    }
-                    parts.clear();
-                    cur_start = None;
-                }
+            let mut tentative = parts.clone();
+            tentative.push(seg.text.clone());
+            let would_be = join_parts(&tentative, word_mode);
+            let too_long_secs = (seg.end - cur_start) > MAX_CAPTION_SECONDS;
+            let too_long_chars = would_be.chars().count() > MAX_CAPTION_CHARS;
+            if too_long_secs || too_long_chars {
+                // Flush the current cue before starting a new one.
+                emit(&mut cues, join_parts(&parts, word_mode), cur_start, last_end);
+                parts.clear();
             }
         }
 
         // Record the start of a new cue.
-        if cur_start.is_none() {
-            cur_start = Some(seg.start);
+        if parts.is_empty() {
+            cur_start = seg.start;
         }
         parts.push(seg.text.clone());
-        last_end = Some(seg.end);
+        last_end = seg.end;
 
         // Break on sentence-terminating punctuation.
         if ends_in_sentence(&seg.text) {
-            let text = join_parts(&parts, word_mode);
-            if !text.is_empty() {
-                cues.push(Cue {
-                    text,
-                    start: cur_start.unwrap(),
-                    end: seg.end,
-                });
-            }
+            emit(&mut cues, join_parts(&parts, word_mode), cur_start, seg.end);
             parts.clear();
-            cur_start = None;
         }
     }
 
     // Flush any remaining parts.
     if !parts.is_empty() {
-        if let (Some(cs), Some(le)) = (cur_start, last_end) {
-            let text = join_parts(&parts, word_mode);
-            if !text.is_empty() {
-                cues.push(Cue {
-                    text,
-                    start: cs,
-                    end: le,
-                });
-            }
-        }
+        emit(&mut cues, join_parts(&parts, word_mode), cur_start, last_end);
     }
 
     cues

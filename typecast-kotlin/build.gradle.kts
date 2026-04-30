@@ -75,7 +75,9 @@ tasks.register<Test>("e2eTest") {
 val coverageExclusions = listOf(
     "**/*\$\$serializer.*",
     "**/*\$Companion.*",
-    "**/*\$Companion\$*.*"
+    "**/*\$Companion\$*.*",
+    // Example runnable classes require a real API key and are not unit-testable
+    "**/examples/**"
 )
 
 tasks.jacocoTestReport {

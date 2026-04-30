@@ -449,3 +449,256 @@ async fn client_text_to_speech_with_timestamps_propagates_server_error() {
         .unwrap_err();
     assert!(err.is_server_error());
 }
+
+#[tokio::test]
+async fn client_text_to_speech_with_timestamps_propagates_network_error() {
+    // Use a port that nobody is listening on to trigger a connection-refused send error.
+    use typecast_rust::ClientConfig;
+    let config = ClientConfig::new("test-api-key")
+        .base_url("http://127.0.0.1:1") // port 1 is always refused
+        .timeout(Duration::from_secs(2));
+    let client = TypecastClient::new(config).expect("client builds");
+    let req = TTSRequestWithTimestamps::new("tc_x", "hello", TTSModel::SsfmV30);
+    let err = client
+        .text_to_speech_with_timestamps(&req, None)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, TypecastError::HttpError(_)), "expected HttpError on connection failure, got {err:?}");
+}
+
+#[tokio::test]
+async fn client_text_to_speech_with_timestamps_propagates_bad_json() {
+    // 200 OK but body is not valid JSON → DecodeError on response.json().
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech/with-timestamps")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body("this is not json at all")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let req = TTSRequestWithTimestamps::new("tc_x", "hello", TTSModel::SsfmV30);
+    let err = client
+        .text_to_speech_with_timestamps(&req, None)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, TypecastError::DecodeError(_)), "expected DecodeError, got {err:?}");
+}
+
+// ---------------------------------------------------------------------------
+// single-word fallback (words.len() == 1, no characters)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn to_srt_single_word_fallback() {
+    use typecast_rust::timestamps::AlignmentSegmentWord;
+    let resp = TTSWithTimestampsResponse {
+        audio: "AAAA".to_string(),
+        audio_format: "wav".to_string(),
+        audio_duration: 0.5,
+        words: Some(vec![AlignmentSegmentWord {
+            text: "Hello.".to_string(),
+            start: 0.0,
+            end: 0.5,
+        }]),
+        characters: None,
+    };
+    let srt = resp.to_srt().expect("single-word SRT should succeed");
+    assert!(srt.contains("Hello."), "SRT should contain the word text");
+    assert!(srt.starts_with("1\n"), "SRT should start with cue index 1");
+}
+
+#[test]
+fn to_vtt_single_word_fallback() {
+    use typecast_rust::timestamps::AlignmentSegmentWord;
+    let resp = TTSWithTimestampsResponse {
+        audio: "AAAA".to_string(),
+        audio_format: "wav".to_string(),
+        audio_duration: 0.3,
+        words: Some(vec![AlignmentSegmentWord {
+            text: "Hi.".to_string(),
+            start: 0.0,
+            end: 0.3,
+        }]),
+        characters: None,
+    };
+    let vtt = resp.to_vtt().expect("single-word VTT should succeed");
+    assert!(vtt.starts_with("WEBVTT\n\n"), "VTT should start with WEBVTT header");
+    assert!(vtt.contains("Hi."), "VTT should contain the word text");
+}
+
+// ---------------------------------------------------------------------------
+// groupIntoCues: hard-cap flush (time-based and char-based)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn to_srt_hard_cap_by_time_produces_multiple_cues() {
+    use typecast_rust::timestamps::AlignmentSegmentWord;
+    // Words span > 7.0 s in total — triggers a time-based hard cap flush
+    let resp = TTSWithTimestampsResponse {
+        audio: "AAAA".to_string(),
+        audio_format: "wav".to_string(),
+        audio_duration: 8.0,
+        words: Some(vec![
+            AlignmentSegmentWord { text: "Word1".to_string(), start: 0.0, end: 2.0 },
+            AlignmentSegmentWord { text: "Word2".to_string(), start: 2.0, end: 4.0 },
+            AlignmentSegmentWord { text: "Word3".to_string(), start: 4.0, end: 6.0 },
+            // Adding Word4 with end=8.0 makes span (8.0 - 0.0) = 8.0 > 7.0
+            AlignmentSegmentWord { text: "Word4".to_string(), start: 6.0, end: 8.0 },
+        ]),
+        characters: None,
+    };
+    let srt = resp.to_srt().expect("hard-cap SRT should succeed");
+    // Should have at least cue index "2"
+    assert!(srt.contains("2\n"), "expected at least 2 cues after time hard-cap:\n{srt}");
+}
+
+#[test]
+fn to_srt_hard_cap_by_chars_produces_multiple_cues() {
+    use typecast_rust::timestamps::AlignmentSegmentWord;
+    // 4 × "AAAAAAAAAA" joined with spaces = 43 chars > MAX_CAPTION_CHARS=42
+    let resp = TTSWithTimestampsResponse {
+        audio: "AAAA".to_string(),
+        audio_format: "wav".to_string(),
+        audio_duration: 2.0,
+        words: Some(vec![
+            AlignmentSegmentWord { text: "AAAAAAAAAA".to_string(), start: 0.0, end: 0.5 },
+            AlignmentSegmentWord { text: "AAAAAAAAAA".to_string(), start: 0.5, end: 1.0 },
+            AlignmentSegmentWord { text: "AAAAAAAAAA".to_string(), start: 1.0, end: 1.5 },
+            AlignmentSegmentWord { text: "AAAAAAAAAA".to_string(), start: 1.5, end: 2.0 },
+        ]),
+        characters: None,
+    };
+    let srt = resp.to_srt().expect("char hard-cap SRT should succeed");
+    assert!(srt.contains("2\n"), "expected at least 2 cues after char hard-cap:\n{srt}");
+}
+
+// ---------------------------------------------------------------------------
+// groupIntoCues: final flush without sentence terminator
+// ---------------------------------------------------------------------------
+
+#[test]
+fn to_srt_final_flush_without_sentence_terminator() {
+    use typecast_rust::timestamps::AlignmentSegmentWord;
+    // Words without sentence terminator — tests the trailing flush
+    let resp = TTSWithTimestampsResponse {
+        audio: "AAAA".to_string(),
+        audio_format: "wav".to_string(),
+        audio_duration: 1.0,
+        words: Some(vec![
+            AlignmentSegmentWord { text: "Hello".to_string(), start: 0.0, end: 0.5 },
+            AlignmentSegmentWord { text: "World".to_string(), start: 0.5, end: 1.0 },
+        ]),
+        characters: None,
+    };
+    let srt = resp.to_srt().expect("final flush SRT should succeed");
+    assert!(srt.contains("Hello World"), "SRT should contain the joined text");
+    // Only one cue (no sentence split)
+    assert!(!srt.contains("2\n"), "expected exactly 1 cue");
+}
+
+// ---------------------------------------------------------------------------
+// format_captions: empty cues path (all segment text is empty)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn to_srt_all_empty_text_segments_errors() {
+    use typecast_rust::timestamps::AlignmentSegmentWord;
+    let resp = TTSWithTimestampsResponse {
+        audio: "AAAA".to_string(),
+        audio_format: "wav".to_string(),
+        audio_duration: 1.0,
+        words: Some(vec![
+            AlignmentSegmentWord { text: "".to_string(), start: 0.0, end: 0.5 },
+            AlignmentSegmentWord { text: "".to_string(), start: 0.5, end: 1.0 },
+        ]),
+        characters: None,
+    };
+    let err = resp.to_srt().unwrap_err();
+    assert!(
+        matches!(err, TypecastError::CaptioningError(_)),
+        "expected CaptioningError, got {:?}",
+        err
+    );
+}
+
+#[test]
+fn to_vtt_all_empty_text_segments_errors() {
+    use typecast_rust::timestamps::AlignmentSegmentWord;
+    let resp = TTSWithTimestampsResponse {
+        audio: "AAAA".to_string(),
+        audio_format: "wav".to_string(),
+        audio_duration: 1.0,
+        words: Some(vec![
+            AlignmentSegmentWord { text: "".to_string(), start: 0.0, end: 0.5 },
+            AlignmentSegmentWord { text: "".to_string(), start: 0.5, end: 1.0 },
+        ]),
+        characters: None,
+    };
+    let err = resp.to_vtt().unwrap_err();
+    assert!(
+        matches!(err, TypecastError::CaptioningError(_)),
+        "expected CaptioningError, got {:?}",
+        err
+    );
+}
+
+// ---------------------------------------------------------------------------
+// save_audio and audio_bytes
+// ---------------------------------------------------------------------------
+
+#[test]
+fn save_audio_writes_to_file() {
+    let path = std::env::temp_dir().join("typecast_rust_test_save_audio.wav");
+    let resp = TTSWithTimestampsResponse {
+        // "AAAA" decodes to 3 zero bytes
+        audio: "AAAA".to_string(),
+        audio_format: "wav".to_string(),
+        audio_duration: 0.0,
+        words: None,
+        characters: None,
+    };
+    resp.save_audio(&path).expect("save_audio should succeed");
+    assert!(path.exists(), "output file should exist");
+    let bytes = std::fs::read(&path).unwrap();
+    assert_eq!(bytes.len(), 3, "decoded 'AAAA' should be 3 bytes");
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn save_audio_propagates_decode_error() {
+    // When audio contains invalid base64, save_audio must propagate the error.
+    let path = std::env::temp_dir().join("typecast_rust_test_save_audio_error.wav");
+    let resp = TTSWithTimestampsResponse {
+        audio: "!!!invalid-base64!!!".to_string(),
+        audio_format: "wav".to_string(),
+        audio_duration: 0.0,
+        words: None,
+        characters: None,
+    };
+    assert!(
+        resp.save_audio(&path).is_err(),
+        "save_audio should propagate audio_bytes() decode error"
+    );
+}
+
+#[test]
+fn save_audio_propagates_write_error() {
+    // Writing to a nonexistent directory should cause fs::write to fail.
+    let path = std::env::temp_dir()
+        .join("typecast_rust_nonexistent_dir_xyzzy_12345")
+        .join("output.wav");
+    let resp = TTSWithTimestampsResponse {
+        audio: "AAAA".to_string(), // valid base64
+        audio_format: "wav".to_string(),
+        audio_duration: 0.0,
+        words: None,
+        characters: None,
+    };
+    assert!(
+        resp.save_audio(&path).is_err(),
+        "save_audio should propagate fs::write error when parent dir does not exist"
+    );
+}

@@ -123,6 +123,10 @@
                         <phase>verify</phase>
                         <goals><goal>check</goal></goals>
                         <configuration>
+                            <excludes>
+                                <!-- Example runnable classes require real API keys; excluded from coverage gate -->
+                                <exclude>com/neosapience/examples/**</exclude>
+                            </excludes>
                             <rules>
                                 <rule>
                                     <element>BUNDLE</element>

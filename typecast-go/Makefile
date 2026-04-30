@@ -10,7 +10,7 @@ test: ## Run unit tests
 	go test ./...
 
 coverage: ## Run unit tests with 100% coverage gate
-	go test -coverprofile=coverage.out -covermode=atomic ./...
+	go test -coverprofile=coverage.out -covermode=atomic -coverpkg=github.com/neosapience/typecast-sdk/typecast-go .
 	go tool cover -func=coverage.out
 	@total=$$(go tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | tr -d '%'); \
 	echo "total coverage: $$total%"; \

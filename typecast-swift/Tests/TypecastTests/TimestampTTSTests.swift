@@ -292,6 +292,76 @@ final class TimestampTTSTests: XCTestCase {
         XCTAssertEqual(cues[1].text, "Second")
     }
 
+    // MARK: - AlignmentSegment direct init tests
+
+    func testAlignmentSegmentWordInit() {
+        // Directly invoking AlignmentSegmentWord.init() covers those lines in TimestampsModels.swift.
+        let word = AlignmentSegmentWord(text: "hello", start: 0.1, end: 0.5)
+        XCTAssertEqual(word.text, "hello")
+        XCTAssertEqual(word.start, 0.1, accuracy: 0.001)
+        XCTAssertEqual(word.end, 0.5, accuracy: 0.001)
+    }
+
+    func testAlignmentSegmentCharacterInit() {
+        // Directly invoking AlignmentSegmentCharacter.init() covers those lines in TimestampsModels.swift.
+        let char = AlignmentSegmentCharacter(text: "h", start: 0.0, end: 0.1)
+        XCTAssertEqual(char.text, "h")
+        XCTAssertEqual(char.start, 0.0, accuracy: 0.001)
+        XCTAssertEqual(char.end, 0.1, accuracy: 0.001)
+    }
+
+    // MARK: - pickSegments single-word fallback
+
+    func testToSrtSingleWordFallback() throws {
+        // words.count == 1, characters == nil → pickSegments() takes the third branch.
+        let resp = TTSWithTimestampsResponse(
+            audio: Data([0x52, 0x49, 0x46, 0x46]).base64EncodedString(),
+            audioFormat: "wav",
+            audioDuration: 0.5,
+            words: [AlignmentSegmentWord(text: "Hello.", start: 0.0, end: 0.5)],
+            characters: nil
+        )
+        let srt = try resp.toSrt()
+        XCTAssertTrue(srt.contains("Hello."), "SRT should contain the single word")
+    }
+
+    // MARK: - toSrt/toVtt guard !cues.isEmpty path
+
+    func testToSrtAllEmptySegmentsThrows() throws {
+        // pickSegments() succeeds (returns 2 empty-text word segments), but groupIntoCues()
+        // produces no cues because emitCue() skips empty text — so toSrt() throws noAlignmentSegments.
+        let resp = TTSWithTimestampsResponse(
+            audio: Data([0x00]).base64EncodedString(),
+            audioFormat: "wav",
+            audioDuration: 1.0,
+            words: [
+                AlignmentSegmentWord(text: "", start: 0.0, end: 0.5),
+                AlignmentSegmentWord(text: "", start: 0.5, end: 1.0),
+            ],
+            characters: nil
+        )
+        XCTAssertThrowsError(try resp.toSrt()) { error in
+            XCTAssertEqual(error as? TimestampError, .noAlignmentSegments)
+        }
+    }
+
+    func testToVttAllEmptySegmentsThrows() throws {
+        // Same as above but exercises the guard in toVtt().
+        let resp = TTSWithTimestampsResponse(
+            audio: Data([0x00]).base64EncodedString(),
+            audioFormat: "wav",
+            audioDuration: 1.0,
+            words: [
+                AlignmentSegmentWord(text: "", start: 0.0, end: 0.5),
+                AlignmentSegmentWord(text: "", start: 0.5, end: 1.0),
+            ],
+            characters: nil
+        )
+        XCTAssertThrowsError(try resp.toVtt()) { error in
+            XCTAssertEqual(error as? TimestampError, .noAlignmentSegments)
+        }
+    }
+
     // MARK: - Client HTTP mock tests
 
     private let baseURL = "https://test.typecast.local"

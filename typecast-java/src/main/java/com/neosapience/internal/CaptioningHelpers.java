@@ -95,15 +95,28 @@ public final class CaptioningHelpers {
      * TODO(TASK-12430-followup): expose max_seconds / max_chars override to match Python/JS API surface. Default 7.0s / 42 chars (BBC/Netflix guideline).
      * TODO(TASK-12430-followup): warn or error when alignment array contains majority-empty text segments — server contract should never produce these but defense-in-depth is desirable.
      */
+    /**
+     * Appends a cue to {@code cues} when {@code text} is non-empty (guards against
+     * all-whitespace / all-empty alignment segments producing blank cues).
+     */
+    private static void emitCue(List<Cue> cues, String text, double start, double end) {
+        if (!text.isEmpty()) {
+            cues.add(new Cue(text, start, end));
+        }
+    }
+
     public static List<Cue> groupIntoCues(List<Segment> segs, boolean wordMode) {
         List<Cue> cues = new ArrayList<>();
         List<String> parts = new ArrayList<>();
-        Double curStart = null;
-        Double lastEnd = null;
+        // Invariant: curStart and lastEnd are always in sync with parts —
+        // they are set whenever a segment is appended and cleared with parts.
+        // Using 0.0 as the sentinel default; they are only read after parts is non-empty.
+        double curStart = 0.0;
+        double lastEnd = 0.0;
 
         for (Segment seg : segs) {
             // Hard-cap pre-check: only when cue already has content.
-            if (!parts.isEmpty() && curStart != null && lastEnd != null) {
+            if (!parts.isEmpty()) {
                 List<String> tentative = new ArrayList<>(parts);
                 tentative.add(seg.text);
                 String wouldBeText = joinParts(tentative, wordMode);
@@ -111,16 +124,12 @@ public final class CaptioningHelpers {
                 int cpCount = wouldBeText.codePointCount(0, wouldBeText.length());
                 boolean wouldExceedChars = cpCount > MAX_CAPTION_CHARS;
                 if (wouldExceedSeconds || wouldExceedChars) {
-                    String text = joinParts(parts, wordMode);
-                    if (!text.isEmpty()) {
-                        cues.add(new Cue(text, curStart, lastEnd));
-                    }
+                    emitCue(cues, joinParts(parts, wordMode), curStart, lastEnd);
                     parts.clear();
-                    curStart = null;
                 }
             }
 
-            if (curStart == null) {
+            if (parts.isEmpty()) {
                 curStart = seg.start;
             }
             parts.add(seg.text);
@@ -128,21 +137,14 @@ public final class CaptioningHelpers {
 
             // Sentence-terminator flush: after appending.
             if (endsInSentence(seg.text)) {
-                String text = joinParts(parts, wordMode);
-                if (!text.isEmpty()) {
-                    cues.add(new Cue(text, curStart, seg.end));
-                }
+                emitCue(cues, joinParts(parts, wordMode), curStart, seg.end);
                 parts.clear();
-                curStart = null;
             }
         }
 
         // Flush remaining parts.
-        if (!parts.isEmpty() && lastEnd != null) {
-            String text = joinParts(parts, wordMode);
-            if (!text.isEmpty()) {
-                cues.add(new Cue(text, curStart, lastEnd));
-            }
+        if (!parts.isEmpty()) {
+            emitCue(cues, joinParts(parts, wordMode), curStart, lastEnd);
         }
 
         return cues;

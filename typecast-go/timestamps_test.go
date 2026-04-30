@@ -248,3 +248,219 @@ func TestTextToSpeechWithTimestamps_NilRequest(t *testing.T) {
 		t.Errorf("expected 'nil' in error message, got: %v", err)
 	}
 }
+
+func TestTextToSpeechWithTimestamps_5xxError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"detail":"boom"}`))
+	}))
+	defer server.Close()
+
+	c := newTestClient(server, "k")
+	req := &TTSRequestWithTimestamps{VoiceID: "tc_x", Text: "Hi", Model: ModelSSFMV30}
+	_, err := c.TextToSpeechWithTimestamps(context.Background(), req, "")
+	if err == nil {
+		t.Fatal("expected error on 500")
+	}
+}
+
+func TestTextToSpeechWithTimestamps_BadJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`not-valid-json`))
+	}))
+	defer server.Close()
+
+	c := newTestClient(server, "k")
+	req := &TTSRequestWithTimestamps{VoiceID: "tc_x", Text: "Hi", Model: ModelSSFMV30}
+	_, err := c.TextToSpeechWithTimestamps(context.Background(), req, "")
+	if err == nil {
+		t.Fatal("expected decode error for invalid JSON")
+	}
+}
+
+// --- Validate() coverage ---
+
+func TestValidate_NilRequest(t *testing.T) {
+	var r *TTSRequestWithTimestamps
+	err := r.Validate()
+	if err == nil {
+		t.Fatal("expected error for nil receiver")
+	}
+}
+
+func TestValidate_MissingModel(t *testing.T) {
+	r := &TTSRequestWithTimestamps{VoiceID: "tc_x", Text: "hi"}
+	if err := r.Validate(); err == nil {
+		t.Fatal("expected error for missing model")
+	}
+}
+
+func TestValidate_InvalidOutput(t *testing.T) {
+	vol := 300 // out of range 0-200
+	r := &TTSRequestWithTimestamps{
+		VoiceID: "tc_x",
+		Text:    "hi",
+		Model:   ModelSSFMV30,
+		Output:  &Output{Volume: &vol},
+	}
+	if err := r.Validate(); err == nil {
+		t.Fatal("expected error for invalid output volume")
+	}
+}
+
+func TestValidate_EmptyText(t *testing.T) {
+	r := &TTSRequestWithTimestamps{VoiceID: "tc_x", Text: "", Model: ModelSSFMV30}
+	if err := r.Validate(); err == nil {
+		t.Fatal("expected error for empty text")
+	}
+}
+
+func TestTextToSpeechWithTimestamps_ValidationError(t *testing.T) {
+	// Request is non-nil but fails Validate() (empty VoiceID)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("server should not be called when validation fails")
+	}))
+	defer server.Close()
+
+	c := newTestClient(server, "k")
+	req := &TTSRequestWithTimestamps{VoiceID: "", Text: "Hi", Model: ModelSSFMV30}
+	_, err := c.TextToSpeechWithTimestamps(context.Background(), req, "")
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+}
+
+func TestTextToSpeechWithTimestamps_NetworkError(t *testing.T) {
+	// Use a closed server to trigger a network-level error
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	url := server.URL
+	server.Close() // Close before request
+
+	c := newTestClient(server, "k")
+	// Override the base URL to point to the closed server
+	c = NewClient(&ClientConfig{APIKey: "k", BaseURL: url})
+	req := &TTSRequestWithTimestamps{VoiceID: "tc_x", Text: "Hi", Model: ModelSSFMV30}
+	_, err := c.TextToSpeechWithTimestamps(context.Background(), req, "")
+	if err == nil {
+		t.Fatal("expected network error")
+	}
+}
+
+// --- SaveAudio error path ---
+
+func TestSaveAudio_BadBase64(t *testing.T) {
+	resp := &TTSWithTimestampsResponse{
+		Audio:       "!!!not-valid-base64!!!",
+		AudioFormat: AudioFormatWAV,
+	}
+	if err := resp.SaveAudio(t.TempDir() + "/out.wav"); err == nil {
+		t.Fatal("expected error for invalid base64")
+	}
+}
+
+// --- ToSRT / ToVTT error paths ---
+
+func TestToVTT_NoAlignmentSegments(t *testing.T) {
+	resp := &TTSWithTimestampsResponse{
+		Audio:         "UklGRgAAAA==",
+		AudioFormat:   AudioFormatWAV,
+		AudioDuration: 0,
+	}
+	if _, err := resp.ToVTT(); err == nil {
+		t.Fatal("expected error for missing arrays")
+	}
+}
+
+// --- pickSegments: single-word fallback ---
+
+func TestPickSegments_SingleWordFallback(t *testing.T) {
+	resp := &TTSWithTimestampsResponse{
+		Audio:       "AAAA",
+		AudioFormat: AudioFormatWAV,
+		Words:       []AlignmentSegmentWord{{Text: "Hello.", Start: 0.0, End: 0.5}},
+	}
+	srt, err := resp.ToSRT()
+	if err != nil {
+		t.Fatalf("ToSRT with single word: %v", err)
+	}
+	if !strings.Contains(srt, "Hello.") {
+		t.Errorf("expected 'Hello.' in SRT, got: %s", srt)
+	}
+}
+
+// --- groupIntoCues: hard-cap flush (time-based) ---
+
+func TestGroupIntoCues_HardCapByTime(t *testing.T) {
+	// Segments spanning > 7.0s in total — should produce >= 2 cues
+	resp := &TTSWithTimestampsResponse{
+		Audio:       "AAAA",
+		AudioFormat: AudioFormatWAV,
+		Words: []AlignmentSegmentWord{
+			{Text: "Word1", Start: 0.0, End: 2.0},
+			{Text: "Word2", Start: 2.0, End: 4.0},
+			{Text: "Word3", Start: 4.0, End: 6.0},
+			// Adding Word4 at end=8.0 makes span 8.0 > maxCaptionSeconds=7.0
+			{Text: "Word4", Start: 6.0, End: 8.0},
+		},
+	}
+	srt, err := resp.ToSRT()
+	if err != nil {
+		t.Fatalf("ToSRT hard-cap: %v", err)
+	}
+	// With a hard-cap flush, should produce cue index "2"
+	if !strings.Contains(srt, "2\n") {
+		t.Errorf("expected at least 2 cues (time hard-cap), got:\n%s", srt)
+	}
+}
+
+// --- groupIntoCues: hard-cap flush (char-based) ---
+
+func TestGroupIntoCues_HardCapByChars(t *testing.T) {
+	// 4 * "AAAAAAAAAA" joined with spaces = 43 chars > 42 limit
+	resp := &TTSWithTimestampsResponse{
+		Audio:       "AAAA",
+		AudioFormat: AudioFormatWAV,
+		Words: []AlignmentSegmentWord{
+			{Text: "AAAAAAAAAA", Start: 0.0, End: 0.5},
+			{Text: "AAAAAAAAAA", Start: 0.5, End: 1.0},
+			{Text: "AAAAAAAAAA", Start: 1.0, End: 1.5},
+			{Text: "AAAAAAAAAA", Start: 1.5, End: 2.0},
+		},
+	}
+	srt, err := resp.ToSRT()
+	if err != nil {
+		t.Fatalf("ToSRT char hard-cap: %v", err)
+	}
+	if !strings.Contains(srt, "2\n") {
+		t.Errorf("expected at least 2 cues (char hard-cap), got:\n%s", srt)
+	}
+}
+
+// --- ToSRT / ToVTT: empty cues after grouping ---
+
+func TestToSRT_AllEmptyTextSegments(t *testing.T) {
+	// All word text is empty; groupIntoCues produces zero non-empty cues
+	resp := &TTSWithTimestampsResponse{
+		Audio:       "AAAA",
+		AudioFormat: AudioFormatWAV,
+		Words:       []AlignmentSegmentWord{{Text: "", Start: 0.0, End: 0.5}, {Text: "", Start: 0.5, End: 1.0}},
+	}
+	_, err := resp.ToSRT()
+	if err == nil {
+		t.Fatal("expected error when all segments produce empty text")
+	}
+}
+
+func TestToVTT_AllEmptyTextSegments(t *testing.T) {
+	resp := &TTSWithTimestampsResponse{
+		Audio:       "AAAA",
+		AudioFormat: AudioFormatWAV,
+		Words:       []AlignmentSegmentWord{{Text: "", Start: 0.0, End: 0.5}, {Text: "", Start: 0.5, End: 1.0}},
+	}
+	_, err := resp.ToVTT()
+	if err == nil {
+		t.Fatal("expected error when all segments produce empty text")
+	}
+}

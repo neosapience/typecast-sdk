@@ -505,4 +505,196 @@ class TimestampTTSTest {
         String body = recorded.getBody().readUtf8();
         assertTrue(body.contains("\"output\":{}"));
     }
+
+    // -----------------------------------------------------------------------
+    // Single-word fallback: words.size() == 1, no characters
+    // -----------------------------------------------------------------------
+
+    @Test
+    void toSrt_singleWordFallback() {
+        // words list has exactly 1 element, characters is null
+        AlignmentSegmentWord w = new AlignmentSegmentWord("Hello.", 0.0, 0.5);
+        TTSWithTimestampsResponse resp = new TTSWithTimestampsResponse(
+                "AAAA", "wav", 0.5,
+                java.util.Collections.singletonList(w),
+                null);
+        String srt = resp.toSrt();
+        assertTrue(srt.contains("Hello."), "single-word SRT should contain the word text");
+        assertTrue(srt.startsWith("1\n"), "SRT should start with cue index 1");
+    }
+
+    @Test
+    void toVtt_singleWordFallback() {
+        AlignmentSegmentWord w = new AlignmentSegmentWord("Hi.", 0.0, 0.3);
+        TTSWithTimestampsResponse resp = new TTSWithTimestampsResponse(
+                "AAAA", "wav", 0.3,
+                java.util.Collections.singletonList(w),
+                null);
+        String vtt = resp.toVtt();
+        assertTrue(vtt.startsWith("WEBVTT\n\n"), "VTT should start with WEBVTT header");
+        assertTrue(vtt.contains("Hi."), "single-word VTT should contain the word text");
+    }
+
+    @Test
+    void toSrt_charactersOnlyFallback() {
+        // words is null, characters has entries — exercises the characters branch
+        AlignmentSegmentCharacter c1 = new AlignmentSegmentCharacter("H", 0.0, 0.1);
+        AlignmentSegmentCharacter c2 = new AlignmentSegmentCharacter("i.", 0.1, 0.3);
+        TTSWithTimestampsResponse resp = new TTSWithTimestampsResponse(
+                "AAAA", "wav", 0.3,
+                null,
+                java.util.Arrays.asList(c1, c2));
+        String srt = resp.toSrt();
+        assertTrue(srt.contains("Hi."), "char-only SRT should contain joined text");
+    }
+
+    @Test
+    void toSrt_emptyCuesFromAllEmptySegments_throws() {
+        // All word text is empty; groupIntoCues returns empty list → throws IllegalStateException
+        AlignmentSegmentWord w1 = new AlignmentSegmentWord("", 0.0, 0.5);
+        AlignmentSegmentWord w2 = new AlignmentSegmentWord("", 0.5, 1.0);
+        TTSWithTimestampsResponse resp = new TTSWithTimestampsResponse(
+                "AAAA", "wav", 1.0,
+                java.util.Arrays.asList(w1, w2),
+                null);
+        assertThrows(IllegalStateException.class, resp::toSrt);
+    }
+
+    @Test
+    void toVtt_emptyCuesFromAllEmptySegments_throws() {
+        AlignmentSegmentWord w1 = new AlignmentSegmentWord("", 0.0, 0.5);
+        AlignmentSegmentWord w2 = new AlignmentSegmentWord("", 0.5, 1.0);
+        TTSWithTimestampsResponse resp = new TTSWithTimestampsResponse(
+                "AAAA", "wav", 1.0,
+                java.util.Arrays.asList(w1, w2),
+                null);
+        assertThrows(IllegalStateException.class, resp::toVtt);
+    }
+
+    @Test
+    void toSrt_nullWordsEmptyCharacters_throws() {
+        // words=null, characters=[] (non-null but empty) — covers characters.size() >= 1 false branch
+        // Falls through all else-if branches to the else-throw
+        TTSWithTimestampsResponse resp = new TTSWithTimestampsResponse(
+                "AAAA", "wav", 1.0,
+                null,
+                java.util.Collections.emptyList());
+        assertThrows(IllegalStateException.class, resp::toSrt);
+    }
+
+    @Test
+    void toSrt_emptyWordsList_throws() {
+        // words=[] (non-null but empty, size=0), characters=null — covers words.size() == 1 false branch
+        // Falls through all else-if branches to the else-throw
+        TTSWithTimestampsResponse resp = new TTSWithTimestampsResponse(
+                "AAAA", "wav", 1.0,
+                java.util.Collections.emptyList(),
+                null);
+        assertThrows(IllegalStateException.class, resp::toSrt);
+    }
+
+    // -----------------------------------------------------------------------
+    // TTSRequestWithTimestamps constructor null checks
+    // -----------------------------------------------------------------------
+
+    @Test
+    void ttsRequestWithTimestamps_nullVoiceId_throws() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new TTSRequestWithTimestamps(null, "text", TTSModel.SSFM_V30));
+    }
+
+    @Test
+    void ttsRequestWithTimestamps_blankVoiceId_throws() {
+        // Covers the isBlank() branch (voiceId != null but blank)
+        assertThrows(IllegalArgumentException.class,
+                () -> new TTSRequestWithTimestamps("  ", "text", TTSModel.SSFM_V30));
+    }
+
+    @Test
+    void ttsRequestWithTimestamps_nullText_throws() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new TTSRequestWithTimestamps("voice", null, TTSModel.SSFM_V30));
+    }
+
+    @Test
+    void ttsRequestWithTimestamps_blankText_throws() {
+        // Covers the isBlank() branch (text != null but blank)
+        assertThrows(IllegalArgumentException.class,
+                () -> new TTSRequestWithTimestamps("voice", "   ", TTSModel.SSFM_V30));
+    }
+
+    // -----------------------------------------------------------------------
+    // CaptioningHelpers: hard-cap flush (time-based and char-based)
+    // -----------------------------------------------------------------------
+
+    @Test
+    void groupIntoCues_hardCapByTime_flushesAtLimit() {
+        // Build a sequence where the total span would exceed 7.0 s
+        java.util.List<com.neosapience.internal.CaptioningHelpers.Segment> segs = new java.util.ArrayList<>();
+        // First group: 4 words spanning 0 -> 6.9 s (just under limit alone)
+        segs.add(new com.neosapience.internal.CaptioningHelpers.Segment("Word1", 0.0, 1.5));
+        segs.add(new com.neosapience.internal.CaptioningHelpers.Segment("Word2", 1.5, 3.0));
+        segs.add(new com.neosapience.internal.CaptioningHelpers.Segment("Word3", 3.0, 5.0));
+        // Adding Word4 at 5.0 -> 8.0 would make span (8.0 - 0.0) = 8.0 > 7.0 => flush before
+        segs.add(new com.neosapience.internal.CaptioningHelpers.Segment("Word4", 5.0, 8.0));
+        java.util.List<com.neosapience.internal.CaptioningHelpers.Cue> cues =
+                com.neosapience.internal.CaptioningHelpers.groupIntoCues(segs, true);
+        // Should have split into at least 2 cues due to time cap
+        assertTrue(cues.size() >= 2, "expected at least 2 cues after time-based hard cap");
+    }
+
+    @Test
+    void groupIntoCues_hardCapByChars_flushesAtLimit() {
+        // Build segments that would exceed 42 chars if joined
+        java.util.List<com.neosapience.internal.CaptioningHelpers.Segment> segs = new java.util.ArrayList<>();
+        // Each word is 10 chars; 4 words = "AAAAAAAAAA AAAAAAAAAA AAAAAAAAAA AAAAAAAAAA" = 43 chars => flush
+        for (int i = 0; i < 4; i++) {
+            segs.add(new com.neosapience.internal.CaptioningHelpers.Segment(
+                    "AAAAAAAAAA", i * 0.5, (i + 1) * 0.5));
+        }
+        java.util.List<com.neosapience.internal.CaptioningHelpers.Cue> cues =
+                com.neosapience.internal.CaptioningHelpers.groupIntoCues(segs, true);
+        assertTrue(cues.size() >= 2, "expected at least 2 cues after char-count hard cap");
+    }
+
+    @Test
+    void groupIntoCues_finalFlushWithoutSentenceTerminator() {
+        // Segments that do not end in a sentence terminator — tests the trailing flush
+        java.util.List<com.neosapience.internal.CaptioningHelpers.Segment> segs = java.util.Arrays.asList(
+                new com.neosapience.internal.CaptioningHelpers.Segment("Hello", 0.0, 0.5),
+                new com.neosapience.internal.CaptioningHelpers.Segment("World", 0.5, 1.0)
+        );
+        java.util.List<com.neosapience.internal.CaptioningHelpers.Cue> cues =
+                com.neosapience.internal.CaptioningHelpers.groupIntoCues(segs, true);
+        assertEquals(1, cues.size(), "expected a single cue flushed at the end");
+        assertEquals("Hello World", cues.get(0).text);
+    }
+
+    @Test
+    void groupIntoCues_emptyTextSegmentsSkipped() {
+        // When text is empty the flush guard should prevent empty cues
+        java.util.List<com.neosapience.internal.CaptioningHelpers.Segment> segs = java.util.Arrays.asList(
+                new com.neosapience.internal.CaptioningHelpers.Segment("", 0.0, 0.5),
+                new com.neosapience.internal.CaptioningHelpers.Segment("Word", 0.5, 1.0)
+        );
+        java.util.List<com.neosapience.internal.CaptioningHelpers.Cue> cues =
+                com.neosapience.internal.CaptioningHelpers.groupIntoCues(segs, true);
+        // Should still produce a cue for "Word"
+        assertFalse(cues.isEmpty(), "expected at least one cue");
+    }
+
+    @Test
+    void groupIntoCues_hardCapWithEmptyTextDoesNotAddCue() {
+        // First segment has empty text, second triggers time-based hard cap.
+        // When the hard-cap pre-check fires, joinParts([""], wordMode)="" — the empty-text
+        // guard on line 115 prevents adding an empty cue (covers the if(!text.isEmpty()) false branch).
+        java.util.List<com.neosapience.internal.CaptioningHelpers.Segment> segs = java.util.Arrays.asList(
+                new com.neosapience.internal.CaptioningHelpers.Segment("", 0.0, 0.5),
+                new com.neosapience.internal.CaptioningHelpers.Segment("", 0.5, 8.0)
+        );
+        java.util.List<com.neosapience.internal.CaptioningHelpers.Cue> cues =
+                com.neosapience.internal.CaptioningHelpers.groupIntoCues(segs, true);
+        // Both segments have empty text; no non-empty cue can be formed
+        assertTrue(cues.isEmpty(), "expected no cues when all text is empty");
+    }
 }

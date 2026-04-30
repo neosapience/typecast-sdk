@@ -862,10 +862,13 @@ static void test_http_invalid_json(void) {
     typecast_client_destroy(client);
 }
 
-/* Test: granularity is sent in the request body */
+/* Test: granularity is sent as a query parameter in the request URL */
 static void test_http_granularity_field(void) {
     TypecastClient* client = mini_new_client();
     ASSERT_NOT_NULL(client);
+
+    /* Reset path to avoid false positives */
+    g_mock.last_path[0] = '\0';
 
     /* Serve the same simple response */
     mini_mock_enqueue_json(200, build_word_only_response_json());
@@ -881,8 +884,8 @@ static void test_http_granularity_field(void) {
     ASSERT(rc == TYPECAST_OK);
     ASSERT_NOT_NULL(resp);
 
-    /* Check that the last request body contained "granularity" */
-    ASSERT(strstr(g_mock.last_body, "granularity") != NULL);
+    /* granularity is sent as a query parameter, not in the JSON body */
+    ASSERT(strstr(g_mock.last_path, "granularity") != NULL);
 
     typecast_tts_with_timestamps_response_free(resp);
     typecast_client_destroy(client);
