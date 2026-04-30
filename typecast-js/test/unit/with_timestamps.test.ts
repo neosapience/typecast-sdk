@@ -1,10 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   WithTimestampsResult,
   type TTSWithTimestampsResponse,
 } from '../../src/types/Timestamps';
+import { TypecastClient } from '../../src/client';
+import { TypecastAPIError } from '../../src/errors';
 
 const FIX = resolve(__dirname, '../../../test-fixtures/with-timestamps');
 const load = (n: string): TTSWithTimestampsResponse =>
@@ -59,5 +61,65 @@ describe('WithTimestampsResult — SRT/VTT byte-equivalence', () => {
       characters: null,
     });
     expect(() => result.toSrt()).toThrow(/no alignment segments/);
+  });
+});
+
+const mockFetch = vi.fn();
+vi.stubGlobal('fetch', mockFetch);
+
+describe('TypecastClient.textToSpeechWithTimestamps', () => {
+  let client: TypecastClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    client = new TypecastClient({ baseHost: 'https://dummy-api.ai', apiKey: 'k' });
+  });
+
+  it('calls /v1/text-to-speech/with-timestamps without granularity', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => load('both'),
+    });
+    const result = await client.textToSpeechWithTimestamps({
+      voice_id: 'tc_x', text: 'Hi', model: 'ssfm-v30',
+    });
+    expect(result.toSrt()).toBe(loadText('both.srt'));
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toBe('https://dummy-api.ai/v1/text-to-speech/with-timestamps');
+  });
+
+  it('appends granularity query', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true, status: 200,
+      headers: new Headers(), json: async () => load('word_only'),
+    });
+    await client.textToSpeechWithTimestamps(
+      { voice_id: 'tc_x', text: 'Hi', model: 'ssfm-v30' },
+      { granularity: 'word' },
+    );
+    const url = mockFetch.mock.calls[0][0] as string;
+    expect(url).toBe('https://dummy-api.ai/v1/text-to-speech/with-timestamps?granularity=word');
+  });
+
+  it('rejects invalid granularity', async () => {
+    await expect(
+      client.textToSpeechWithTimestamps(
+        { voice_id: 'tc_x', text: 'Hi', model: 'ssfm-v30' },
+        // @ts-expect-error invalid value
+        { granularity: 'words' },
+      ),
+    ).rejects.toThrow(/granularity/);
+  });
+
+  it('maps 402 to TypecastAPIError', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false, status: 402, statusText: 'Payment Required',
+      json: async () => ({ detail: 'Insufficient credit' }),
+    });
+    await expect(
+      client.textToSpeechWithTimestamps({ voice_id: 'tc_x', text: 'Hi', model: 'ssfm-v30' }),
+    ).rejects.toThrow(TypecastAPIError);
   });
 });
