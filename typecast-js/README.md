@@ -28,6 +28,7 @@ Convert text to lifelike speech using AI-powered voices
   - [Text to Speech](#text-to-speech)
   - [Voice Discovery](#voice-discovery)
   - [Emotion Control](#emotion-control)
+  - [Timestamp TTS](#timestamp-tts)
 - [Supported Languages](#supported-languages)
 - [Error Handling](#error-handling)
 - [TypeScript Support](#typescript-support)
@@ -234,6 +235,33 @@ const audio = await client.textToSpeech({
   } as SmartPrompt
 });
 ```
+
+### Timestamp TTS
+
+Use `textToSpeechWithTimestamps()` to receive base64 audio plus
+word/character-level timestamps aligned with the synthesized speech. The
+result object exposes `saveAudio()`, `toSrt()`, and `toVtt()` helpers so
+you can finish the typical "audio + subtitles" flow in one line.
+
+```typescript
+import { TypecastClient } from '@neosapience/typecast-js';
+
+const client = new TypecastClient({ apiKey: 'YOUR_API_KEY' });
+const result = await client.textToSpeechWithTimestamps({
+  voice_id: 'tc_60e5426de8b95f1d3000d7b5',
+  text: 'Hello. How are you?',
+  model: 'ssfm-v30',
+  language: 'eng',
+});
+await result.saveAudio('hello.wav');
+console.log(result.toSrt());  // SRT subtitles
+console.log(result.toVtt());  // WebVTT subtitles
+```
+
+Pass `{ granularity: 'word' }` or `{ granularity: 'char' }` to receive only
+one of the two alignment arrays. For non-whitespace languages (Japanese,
+Chinese), pair with `granularity: 'char'` — word-level alignment will
+collapse the entire sentence into a single segment.
 
 ---
 
