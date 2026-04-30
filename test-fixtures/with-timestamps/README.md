@@ -23,7 +23,7 @@ Every SDK's helper applies the same rules:
 - For non-whitespace languages where `words` collapses to a single segment, the helper falls back to `characters` and applies the same rules at character granularity.
 - SRT timestamps `HH:MM:SS,mmm`, VTT timestamps `HH:MM:SS.mmm`, ms always padded to 3 digits.
 - SRT cue index starts at 1 (integer), VTT cue identifier omitted.
-- All output uses LF newlines and ends with exactly one trailing LF.
+- All output uses LF newlines. Each cue is followed by a blank-line separator (including the last cue), so the file ends with `\n\n`.
 
 ## Re-capture
 

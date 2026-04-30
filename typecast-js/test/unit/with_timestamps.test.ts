@@ -62,6 +62,18 @@ describe('WithTimestampsResult — SRT/VTT byte-equivalence', () => {
     });
     expect(() => result.toSrt()).toThrow(/no alignment segments/);
   });
+
+  it('falls back to single-word when characters is empty array', () => {
+    const result = new WithTimestampsResult({
+      audio: 'UklGRgAAAA==',
+      audio_format: 'wav',
+      audio_duration: 1.0,
+      words: [{ text: 'Hello.', start: 0, end: 1 }],
+      characters: [],
+    });
+    const srt = result.toSrt();
+    expect(srt).toContain('Hello.');
+  });
 });
 
 const mockFetch = vi.fn();

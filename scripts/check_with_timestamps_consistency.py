@@ -23,9 +23,9 @@ FIXTURES = ("both", "word_only", "char_only", "jpn_char")
 def run_python(name: str, fmt: str) -> str:
     code = f"""
 import json, sys
-sys.path.insert(0, "{ROOT / 'typecast-python' / 'src'}")
+sys.path.insert(0, {json.dumps(str(ROOT / 'typecast-python' / 'src'))})
 from typecast.models.tts import TTSWithTimestampsResponse
-data = json.loads(open("{FIX / f'{name}.json'}").read())
+data = json.loads(open({json.dumps(str(FIX / f'{name}.json'))}).read())
 resp = TTSWithTimestampsResponse.model_validate(data)
 sys.stdout.write(resp.to_{fmt}())
 """
@@ -38,9 +38,9 @@ def run_js(name: str, fmt: str) -> str:
     dist_path = ROOT / "typecast-js" / "lib" / "index.cjs"
     method = f"to{fmt.title()}"  # toSrt / toVtt
     script = f"""
-const {{ WithTimestampsResult }} = require("{dist_path}");
+const {{ WithTimestampsResult }} = require({json.dumps(str(dist_path))});
 const fs = require("fs");
-const data = JSON.parse(fs.readFileSync("{FIX / f'{name}.json'}", "utf-8"));
+const data = JSON.parse(fs.readFileSync({json.dumps(str(FIX / f"{name}.json"))}, "utf-8"));
 const r = new WithTimestampsResult(data);
 process.stdout.write(r.{method}());
 """

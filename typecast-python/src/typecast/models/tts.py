@@ -218,16 +218,28 @@ class AlignmentSegmentWord(BaseModel):
     """A single word-level alignment segment between transcript and audio."""
 
     text: str = Field(description="Text fragment (with attached punctuation).")
-    start: float = Field(description="Start time in seconds.")
-    end: float = Field(description="End time in seconds.")
+    start: float = Field(ge=0, description="Start time in seconds.")
+    end: float = Field(ge=0, description="End time in seconds.")
+
+    @model_validator(mode="after")
+    def _validate_span(self):
+        if self.end < self.start:
+            raise ValueError("end must be greater than or equal to start")
+        return self
 
 
 class AlignmentSegmentCharacter(BaseModel):
     """A single character-level alignment segment between transcript and audio."""
 
     text: str = Field(description="Character fragment (with punctuation/whitespace).")
-    start: float = Field(description="Start time in seconds.")
-    end: float = Field(description="End time in seconds.")
+    start: float = Field(ge=0, description="Start time in seconds.")
+    end: float = Field(ge=0, description="End time in seconds.")
+
+    @model_validator(mode="after")
+    def _validate_span(self):
+        if self.end < self.start:
+            raise ValueError("end must be greater than or equal to start")
+        return self
 
 
 class TTSRequestWithTimestamps(BaseModel):
@@ -372,7 +384,7 @@ class TTSWithTimestampsResponse(BaseModel):
     def audio_bytes(self) -> bytes:
         """Return decoded audio bytes from the base64 `audio` field."""
         import base64
-        return base64.b64decode(self.audio)
+        return base64.b64decode(self.audio, validate=True)
 
     def save_audio(self, path: str) -> None:
         """Write decoded audio bytes to `path`."""

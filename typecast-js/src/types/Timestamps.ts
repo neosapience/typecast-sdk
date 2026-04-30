@@ -44,7 +44,7 @@ function pickSegments(
 ): { segments: Segment[]; wordMode: boolean } {
   if (words && words.length >= 2) return { segments: words, wordMode: true };
   if (characters && characters.length >= 1) return { segments: characters, wordMode: false };
-  if (words && words.length === 1 && !characters) return { segments: words, wordMode: true };
+  if (words && words.length === 1 && (!characters || characters.length === 0)) return { segments: words, wordMode: true };
   throw new Error('no alignment segments to caption from');
 }
 

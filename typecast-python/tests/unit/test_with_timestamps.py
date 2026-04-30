@@ -350,6 +350,44 @@ class TestAsyncClient:
                 await client.text_to_speech_with_timestamps(req)
 
 
+class TestAlignmentSegmentValidation:
+    def test_negative_start_rejected(self):
+        from pydantic import ValidationError
+        from typecast.models import AlignmentSegmentWord
+
+        with pytest.raises(ValidationError):
+            AlignmentSegmentWord(text="x", start=-0.1, end=0.5)
+
+    def test_reversed_span_rejected(self):
+        from pydantic import ValidationError
+        from typecast.models import AlignmentSegmentCharacter
+
+        with pytest.raises(ValidationError):
+            AlignmentSegmentCharacter(text="x", start=0.5, end=0.4)
+
+    def test_word_reversed_span_rejected(self):
+        from pydantic import ValidationError
+        from typecast.models import AlignmentSegmentWord
+
+        with pytest.raises(ValidationError):
+            AlignmentSegmentWord(text="x", start=0.5, end=0.4)
+
+
+class TestAudioValidation:
+    def test_audio_bytes_rejects_invalid_base64(self):
+        from typecast.models import TTSWithTimestampsResponse
+        import binascii
+
+        resp = TTSWithTimestampsResponse(
+            audio="UklGRgAAAA==###!!!",  # invalid suffix
+            audio_format="wav",
+            audio_duration=0,
+            words=None, characters=None,
+        )
+        with pytest.raises(binascii.Error):
+            _ = resp.audio_bytes
+
+
 class TestCoverageGapsTimestamps:
     def test_to_srt_with_single_word_no_characters(self):
         """Covers _segments_for_captioning line 276: 1 word + characters=None."""
