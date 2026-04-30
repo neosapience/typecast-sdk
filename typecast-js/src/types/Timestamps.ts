@@ -72,8 +72,8 @@ function groupIntoCues(segments: Segment[], wordMode: boolean): Cue[] {
       const wouldBeText = wordMode
         ? [...parts, seg.text].join(' ').trim()
         : [...parts, seg.text].join('').trim();
-      const wouldExceedSeconds = seg.end - curStart >= MAX_CAPTION_SECONDS;
-      const wouldExceedChars = wouldBeText.length >= MAX_CAPTION_CHARS;
+      const wouldExceedSeconds = seg.end - curStart > MAX_CAPTION_SECONDS;
+      const wouldExceedChars = wouldBeText.length > MAX_CAPTION_CHARS;
       if (wouldExceedSeconds || wouldExceedChars) {
         flush(lastEnd);
         parts = [];

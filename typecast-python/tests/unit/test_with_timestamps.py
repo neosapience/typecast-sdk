@@ -144,7 +144,8 @@ class TestToSrt:
         )
         srt = resp.to_srt()
         # First cue must end at the period (0.6s) because '。' triggers a split
-        assert "00:00:00,600" in srt
+        first_ts = next(line for line in srt.splitlines() if " --> " in line)
+        assert first_ts.endswith("00:00:00,600")
         assert srt.count("\n\n") >= 1  # at least one cue boundary
 
     def test_to_srt_raises_when_both_arrays_empty(self):

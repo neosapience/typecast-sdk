@@ -308,8 +308,8 @@ def _group_into_cues(segments, word_mode: bool = False):
                 would_be_text = " ".join([*cur_text_parts, seg.text]).strip()
             else:
                 would_be_text = "".join([*cur_text_parts, seg.text]).strip()
-            would_exceed_seconds = (seg.end - cur_start) >= _MAX_CAPTION_SECONDS
-            would_exceed_chars = len(would_be_text) >= _MAX_CAPTION_CHARS
+            would_exceed_seconds = (seg.end - cur_start) > _MAX_CAPTION_SECONDS
+            would_exceed_chars = len(would_be_text) > _MAX_CAPTION_CHARS
             if would_exceed_seconds or would_exceed_chars:
                 _flush(last_end)
                 cur_text_parts = []
