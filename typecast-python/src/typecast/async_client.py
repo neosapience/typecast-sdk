@@ -17,7 +17,9 @@ from .models import (
     SubscriptionResponse,
     TTSRequest,
     TTSRequestStream,
+    TTSRequestWithTimestamps,
     TTSResponse,
+    TTSWithTimestampsResponse,
     VoicesResponse,
     VoicesV2Filter,
     VoiceV2Response,
@@ -167,6 +169,48 @@ class AsyncTypecast:
 
             async for chunk in response.content.iter_chunked(chunk_size):
                 yield chunk
+
+    async def text_to_speech_with_timestamps(
+        self,
+        request: TTSRequestWithTimestamps,
+        granularity: Optional[str] = None,
+    ) -> TTSWithTimestampsResponse:
+        """Async version of ``Typecast.text_to_speech_with_timestamps``.
+
+        Args:
+            request: Request body (same shape as ``TTSRequest``).
+            granularity: Optional ``"word"`` or ``"char"`` filter.
+
+        Returns:
+            ``TTSWithTimestampsResponse`` with helpers ``to_srt()``,
+            ``to_vtt()``, ``save_audio()``.
+
+        Raises:
+            TypecastError: If the client session is not initialized
+                (i.e. used outside ``async with``).
+            ValueError: If ``granularity`` is not ``None``, ``"word"``, or ``"char"``.
+            BadRequestError, UnauthorizedError, PaymentRequiredError,
+            NotFoundError, UnprocessableEntityError, RateLimitError,
+            InternalServerError, TypecastError: per HTTP status.
+        """
+        if self.session is None:
+            raise TypecastError("Client session not initialized; use 'async with'.")
+        if granularity not in (None, "word", "char"):
+            raise ValueError(
+                f"granularity must be None, 'word', or 'char'; got {granularity!r}"
+            )
+        endpoint = "/v1/text-to-speech/with-timestamps"
+        params = {"granularity": granularity} if granularity else None
+        async with self.session.post(
+            f"{self.host}{endpoint}",
+            json=request.model_dump(exclude_none=True),
+            params=params,
+        ) as response:
+            if response.status != 200:
+                text = await response.text()
+                self._handle_error(response.status, text)
+            data = await response.json()
+        return TTSWithTimestampsResponse.model_validate(data)
 
     async def voices(self, model: Optional[str] = None) -> list[VoicesResponse]:
         """Get available voices (V1 API) asynchronously.

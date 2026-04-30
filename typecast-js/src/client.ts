@@ -2,6 +2,11 @@ import { ClientConfig, TTSRequest, TTSResponse, TTSRequestStream, ApiErrorRespon
 import { SubscriptionResponse } from './types/Subscription';
 import { VoicesResponse, VoiceV2Response, VoicesV2Filter } from './types/Voices';
 import { TypecastAPIError } from './errors';
+import {
+  TTSRequestWithTimestamps,
+  TTSWithTimestampsResponse,
+  WithTimestampsResult,
+} from './types/Timestamps';
 
 export class TypecastClient {
   private baseHost: string;
@@ -138,6 +143,35 @@ export class TypecastClient {
     }
 
     return response.body;
+  }
+
+  /**
+   * Synthesize speech and return base64 audio + alignment timestamps.
+   *
+   * @param request - Same shape as `TTSRequest` (voice_id, text, model, etc.).
+   * @param options - Optional `granularity: 'word' | 'char'`.
+   * @returns A `WithTimestampsResult` with `audioBytes`, `toSrt()`, `toVtt()`,
+   *   `saveAudio()` helpers.
+   */
+  async textToSpeechWithTimestamps(
+    request: TTSRequestWithTimestamps,
+    options: { granularity?: 'word' | 'char' } = {},
+  ): Promise<WithTimestampsResult> {
+    const { granularity } = options;
+    if (granularity !== undefined && granularity !== 'word' && granularity !== 'char') {
+      throw new Error(
+        `granularity must be undefined, 'word', or 'char'; got ${String(granularity)}`,
+      );
+    }
+    const params = granularity ? { granularity } : undefined;
+    const url = this.buildUrl('/v1/text-to-speech/with-timestamps', params);
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify(request),
+    });
+    const data = await this.handleResponse<TTSWithTimestampsResponse>(response);
+    return new WithTimestampsResult(data);
   }
 
   /**

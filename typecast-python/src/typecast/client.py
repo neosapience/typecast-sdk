@@ -17,7 +17,9 @@ from .models import (
     SubscriptionResponse,
     TTSRequest,
     TTSRequestStream,
+    TTSRequestWithTimestamps,
     TTSResponse,
+    TTSWithTimestampsResponse,
     VoicesResponse,
     VoicesV2Filter,
     VoiceV2Response,
@@ -160,6 +162,45 @@ class Typecast:
                     yield chunk
         finally:
             response.close()
+
+    def text_to_speech_with_timestamps(
+        self,
+        request: TTSRequestWithTimestamps,
+        granularity: Optional[str] = None,
+    ) -> TTSWithTimestampsResponse:
+        """Synthesize speech and return base64 audio + alignment timestamps.
+
+        Args:
+            request: Request body (same shape as `TTSRequest`).
+            granularity: Optional ``"word"`` or ``"char"`` to filter the
+                returned alignment arrays. Omit to receive both.
+
+        Returns:
+            ``TTSWithTimestampsResponse`` with ``audio`` (base64),
+            ``words``, ``characters``, and helper methods ``to_srt()``,
+            ``to_vtt()``, and ``save_audio()``.
+
+        Raises:
+            ValueError: If ``granularity`` is not ``None``, ``"word"``, or ``"char"``.
+            BadRequestError, UnauthorizedError, PaymentRequiredError,
+            NotFoundError, UnprocessableEntityError, RateLimitError,
+            InternalServerError, TypecastError: per HTTP status.
+        """
+        if granularity not in (None, "word", "char"):
+            raise ValueError(
+                f"granularity must be None, 'word', or 'char'; got {granularity!r}"
+            )
+        endpoint = "/v1/text-to-speech/with-timestamps"
+        params = {"granularity": granularity} if granularity else None
+        response = self.session.post(
+            f"{self.host}{endpoint}",
+            json=request.model_dump(exclude_none=True),
+            params=params,
+            timeout=(10, 300),
+        )
+        if response.status_code != 200:
+            self._handle_error(response.status_code, response.text)
+        return TTSWithTimestampsResponse.model_validate(response.json())
 
     def voices(self, model: Optional[str] = None) -> list[VoicesResponse]:
         """Get available voices (V1 API).
