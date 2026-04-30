@@ -272,3 +272,14 @@ class TTSWithTimestampsResponse(BaseModel):
         default=None,
         description="Character-level timestamps; null when granularity=word.",
     )
+
+    @property
+    def audio_bytes(self) -> bytes:
+        """Return decoded audio bytes from the base64 `audio` field."""
+        import base64
+        return base64.b64decode(self.audio)
+
+    def save_audio(self, path: str) -> None:
+        """Write decoded audio bytes to `path`."""
+        with open(path, "wb") as f:
+            f.write(self.audio_bytes)

@@ -73,3 +73,25 @@ class TestRequestResponseSchemas:
         resp = TTSWithTimestampsResponse.model_validate(_load("char_only.json"))
         assert resp.words is None
         assert resp.characters is not None
+
+
+class TestAudioHelpers:
+    def test_audio_bytes_decodes_base64(self):
+        from typecast.models import TTSWithTimestampsResponse
+
+        resp = TTSWithTimestampsResponse.model_validate(_load("both.json"))
+        b = resp.audio_bytes
+        assert isinstance(b, bytes)
+        assert len(b) > 0
+        if resp.audio_format == "wav":
+            assert b[:4] == b"RIFF"
+
+    def test_save_audio_writes_file(self, tmp_path):
+        from typecast.models import TTSWithTimestampsResponse
+
+        resp = TTSWithTimestampsResponse.model_validate(_load("both.json"))
+        out = tmp_path / "out.wav"
+        resp.save_audio(str(out))
+        assert out.exists()
+        assert out.stat().st_size > 0
+        assert out.read_bytes() == resp.audio_bytes
