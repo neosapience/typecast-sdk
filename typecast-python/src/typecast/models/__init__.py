@@ -14,7 +14,9 @@ from .tts import (
     TTSPrompt,
     TTSRequest,
     TTSRequestStream,
+    TTSRequestWithTimestamps,
     TTSResponse,
+    TTSWithTimestampsResponse,
 )
 from .voices import (
     AgeEnum,
@@ -48,7 +50,9 @@ __all__ = [
     "TTSPrompt",
     "TTSRequest",
     "TTSRequestStream",
+    "TTSRequestWithTimestamps",
     "TTSResponse",
+    "TTSWithTimestampsResponse",
     "UseCaseEnum",
     "VoiceV2Response",
     "VoicesResponse",

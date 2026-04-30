@@ -35,3 +35,41 @@ class TestAlignmentSegmentModels:
 
         with pytest.raises(ValidationError):
             AlignmentSegmentWord(text="x", start=0.0)  # type: ignore[call-arg]
+
+
+class TestRequestResponseSchemas:
+    def test_request_minimal(self):
+        from typecast.models import TTSRequestWithTimestamps
+
+        req = TTSRequestWithTimestamps(
+            voice_id="tc_60e5426de8b95f1d3000d7b5",
+            text="Hello.",
+            model="ssfm-v30",
+        )
+        body = req.model_dump(exclude_none=True)
+        assert body["voice_id"] == "tc_60e5426de8b95f1d3000d7b5"
+        assert "language" not in body  # exclude_none
+
+    def test_response_parses_both_fixture(self):
+        from typecast.models import TTSWithTimestampsResponse
+
+        data = _load("both.json")
+        resp = TTSWithTimestampsResponse.model_validate(data)
+        assert resp.audio_format in {"wav", "mp3"}
+        assert resp.audio_duration > 0
+        assert resp.words is not None and len(resp.words) >= 1
+        assert resp.characters is not None and len(resp.characters) >= 1
+
+    def test_response_parses_word_only_fixture(self):
+        from typecast.models import TTSWithTimestampsResponse
+
+        resp = TTSWithTimestampsResponse.model_validate(_load("word_only.json"))
+        assert resp.characters is None
+        assert resp.words is not None
+
+    def test_response_parses_char_only_fixture(self):
+        from typecast.models import TTSWithTimestampsResponse
+
+        resp = TTSWithTimestampsResponse.model_validate(_load("char_only.json"))
+        assert resp.words is None
+        assert resp.characters is not None

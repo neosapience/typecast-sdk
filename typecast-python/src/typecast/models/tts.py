@@ -228,3 +228,43 @@ class AlignmentSegmentCharacter(BaseModel):
     text: str = Field(description="Character fragment (with punctuation/whitespace).")
     start: float = Field(description="Start time in seconds.")
     end: float = Field(description="End time in seconds.")
+
+
+class TTSRequestWithTimestamps(BaseModel):
+    """Request body for `POST /v1/text-to-speech/with-timestamps`.
+
+    Mirrors `TTSRequest` (voice_id, text, model, language, prompt, output, seed).
+    The optional `granularity` query parameter is *not* part of this body — pass
+    it as a method argument to `text_to_speech_with_timestamps()`.
+    """
+
+    model_config = ConfigDict(json_schema_extra={"exclude_none": True})
+
+    voice_id: str = Field(description="Voice ID")
+    text: str = Field(description="Text to synthesize")
+    model: TTSModel = Field(description="Voice model name")
+    language: Optional[Union[LanguageCode, str]] = None
+    prompt: Optional[TTSPrompt] = None
+    output: Optional[Output] = None
+    seed: Optional[int] = None
+
+
+class TTSWithTimestampsResponse(BaseModel):
+    """Response payload for `POST /v1/text-to-speech/with-timestamps`.
+
+    Contains base64-encoded audio plus optional word/character alignment arrays.
+    Helper methods (`save_audio()`, `to_srt()`, `to_vtt()`) are added in
+    subsequent tasks.
+    """
+
+    audio: str = Field(description="Base64-encoded audio bytes.")
+    audio_format: Literal["wav", "mp3"] = Field(description="Audio encoding format.")
+    audio_duration: float = Field(description="Length of audio in seconds.")
+    words: Optional[list[AlignmentSegmentWord]] = Field(
+        default=None,
+        description="Word-level timestamps; null when granularity=char.",
+    )
+    characters: Optional[list[AlignmentSegmentCharacter]] = Field(
+        default=None,
+        description="Character-level timestamps; null when granularity=word.",
+    )
