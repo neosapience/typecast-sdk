@@ -212,3 +212,19 @@ class TTSRequestStream(BaseModel):
     prompt: Optional[TTSPrompt] = None
     output: Optional[OutputStream] = None
     seed: Optional[int] = None
+
+
+class AlignmentSegmentWord(BaseModel):
+    """A single word-level alignment segment between transcript and audio."""
+
+    text: str = Field(description="Text fragment (with attached punctuation).")
+    start: float = Field(description="Start time in seconds.")
+    end: float = Field(description="End time in seconds.")
+
+
+class AlignmentSegmentCharacter(BaseModel):
+    """A single character-level alignment segment between transcript and audio."""
+
+    text: str = Field(description="Character fragment (with punctuation/whitespace).")
+    start: float = Field(description="Start time in seconds.")
+    end: float = Field(description="End time in seconds.")

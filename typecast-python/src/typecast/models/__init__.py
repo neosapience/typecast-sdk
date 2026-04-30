@@ -1,6 +1,8 @@
 from .error import Error
 from .subscription import Credits, Limits, PlanTier, SubscriptionResponse
 from .tts import (
+    AlignmentSegmentCharacter,
+    AlignmentSegmentWord,
     EmotionPreset,
     LanguageCode,
     Output,
@@ -25,6 +27,8 @@ from .voices import (
 )
 
 __all__ = [
+    "AlignmentSegmentCharacter",
+    "AlignmentSegmentWord",
     "TTSRequest",
     "TTSRequestStream",
     "TTSModel",
