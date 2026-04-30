@@ -332,6 +332,15 @@ def _format_srt_time(seconds: float) -> str:
     return f"{hh:02d}:{mm:02d}:{ss:02d},{ms:03d}"
 
 
+def _format_vtt_time(seconds: float) -> str:
+    """Format time for WebVTT format: HH:MM:SS.mmm (dot decimal, not comma)."""
+    total_ms = int(round(seconds * 1000))
+    hh, rem = divmod(total_ms, 3600 * 1000)
+    mm, rem = divmod(rem, 60 * 1000)
+    ss, ms = divmod(rem, 1000)
+    return f"{hh:02d}:{mm:02d}:{ss:02d}.{ms:03d}"
+
+
 class TTSWithTimestampsResponse(BaseModel):
     """Response payload for `POST /v1/text-to-speech/with-timestamps`.
 
@@ -379,6 +388,25 @@ class TTSWithTimestampsResponse(BaseModel):
         for idx, (text, start, end) in enumerate(cues, start=1):
             lines.append(str(idx))
             lines.append(f"{_format_srt_time(start)} --> {_format_srt_time(end)}")
+            lines.append(text)
+            lines.append("")
+        return "\n".join(lines) + "\n"
+
+    def to_vtt(self) -> str:
+        """Return WebVTT-formatted caption string for this TTS response.
+
+        Uses word-level segments when words has >= 2 entries; falls back to
+        character-level segments otherwise (e.g. jpn/zho collapsed words).
+        Cues are split on sentence terminators (. ? ! 。 ？ ！) or when a cue
+        would exceed 7.0 seconds or 42 characters.
+        """
+        segments, word_mode = _segments_for_captioning(self.words, self.characters)
+        cues = _group_into_cues(segments, word_mode=word_mode)
+        if not cues:
+            raise ValueError("no alignment segments to caption from")
+        lines = ["WEBVTT", ""]
+        for text, start, end in cues:
+            lines.append(f"{_format_vtt_time(start)} --> {_format_vtt_time(end)}")
             lines.append(text)
             lines.append("")
         return "\n".join(lines) + "\n"

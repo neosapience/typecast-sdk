@@ -156,3 +156,40 @@ class TestToSrt:
         )
         with pytest.raises(ValueError, match="no alignment segments"):
             resp.to_srt()
+
+
+class TestToVtt:
+    @pytest.mark.parametrize("fixture", ["both", "word_only", "char_only", "jpn_char"])
+    def test_to_vtt_matches_expected(self, fixture):
+        from typecast.models import TTSWithTimestampsResponse
+
+        resp = TTSWithTimestampsResponse.model_validate(_load(f"{fixture}.json"))
+        actual = resp.to_vtt()
+        expected = _load_text(f"{fixture}.vtt")
+        assert actual == expected, (
+            f"VTT byte mismatch for {fixture}\n"
+            f"--- expected (len={len(expected)}) ---\n{expected[:200]!r}\n"
+            f"--- actual   (len={len(actual)}) ---\n{actual[:200]!r}"
+        )
+
+    def test_to_vtt_starts_with_header(self):
+        from typecast.models import TTSWithTimestampsResponse
+
+        resp = TTSWithTimestampsResponse.model_validate(_load("both.json"))
+        out = resp.to_vtt()
+        assert out.startswith("WEBVTT\n\n")
+
+    def test_to_vtt_uses_dot_in_timestamps(self):
+        from typecast.models import TTSWithTimestampsResponse
+
+        resp = TTSWithTimestampsResponse.model_validate(_load("both.json"))
+        out = resp.to_vtt()
+        # VTT uses dot; SRT uses comma. Make sure we have dot in timestamps.
+        lines = out.split("\n")
+        timestamp_lines = [line for line in lines if " --> " in line]
+        assert len(timestamp_lines) > 0
+        for ts_line in timestamp_lines:
+            # Extract times before -->
+            before_arrow = ts_line.split(" --> ")[0]
+            assert "." in before_arrow
+            assert "," not in before_arrow
