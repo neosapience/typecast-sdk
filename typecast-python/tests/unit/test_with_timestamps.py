@@ -448,6 +448,22 @@ class TestCoverageGapsTimestamps:
         with pytest.raises(ValueError, match="no alignment segments"):
             resp.to_vtt()
 
+    def test_empty_segment_guard_raises_when_majority_empty(self):
+        """Covers _segments_for_captioning: >50% empty segments raises ValueError."""
+        from typecast.models import TTSWithTimestampsResponse, AlignmentSegmentWord
+
+        resp = TTSWithTimestampsResponse(
+            audio="UklGRgAAAA==", audio_format="wav", audio_duration=1.0,
+            words=[
+                AlignmentSegmentWord(text="", start=0.0, end=0.5),
+                AlignmentSegmentWord(text="", start=0.5, end=1.0),
+                AlignmentSegmentWord(text="hi", start=0.0, end=1.0),
+            ],
+            characters=None,
+        )
+        with pytest.raises(ValueError, match="alignment segments contain empty text"):
+            resp.to_srt()
+
     def test_hard_cap_flushes_before_exceeding_char_limit(self):
         """Covers _group_into_cues lines 314-316: hard-cap flush before appending."""
         from typecast.models import TTSWithTimestampsResponse, AlignmentSegmentWord
@@ -469,3 +485,21 @@ class TestCoverageGapsTimestamps:
         # The hard cap must have split: first two words (29 chars with space) fit,
         # adding a third would make 44 chars >= 42, so third word becomes its own cue.
         assert out.count("\n\n") >= 2  # at least two cues separated by blank line
+
+
+class TestCaptionLimitOverrides:
+    def test_to_srt_with_smaller_max_chars_splits_more(self):
+        from typecast.models import TTSWithTimestampsResponse
+
+        resp = TTSWithTimestampsResponse.model_validate(_load("both.json"))
+        default_srt = resp.to_srt()
+        tight_srt = resp.to_srt(max_chars=8)
+        # Tight cap should produce more cues
+        assert tight_srt.count("\n\n") > default_srt.count("\n\n")
+
+    def test_to_vtt_max_seconds_override(self):
+        from typecast.models import TTSWithTimestampsResponse
+
+        resp = TTSWithTimestampsResponse.model_validate(_load("both.json"))
+        # No assertion on count — just verify the parameter is accepted and non-default produces a result
+        assert resp.to_vtt(max_seconds=0.5) != resp.to_vtt(max_seconds=7.0)

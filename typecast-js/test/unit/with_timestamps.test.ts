@@ -145,3 +145,34 @@ describe('TypecastClient.textToSpeechWithTimestamps', () => {
     ).rejects.toThrow(TypecastAPIError);
   });
 });
+
+describe('WithTimestampsResult — caption limit overrides', () => {
+  it('toSrt with smaller maxChars splits more cues', () => {
+    const result = new WithTimestampsResult(load('both'));
+    const defaultSrt = result.toSrt();
+    const tightSrt = result.toSrt({ maxChars: 8 });
+    expect(tightSrt.split('\n\n').length).toBeGreaterThan(defaultSrt.split('\n\n').length);
+  });
+
+  it('toVtt maxSeconds override is accepted and changes output', () => {
+    const result = new WithTimestampsResult(load('both'));
+    const shortCue = result.toVtt({ maxSeconds: 0.5 });
+    const defaultCue = result.toVtt({ maxSeconds: 7.0 });
+    expect(shortCue).not.toBe(defaultCue);
+  });
+
+  it('throws when majority of word segments have empty text', () => {
+    const result = new WithTimestampsResult({
+      audio: 'UklGRgAAAA==',
+      audio_format: 'wav',
+      audio_duration: 1.0,
+      words: [
+        { text: '', start: 0.0, end: 0.5 },
+        { text: '', start: 0.5, end: 1.0 },
+        { text: 'hi', start: 0.0, end: 1.0 },
+      ],
+      characters: null,
+    });
+    expect(() => result.toSrt()).toThrow(/alignment segments contain empty text/);
+  });
+});

@@ -250,6 +250,14 @@ print(resp.to_srt())   # SRT subtitles
 print(resp.to_vtt())   # WebVTT subtitles
 ```
 
+Caption splits follow BBC/Netflix subtitle guidelines: 7s/42-char cue maximums.
+
+```python
+# Real-time karaoke / highlight: iterate the words array directly.
+for w in resp.words or []:
+    print(f"[{w.start:.2f}s - {w.end:.2f}s] {w.text}")
+```
+
 Pass `granularity="word"` or `granularity="char"` to receive only one of
 the two alignment arrays. For non-whitespace languages (Japanese,
 Chinese), pair with `granularity="char"` — word-level alignment will

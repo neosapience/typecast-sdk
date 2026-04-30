@@ -258,6 +258,15 @@ console.log(result.toSrt());  // SRT subtitles
 console.log(result.toVtt());  // WebVTT subtitles
 ```
 
+Caption splits follow BBC/Netflix subtitle guidelines: 7s/42-char cue maximums.
+
+```typescript
+// Real-time karaoke / highlight: iterate the words array directly.
+for (const w of result.words ?? []) {
+  console.log(`[${w.start.toFixed(2)}s - ${w.end.toFixed(2)}s] ${w.text}`);
+}
+```
+
 Pass `{ granularity: 'word' }` or `{ granularity: 'char' }` to receive only
 one of the two alignment arrays. For non-whitespace languages (Japanese,
 Chinese), pair with `granularity: 'char'` — word-level alignment will

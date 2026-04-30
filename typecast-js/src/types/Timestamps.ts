@@ -42,17 +42,42 @@ function pickSegments(
   words: AlignmentSegmentWord[] | null,
   characters: AlignmentSegmentCharacter[] | null,
 ): { segments: Segment[]; wordMode: boolean } {
-  if (words && words.length >= 2) return { segments: words, wordMode: true };
-  if (characters && characters.length >= 1) return { segments: characters, wordMode: false };
-  if (words && words.length === 1 && (!characters || characters.length === 0)) return { segments: words, wordMode: true };
-  throw new Error('no alignment segments to caption from');
+  let segs: Segment[] | null = null;
+  let wordMode = true;
+
+  if (words && words.length >= 2) {
+    segs = words;
+    wordMode = true;
+  } else if (characters && characters.length >= 1) {
+    return { segments: characters, wordMode: false };
+  } else if (words && words.length === 1 && (!characters || characters.length === 0)) {
+    segs = words;
+    wordMode = true;
+  } else {
+    throw new Error('no alignment segments to caption from');
+  }
+
+  // Defense-in-depth: warn if majority of segments have empty text (server
+  // contract should never produce these, but guard here catches regressions).
+  // TODO(TASK-12430-followup): warn or error when alignment array contains majority-empty text segments — server contract should never produce these but defense-in-depth is desirable.
+  const emptyCount = segs.filter((s) => !s.text.trim()).length;
+  if (emptyCount > segs.length / 2) {
+    throw new Error('alignment segments contain empty text');
+  }
+
+  return { segments: segs, wordMode };
 }
 
 function joinParts(parts: string[], wordMode: boolean): string {
   return wordMode ? parts.join(' ').trim() : parts.join('').trim();
 }
 
-function groupIntoCues(segments: Segment[], wordMode: boolean): Cue[] {
+function groupIntoCues(
+  segments: Segment[],
+  wordMode: boolean,
+  maxSeconds: number = MAX_CAPTION_SECONDS,
+  maxChars: number = MAX_CAPTION_CHARS,
+): Cue[] {
   const cues: Cue[] = [];
   let parts: string[] = [];
   let curStart: number | null = null;
@@ -72,8 +97,8 @@ function groupIntoCues(segments: Segment[], wordMode: boolean): Cue[] {
       const wouldBeText = wordMode
         ? [...parts, seg.text].join(' ').trim()
         : [...parts, seg.text].join('').trim();
-      const wouldExceedSeconds = seg.end - curStart > MAX_CAPTION_SECONDS;
-      const wouldExceedChars = wouldBeText.length > MAX_CAPTION_CHARS;
+      const wouldExceedSeconds = seg.end - curStart > maxSeconds;
+      const wouldExceedChars = wouldBeText.length > maxChars;
       if (wouldExceedSeconds || wouldExceedChars) {
         flush(lastEnd);
         parts = [];
@@ -149,9 +174,10 @@ export class WithTimestampsResult implements TTSWithTimestampsResponse {
     await writeFile(path, this.audioBytes);
   }
 
-  toSrt(): string {
+  toSrt(options: { maxSeconds?: number; maxChars?: number } = {}): string {
+    const { maxSeconds = MAX_CAPTION_SECONDS, maxChars = MAX_CAPTION_CHARS } = options;
     const { segments, wordMode } = pickSegments(this.words, this.characters);
-    const cues = groupIntoCues(segments, wordMode);
+    const cues = groupIntoCues(segments, wordMode, maxSeconds, maxChars);
     if (cues.length === 0) throw new Error('no alignment segments to caption from');
     const lines: string[] = [];
     cues.forEach((cue, idx) => {
@@ -163,9 +189,10 @@ export class WithTimestampsResult implements TTSWithTimestampsResponse {
     return lines.join('\n') + '\n';
   }
 
-  toVtt(): string {
+  toVtt(options: { maxSeconds?: number; maxChars?: number } = {}): string {
+    const { maxSeconds = MAX_CAPTION_SECONDS, maxChars = MAX_CAPTION_CHARS } = options;
     const { segments, wordMode } = pickSegments(this.words, this.characters);
-    const cues = groupIntoCues(segments, wordMode);
+    const cues = groupIntoCues(segments, wordMode, maxSeconds, maxChars);
     if (cues.length === 0) throw new Error('no alignment segments to caption from');
     const lines: string[] = ['WEBVTT', ''];
     for (const cue of cues) {

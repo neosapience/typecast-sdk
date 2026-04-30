@@ -279,20 +279,36 @@ def _segments_for_captioning(words, characters):
     - else if characters with >= 1 entry -> characters (word_mode=False: concat directly)
     - single-entry words with no characters -> words (word_mode=True, one cue)
     - else -> ValueError
+
+    Raises ValueError if more than 50% of segments have empty text (defense-in-depth:
+    the server contract should never produce majority-empty alignment arrays).
     """
     if words and len(words) >= 2:
-        return words, True
-    if characters and len(characters) >= 1:
+        segs = words
+    elif characters and len(characters) >= 1:
         return characters, False
-    if words and len(words) == 1 and not characters:
-        return words, True  # English single-cue is still valid
-    raise ValueError("no alignment segments to caption from")
+    elif words and len(words) == 1 and not characters:
+        segs = words  # English single-cue is still valid
+    else:
+        raise ValueError("no alignment segments to caption from")
+
+    empty_count = sum(1 for s in segs if not s.text.strip())
+    if empty_count > len(segs) / 2:
+        raise ValueError("alignment segments contain empty text")
+    return segs, True
 
 
-def _group_into_cues(segments, word_mode: bool = False):
+def _group_into_cues(
+    segments,
+    word_mode: bool = False,
+    max_seconds: float = _MAX_CAPTION_SECONDS,
+    max_chars: int = _MAX_CAPTION_CHARS,
+):
     """Group segments into caption cues using shared rules:
     - Split on sentence terminator at end of segment text.
-    - Split BEFORE appending if adding the segment would push the cue past 7.0s or 42 chars (hard cap).
+    - Split BEFORE appending if adding the segment would push the cue past
+      max_seconds or max_chars (hard cap). Defaults follow BBC/Netflix subtitle
+      guidelines (7.0s / 42 chars).
 
     word_mode=True: parts are joined with a single space.
     word_mode=False: parts are concatenated directly.
@@ -320,8 +336,8 @@ def _group_into_cues(segments, word_mode: bool = False):
                 would_be_text = " ".join([*cur_text_parts, seg.text]).strip()
             else:
                 would_be_text = "".join([*cur_text_parts, seg.text]).strip()
-            would_exceed_seconds = (seg.end - cur_start) > _MAX_CAPTION_SECONDS
-            would_exceed_chars = len(would_be_text) > _MAX_CAPTION_CHARS
+            would_exceed_seconds = (seg.end - cur_start) > max_seconds
+            would_exceed_chars = len(would_be_text) > max_chars
             if would_exceed_seconds or would_exceed_chars:
                 _flush(last_end)
                 cur_text_parts = []
@@ -391,16 +407,17 @@ class TTSWithTimestampsResponse(BaseModel):
         with open(path, "wb") as f:
             f.write(self.audio_bytes)
 
-    def to_srt(self) -> str:
+    def to_srt(self, max_seconds: float = 7.0, max_chars: int = 42) -> str:
         """Return SRT-formatted caption string for this TTS response.
 
         Uses word-level segments when words has >= 2 entries; falls back to
         character-level segments otherwise (e.g. jpn/zho collapsed words).
         Cues are split on sentence terminators (. ? ! 。 ？ ！) or when a cue
-        would exceed 7.0 seconds or 42 characters.
+        would exceed max_seconds or max_chars. Default values follow BBC/Netflix
+        subtitle guidelines (7.0s / 42 chars).
         """
         segments, word_mode = _segments_for_captioning(self.words, self.characters)
-        cues = _group_into_cues(segments, word_mode=word_mode)
+        cues = _group_into_cues(segments, word_mode=word_mode, max_seconds=max_seconds, max_chars=max_chars)
         if not cues:
             raise ValueError("no alignment segments to caption from")
         lines = []
@@ -411,16 +428,17 @@ class TTSWithTimestampsResponse(BaseModel):
             lines.append("")
         return "\n".join(lines) + "\n"
 
-    def to_vtt(self) -> str:
+    def to_vtt(self, max_seconds: float = 7.0, max_chars: int = 42) -> str:
         """Return WebVTT-formatted caption string for this TTS response.
 
         Uses word-level segments when words has >= 2 entries; falls back to
         character-level segments otherwise (e.g. jpn/zho collapsed words).
         Cues are split on sentence terminators (. ? ! 。 ？ ！) or when a cue
-        would exceed 7.0 seconds or 42 characters.
+        would exceed max_seconds or max_chars. Default values follow BBC/Netflix
+        subtitle guidelines (7.0s / 42 chars).
         """
         segments, word_mode = _segments_for_captioning(self.words, self.characters)
-        cues = _group_into_cues(segments, word_mode=word_mode)
+        cues = _group_into_cues(segments, word_mode=word_mode, max_seconds=max_seconds, max_chars=max_chars)
         if not cues:
             raise ValueError("no alignment segments to caption from")
         lines = ["WEBVTT", ""]
