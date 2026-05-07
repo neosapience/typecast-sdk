@@ -230,6 +230,60 @@ var request = new TTSRequest("Hello, world!", voiceId, TTSModel.SsfmV30)
 };
 ```
 
+### Quick Voice Cloning
+
+Clone your own voice (or any voice sample) and use it for TTS with no separate contract.
+The cloned voice ID carries a `uc_` prefix and can be passed directly to `TextToSpeechAsync`.
+
+```csharp
+using Typecast;
+using Typecast.Models;
+
+using var client = new TypecastClient("your-api-key");
+
+// Clone from a local file
+CustomVoice cloned = await client.CloneVoiceAsync(
+    audioFile: "my_voice_sample.wav",  // WAV or MP3, max 25 MB
+    name: "My Cloned Voice",           // 1–30 characters
+    model: "ssfm-v30"
+);
+
+Console.WriteLine($"Created: {cloned.VoiceId} — {cloned.Name}");
+
+// Use the cloned voice for TTS immediately
+var request = new TTSRequest(
+    text: "Hello from my cloned voice!",
+    voiceId: cloned.VoiceId,           // "uc_..." prefix
+    model: TTSModel.SsfmV30
+);
+var ttsResponse = await client.TextToSpeechAsync(request);
+await ttsResponse.SaveToFileAsync("cloned_output.wav");
+
+// Delete the voice when no longer needed
+await client.DeleteVoiceAsync(cloned.VoiceId);
+Console.WriteLine("Voice deleted.");
+```
+
+You can also pass raw bytes instead of a file path:
+
+```csharp
+byte[] audioBytes = await File.ReadAllBytesAsync("sample.wav");
+CustomVoice cloned = await client.CloneVoiceAsync(
+    audio: audioBytes,
+    filename: "sample.wav",
+    name: "My Voice",
+    model: "ssfm-v30"
+);
+```
+
+**Constraints enforced client-side before any HTTP call:**
+
+| Field    | Rule                                  |
+| -------- | ------------------------------------- |
+| `audio`  | Must not exceed 25 MB                 |
+| `name`   | 1–30 characters                       |
+| `model`  | Any valid TTS model string            |
+
 ### Timestamp TTS (Word / Character Alignment)
 
 Use `TextToSpeechWithTimestampsAsync` to get audio together with word or character
@@ -653,6 +707,9 @@ The SDK supports 37 languages with ISO 639-3 codes:
 | `GetVoicesV2(VoicesV2Filter?)`                                    | Get available voices with metadata (sync)               |
 | `GetVoiceV2Async(string voiceId)`                                 | Get a specific voice by ID (async)                      |
 | `GetVoiceV2(string voiceId)`                                      | Get a specific voice by ID (sync)                       |
+| `CloneVoiceAsync(byte[], string, string, string)`                 | Clone a voice from raw audio bytes (async)              |
+| `CloneVoiceAsync(string, string, string)`                         | Clone a voice from a local file path (async)            |
+| `DeleteVoiceAsync(string voiceId)`                                | Delete a custom voice (async)                           |
 
 ### Models
 
@@ -665,6 +722,8 @@ The SDK supports 37 languages with ISO 639-3 codes:
 - `Prompt` / `PresetPrompt` / `SmartPrompt` - Emotion control
 - `VoiceV2Response` - Voice information with metadata
 - `VoicesV2Filter` - Voice filtering options
+- `CustomVoice` - Cloned voice metadata (`VoiceId`, `Name`, `Model`)
+- `QuickCloningLimits` - Constants: `CloningMaxFileSize` (25 MB), `NameMinLength` (1), `NameMaxLength` (30)
 
 ### Enums
 
