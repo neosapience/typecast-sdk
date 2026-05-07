@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -343,4 +346,101 @@ func (c *Client) GetVoice(ctx context.Context, voiceID string, model TTSModel) (
 	}
 
 	return voices, nil
+}
+
+// CloneVoice creates a quick-cloned custom voice from an audio sample.
+//
+// audio is the raw audio bytes. filename is the multipart filename hint
+// (e.g., "sample.wav") and is used for MIME type inference. name is 1-30
+// characters; model is "ssfm-v21" or "ssfm-v30".
+//
+// The returned CustomVoice has VoiceID with "uc_" prefix; use it directly
+// with TextToSpeech as voice_id.
+func (c *Client) CloneVoice(ctx context.Context, audio []byte, filename, name, model string) (*CustomVoice, error) {
+	if len(name) < NameMinLength || len(name) > NameMaxLength {
+		return nil, fmt.Errorf("name must be %d-%d characters; got %d", NameMinLength, NameMaxLength, len(name))
+	}
+	if int64(len(audio)) > CloningMaxFileSize {
+		return nil, fmt.Errorf("audio file exceeds 25MB limit; got %d bytes", len(audio))
+	}
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	if err := writer.WriteField("name", name); err != nil {
+		return nil, err
+	}
+	if err := writer.WriteField("model", model); err != nil {
+		return nil, err
+	}
+
+	fileHeader := make(textproto.MIMEHeader)
+	fileHeader.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filename))
+	fileHeader.Set("Content-Type", guessAudioMime(filename))
+	filePart, err := writer.CreatePart(fileHeader)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := filePart.Write(audio); err != nil {
+		return nil, err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/voices/clone", body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+
+	var out CustomVoice
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("failed to decode clone voice response: %w", err)
+	}
+	return &out, nil
+}
+
+// DeleteVoice soft-deletes a custom voice by ID.
+// Returns nil on a 200 OK or 204 No Content response.
+func (c *Client) DeleteVoice(ctx context.Context, voiceID string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+"/v1/voices/"+voiceID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("X-API-KEY", c.apiKey)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return c.handleErrorResponse(resp)
+	}
+	return nil
+}
+
+// guessAudioMime returns a MIME type based on the audio filename extension.
+func guessAudioMime(filename string) string {
+	lower := strings.ToLower(filename)
+	if strings.HasSuffix(lower, ".wav") {
+		return "audio/wav"
+	}
+	if strings.HasSuffix(lower, ".mp3") {
+		return "audio/mpeg"
+	}
+	return "application/octet-stream"
 }

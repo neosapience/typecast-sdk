@@ -25,6 +25,7 @@ Convert text to lifelike speech using AI-powered voices
 - [Usage](#usage)
   - [Configuration](#configuration)
   - [Text to Speech](#text-to-speech)
+  - [Quick Voice Cloning](#quick-voice-cloning)
   - [Voice Discovery](#voice-discovery)
   - [Emotion Control](#emotion-control)
 - [Supported Languages](#supported-languages)
@@ -84,6 +85,7 @@ func main() {
 | **Emotion Control** | Preset emotions or smart context-aware inference |
 | **Audio Customization** | Volume, pitch, tempo, and format (WAV/MP3) |
 | **Voice Discovery** | Filter voices by model, gender, age, and use cases |
+| **Quick Voice Cloning** | Clone a voice from a short audio sample (≤ 25 MB, 1-30 char name) |
 | **Context Support** | Full context.Context support for cancellation and timeouts |
 | **Zero Dependencies** | Uses only Go standard library |
 
@@ -170,6 +172,64 @@ fmt.Println(vtt)
 Pass `"word"` or `"char"` to receive only one of the alignment arrays. For
 non-whitespace languages (Japanese, Chinese), pair with `"char"` — word-level
 alignment will collapse the entire sentence into a single segment.
+
+### Quick Voice Cloning
+
+Clone any voice from a short audio sample and use it immediately with `TextToSpeech`.
+
+```go
+import (
+    "context"
+    "os"
+
+    typecast "github.com/neosapience/typecast-sdk/typecast-go"
+)
+
+func main() {
+    client := typecast.NewClient(nil)
+    ctx := context.Background()
+
+    // 1. Read the audio sample (WAV or MP3, max 25 MB)
+    audioBytes, err := os.ReadFile("sample.wav")
+    if err != nil {
+        panic(err)
+    }
+
+    // 2. Clone the voice
+    //    name: 1-30 characters
+    //    model: "ssfm-v21" or "ssfm-v30"
+    custom, err := client.CloneVoice(ctx, audioBytes, "sample.wav", "MyClonedVoice", "ssfm-v30")
+    if err != nil {
+        panic(err)
+    }
+    // custom.VoiceID has the "uc_" prefix, ready to use with TextToSpeech
+    voiceID := custom.VoiceID
+
+    // 3. Synthesize speech with the cloned voice
+    audio, err := client.TextToSpeech(ctx, &typecast.TTSRequest{
+        VoiceID: voiceID,
+        Text:    "Hello from my cloned voice!",
+        Model:   typecast.ModelSSFMV30,
+    })
+    if err != nil {
+        panic(err)
+    }
+    os.WriteFile("output.wav", audio.AudioData, 0644)
+
+    // 4. Delete the custom voice when done
+    if err := client.DeleteVoice(ctx, voiceID); err != nil {
+        panic(err)
+    }
+}
+```
+
+**Limits:**
+- Audio file size: ≤ 25 MB (`typecast.CloningMaxFileSize`)
+- Voice name: 1–30 characters (`typecast.NameMinLength` / `typecast.NameMaxLength`)
+- Supported models: `ssfm-v21`, `ssfm-v30`
+- The returned `VoiceID` starts with `"uc_"` and can be used directly with `TextToSpeech`
+
+---
 
 ### Voice Discovery
 
