@@ -245,10 +245,13 @@ class Typecast:
             "file": (filename, audio_bytes, _guess_audio_mime(filename)),
         }
         data = {"name": name, "model": model_str}
+        # Remove the session-level Content-Type so requests can set the
+        # correct multipart/form-data boundary for this request.
         response = self.session.post(
             f"{self.host}/v1/voices/clone",
             files=files,
             data=data,
+            headers={"Content-Type": None},
             timeout=(10, 300),
         )
         if response.status_code != 200:
