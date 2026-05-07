@@ -1,0 +1,4 @@
+{
+    "error_code": "CLONING_FILE_TOO_LARGE",
+    "message": "File size exceeds maximum limit"
+}
