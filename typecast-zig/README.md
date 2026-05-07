@@ -27,6 +27,7 @@ Convert text to lifelike speech using AI-powered voices
   - [Text to Speech with Timestamps](#text-to-speech-with-timestamps)
   - [Voice Discovery](#voice-discovery)
   - [Emotion Control](#emotion-control)
+  - [Quick Voice Cloning](#quick-voice-cloning)
 - [Supported Languages](#supported-languages)
 - [Error Handling](#error-handling)
 - [License](#license)
@@ -107,6 +108,7 @@ pub fn main() !void {
 | **Streaming** | Chunked audio delivery via callback for low-latency playback |
 | **Timestamp TTS** | Word/character alignment data with SRT/VTT subtitle generation |
 | **Voice Discovery** | Filter voices by model, gender, age, and use cases |
+| **Quick Voice Cloning** | Upload audio to create a custom voice; delete when no longer needed |
 | **Zero Dependencies** | Uses only the Zig standard library |
 
 ---
@@ -307,6 +309,53 @@ const response = try client.textToSpeech(.{
 defer allocator.free(response.audio_data);
 ```
 
+### Quick Voice Cloning
+
+Upload a WAV or MP3 recording to create a custom voice, use it for synthesis,
+and delete it when you no longer need it.
+
+```zig
+const typecast = @import("typecast");
+
+// Load audio from disk (max 25 MB)
+const audio_file = try std.fs.cwd().openFile("recording.wav", .{});
+defer audio_file.close();
+const audio_bytes = try audio_file.readToEndAlloc(allocator, typecast.CLONING_MAX_FILE_SIZE);
+defer allocator.free(audio_bytes);
+
+// Clone the voice
+const custom_voice = try client.cloneVoice(
+    allocator,
+    audio_bytes,
+    "recording.wav", // filename used for MIME detection
+    "My Voice",      // display name (1–30 characters)
+    "ssfm-v30",      // model
+);
+defer {
+    allocator.free(custom_voice.voice_id);
+    allocator.free(custom_voice.name);
+    allocator.free(custom_voice.model);
+}
+
+std.debug.print("Cloned: {s}\n", .{custom_voice.voice_id});
+
+// Synthesise with the custom voice
+const response = try client.textToSpeech(.{
+    .voice_id = custom_voice.voice_id,
+    .text = "Hello from my cloned voice!",
+    .model = .ssfm_v30,
+});
+defer allocator.free(response.audio_data);
+
+// Delete the custom voice when done
+try client.deleteVoice(custom_voice.voice_id);
+```
+
+**Constraints enforced client-side (before any HTTP call):**
+
+- Audio must be ≤ 25 MB (`error.AudioTooLarge`).
+- Name must be 1–30 characters (`error.InvalidName`).
+
 ---
 
 ## Supported Languages
@@ -406,6 +455,8 @@ const response = client.textToSpeech(request) catch |err| switch (err) {
 | `getVoiceV2(voice_id, model)` | Get specific voice details |
 | `getVoices(model)` | List voices (V1 API) |
 | `getMySubscription()` | Get current subscription info |
+| `cloneVoice(allocator, audio, filename, name, model)` | Clone a voice from an audio file |
+| `deleteVoice(voice_id)` | Delete a custom cloned voice |
 
 ### Models
 

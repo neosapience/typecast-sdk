@@ -377,6 +377,18 @@ pub fn parseVoicesV2(allocator: std.mem.Allocator, data: []const u8) ![]models.V
     return voices;
 }
 
+/// Parse a CustomVoice from JSON bytes. Caller owns the returned strings.
+pub fn parseCustomVoice(allocator: std.mem.Allocator, data: []const u8) !models.CustomVoice {
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, data, .{});
+    defer parsed.deinit();
+    const obj = parsed.value.object;
+    return models.CustomVoice{
+        .voice_id = try allocator.dupe(u8, try getString(obj, "voice_id")),
+        .name = try allocator.dupe(u8, try getString(obj, "name")),
+        .model = try allocator.dupe(u8, try getString(obj, "model")),
+    };
+}
+
 /// Extract error detail message from error JSON response.
 /// Returns null if parsing fails or neither "detail" nor "message" is found.
 /// The returned slice is an owned copy allocated via page_allocator; the
