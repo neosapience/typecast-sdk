@@ -169,3 +169,77 @@ async def test_async_delete_voice_returns_none():
         async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
             result = await client.delete_voice("uc_xxx")
             assert result is None
+
+
+# --- Coverage gap closers ---
+
+
+def test_validate_rejects_unsupported_audio_type():
+    with pytest.raises(TypeError, match="audio must be"):
+        validate_clone_inputs(12345, "demo")  # type: ignore[arg-type]
+
+
+def test_validate_strips_directory_from_file_object_name(tmp_path):
+    target = tmp_path / "sub" / "voice.mp3"
+    target.parent.mkdir()
+    target.write_bytes(b"\x00" * 1024)
+    with target.open("rb") as fh:
+        audio_bytes, filename = validate_clone_inputs(fh, "demo")
+    assert audio_bytes == b"\x00" * 1024
+    assert filename == "voice.mp3"  # basename, not full path
+
+
+def test_guess_audio_mime_branches():
+    from typecast.client import _guess_audio_mime
+    assert _guess_audio_mime("foo.WAV") == "audio/wav"
+    assert _guess_audio_mime("foo.MP3") == "audio/mpeg"
+    assert _guess_audio_mime("foo.bin") == "application/octet-stream"
+
+
+def test_clone_voice_propagates_http_error(mocker):
+    client = Typecast(api_key="test-key")
+    mock_response = mocker.Mock()
+    mock_response.status_code = 422
+    mock_response.text = '{"error_code": "VALIDATION_ERROR", "message": "bad"}'
+    mocker.patch.object(client.session, "post", return_value=mock_response)
+    from typecast.exceptions import UnprocessableEntityError
+    with pytest.raises(UnprocessableEntityError):
+        client.clone_voice(audio=b"\x00" * 1024, name="demo", model="ssfm-v30")
+
+
+async def test_async_clone_voice_requires_session():
+    from typecast.exceptions import TypecastError
+    client = AsyncTypecast(host=ASYNC_HOST, api_key="test-key")  # no async with
+    with pytest.raises(TypecastError, match="Client session not initialized"):
+        await client.clone_voice(audio=b"\x00" * 1024, name="demo", model="ssfm-v30")
+
+
+async def test_async_delete_voice_requires_session():
+    from typecast.exceptions import TypecastError
+    client = AsyncTypecast(host=ASYNC_HOST, api_key="test-key")  # no async with
+    with pytest.raises(TypecastError, match="Client session not initialized"):
+        await client.delete_voice("uc_xxx")
+
+
+async def test_async_clone_voice_propagates_http_error():
+    with aioresponses() as m:
+        m.post(
+            f"{ASYNC_HOST}/v1/voices/clone",
+            status=422,
+            payload={"error_code": "VALIDATION_ERROR", "message": "bad"},
+        )
+        from typecast.exceptions import UnprocessableEntityError
+        async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
+            with pytest.raises(UnprocessableEntityError):
+                await client.clone_voice(
+                    audio=b"\x00" * 1024, name="demo", model="ssfm-v30"
+                )
+
+
+async def test_async_delete_voice_propagates_http_error():
+    with aioresponses() as m:
+        m.delete(f"{ASYNC_HOST}/v1/voices/uc_xxx", status=404)
+        from typecast.exceptions import NotFoundError as Nfe
+        async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
+            with pytest.raises(Nfe):
+                await client.delete_voice("uc_xxx")

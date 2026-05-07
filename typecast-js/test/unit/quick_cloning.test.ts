@@ -175,3 +175,47 @@ describe('TypecastClient.deleteVoice', () => {
     await expect(client.deleteVoice('uc_xxx')).rejects.toThrow();
   });
 });
+
+// --- Coverage gap closers ---
+
+describe('TypecastClient.cloneVoice rejects invalid model', () => {
+  it('throws TypeError for unknown model string', async () => {
+    const client = new TypecastClient({ baseHost: 'https://dummy-api.ai', apiKey: 'test-api-key' });
+    await expect(
+      client.cloneVoice({
+        audio: new Uint8Array(1024),
+        name: 'demo',
+        model: 'ssfm-v99' as any,
+      }),
+    ).rejects.toThrow(/ssfm-v21.*ssfm-v30/);
+  });
+});
+
+describe('TypecastClient.deleteVoice rejects bad voiceId', () => {
+  it('throws TypeError for empty voiceId', async () => {
+    const client = new TypecastClient({ baseHost: 'https://dummy-api.ai', apiKey: 'test-api-key' });
+    await expect(client.deleteVoice('')).rejects.toThrow(/uc_/);
+  });
+
+  it('throws TypeError for voiceId without uc_ prefix', async () => {
+    const client = new TypecastClient({ baseHost: 'https://dummy-api.ai', apiKey: 'test-api-key' });
+    await expect(client.deleteVoice('tc_xxx')).rejects.toThrow(/uc_/);
+  });
+});
+
+describe('TypecastClient.deleteVoice surfaces non-ok responses', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('throws via handleResponse on 500', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      json: () => Promise.resolve({ error_code: 'INTERNAL', message: 'boom' }),
+    });
+    const client = new TypecastClient({ baseHost: 'https://dummy-api.ai', apiKey: 'test-api-key' });
+    await expect(client.deleteVoice('uc_xxx')).rejects.toThrow();
+  });
+});

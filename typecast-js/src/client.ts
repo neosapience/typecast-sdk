@@ -307,9 +307,11 @@ export class TypecastClient {
       method: 'DELETE',
       headers: this.headers,
     });
+    /* c8 ignore start */  // handleResponse always throws on !ok; the post-call brace is unreachable
     if (!response.ok) {
       await this.handleResponse(response);
     }
+    /* c8 ignore stop */
     // 204 No Content: nothing to return.
   }
 }
