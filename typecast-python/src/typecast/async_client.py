@@ -65,7 +65,9 @@ class AsyncTypecast:
         self.session: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):
-        headers = {"Content-Type": "application/json"}
+        # Auth header at session scope; per-request Content-Type is set by aiohttp
+        # (json= auto-sets application/json, data=FormData() auto-sets multipart).
+        headers = {}
         if self.api_key:
             headers["X-API-KEY"] = self.api_key
         self.session = aiohttp.ClientSession(headers=headers)
