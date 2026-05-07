@@ -33,6 +33,7 @@ Convert text to lifelike speech using AI-powered voices
   - [Voice Discovery](#voice-discovery)
   - [Emotion Control](#emotion-control)
   - [Audio Output Settings](#audio-output-settings)
+  - [Quick Voice Cloning](#quick-voice-cloning)
 - [Platform-Specific Usage](#platform-specific-usage)
   - [iOS](#ios)
   - [macOS](#macos)
@@ -343,6 +344,51 @@ let audio = try await client.textToSpeech(TTSRequest(
     seed: 42  // for reproducible results
 ))
 ```
+
+---
+
+### Quick Voice Cloning
+
+Clone any voice from a short audio sample and use it immediately for text-to-speech.
+
+```swift
+import Typecast
+import Foundation
+
+let client = TypecastClient(apiKey: "YOUR_API_KEY")
+
+// Clone from raw audio bytes
+let audioData = try Data(contentsOf: URL(fileURLWithPath: "sample.wav"))
+let customVoice = try await client.cloneVoice(
+    audio: audioData,
+    filename: "sample.wav",
+    name: "My Cloned Voice",   // 1–30 characters
+    model: "ssfm-v30"
+)
+print("Created voice:", customVoice.voiceId)   // e.g. "uc_abc123"
+
+// Use the cloned voice in a TTS call
+let tts = try await client.speak("Hello from my cloned voice!", voiceId: customVoice.voiceId)
+try tts.audioData.write(to: URL(fileURLWithPath: "output.wav"))
+
+// Convenience overload — read the file and set the filename automatically
+let sameVoice = try await client.cloneVoice(
+    audioFileURL: URL(fileURLWithPath: "sample.wav"),
+    name: "My Cloned Voice",
+    model: "ssfm-v30"
+)
+
+// Delete the cloned voice when no longer needed
+try await client.deleteVoice(customVoice.voiceId)
+```
+
+**Limits**
+
+| Parameter | Constraint |
+|-----------|-----------|
+| Audio file size | ≤ 25 MB (`QuickCloningLimits.cloningMaxFileSize`) |
+| Voice name length | 1–30 characters (`QuickCloningLimits.nameMinLength` / `nameMaxLength`) |
+| Supported formats | WAV, MP3 recommended |
 
 ---
 
