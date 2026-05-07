@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .tts import TTSModel
 
@@ -75,3 +75,18 @@ class VoicesV2Filter(BaseModel):
     gender: Optional[GenderEnum] = None
     age: Optional[AgeEnum] = None
     use_cases: Optional[UseCaseEnum] = None
+
+
+class CustomVoice(BaseModel):
+    """Quick-cloned custom voice returned by `POST /v1/voices/clone`.
+
+    Attributes:
+        voice_id: Custom voice identifier with `uc_` prefix.
+            Use this value as `voice_id` in `text_to_speech` / `text_to_speech_with_timestamps`.
+        name: Human-readable name (1-30 chars).
+        model: Engine model the voice was cloned for (`ssfm-v21` or `ssfm-v30`).
+    """
+
+    voice_id: str = Field(..., description="Custom voice identifier (uc_ prefix)")
+    name: str = Field(..., description="Human-readable voice name")
+    model: str = Field(..., description="Engine model: ssfm-v21 or ssfm-v30")
