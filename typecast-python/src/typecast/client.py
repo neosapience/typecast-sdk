@@ -255,6 +255,23 @@ class Typecast:
             self._handle_error(response.status_code, response.text)
         return CustomVoice.model_validate(response.json())
 
+    def delete_voice(self, voice_id: str) -> None:
+        """Soft-delete a custom voice.
+
+        Args:
+            voice_id: Voice identifier with ``uc_`` prefix (returned by ``clone_voice``).
+
+        Raises:
+            TypecastError subclasses: per HTTP status from the API
+                (e.g., ``NotFoundError`` if the voice doesn't exist or isn't owned).
+        """
+        response = self.session.delete(
+            f"{self.host}/v1/voices/{voice_id}",
+            timeout=(10, 60),
+        )
+        if response.status_code not in (200, 204):
+            self._handle_error(response.status_code, response.text)
+
     def voices(self, model: Optional[str] = None) -> list[VoicesResponse]:
         """Get available voices (V1 API).
 

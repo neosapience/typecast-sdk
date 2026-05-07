@@ -7,6 +7,7 @@ import pytest
 
 from typecast import Typecast
 from typecast._voice_clone import validate_clone_inputs, CLONING_MAX_FILE_SIZE
+from typecast.exceptions import NotFoundError
 from typecast.models import CustomVoice
 
 
@@ -111,3 +112,28 @@ def test_clone_voice_pre_validates_size(mocker):
         client.clone_voice(audio=big, name="demo", model="ssfm-v30")
 
     post_mock.assert_not_called()
+
+
+def test_delete_voice_returns_none(mocker):
+    client = Typecast(api_key="test-key")
+    mock_response = mocker.Mock()
+    mock_response.status_code = 204
+    mock_response.text = ""
+    delete_mock = mocker.patch.object(client.session, "delete", return_value=mock_response)
+
+    result = client.delete_voice("uc_64a1b2c3d4e5f6a7b8c9d0e1")
+
+    assert result is None
+    args = delete_mock.call_args.args
+    assert "/v1/voices/uc_64a1b2c3d4e5f6a7b8c9d0e1" in args[0]
+
+
+def test_delete_voice_raises_on_404(mocker):
+    client = Typecast(api_key="test-key")
+    mock_response = mocker.Mock()
+    mock_response.status_code = 404
+    mock_response.text = '{"detail": {"code": "NOT_FOUND", "message": "voice not found"}}'
+    mocker.patch.object(client.session, "delete", return_value=mock_response)
+
+    with pytest.raises(NotFoundError):
+        client.delete_voice("uc_xxx")
