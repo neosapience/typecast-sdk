@@ -220,7 +220,7 @@ class AsyncTypecast:
         self,
         audio: Union[str, Path, bytes, BinaryIO],
         name: str,
-        model: Union[str, "str"],
+        model: Union[str, "TTSModel"],
     ) -> CustomVoice:
         """Create a quick-cloned custom voice from an audio sample (async).
 
