@@ -1,8 +1,10 @@
-from typing import Iterator, Optional
+from pathlib import Path
+from typing import BinaryIO, Iterator, Optional, Union
 
 import requests
 
 from . import conf
+from ._voice_clone import validate_clone_inputs
 from .exceptions import (
     BadRequestError,
     InternalServerError,
@@ -14,6 +16,7 @@ from .exceptions import (
     UnprocessableEntityError,
 )
 from .models import (
+    CustomVoice,
     SubscriptionResponse,
     TTSRequest,
     TTSRequestStream,
@@ -24,6 +27,16 @@ from .models import (
     VoicesV2Filter,
     VoiceV2Response,
 )
+
+
+def _guess_audio_mime(filename: str) -> str:
+    """Guess audio MIME type from filename extension; fall back to octet-stream."""
+    lower = filename.lower()
+    if lower.endswith(".wav"):
+        return "audio/wav"
+    if lower.endswith(".mp3"):
+        return "audio/mpeg"
+    return "application/octet-stream"
 
 
 class Typecast:
@@ -201,6 +214,46 @@ class Typecast:
         if response.status_code != 200:
             self._handle_error(response.status_code, response.text)
         return TTSWithTimestampsResponse.model_validate(response.json())
+
+    def clone_voice(
+        self,
+        audio: Union[str, Path, bytes, BinaryIO],
+        name: str,
+        model: Union[str, "TTSModel"],
+    ) -> CustomVoice:
+        """Create a quick-cloned custom voice from an audio sample.
+
+        Args:
+            audio: Audio sample. Accepts file path (str/Path), raw bytes,
+                or a readable binary file object. Max 25 MB.
+            name: Voice name, 1-30 characters.
+            model: Engine model. ``"ssfm-v21"`` or ``"ssfm-v30"`` (or ``TTSModel`` enum).
+
+        Returns:
+            ``CustomVoice`` with ``voice_id`` (uc_ prefix), ``name``, and ``model``.
+            Use ``voice_id`` directly with ``text_to_speech`` to synthesize.
+
+        Raises:
+            ValueError: name length out of range or audio exceeds 25 MB.
+            FileNotFoundError: ``audio`` is a path to a non-existent file.
+            TypecastError subclasses: per HTTP status from the API.
+        """
+        audio_bytes, filename = validate_clone_inputs(audio, name)
+        model_str = model.value if hasattr(model, "value") else str(model)
+
+        files = {
+            "file": (filename, audio_bytes, _guess_audio_mime(filename)),
+        }
+        data = {"name": name, "model": model_str}
+        response = self.session.post(
+            f"{self.host}/v1/voices/clone",
+            files=files,
+            data=data,
+            timeout=(10, 300),
+        )
+        if response.status_code != 200:
+            self._handle_error(response.status_code, response.text)
+        return CustomVoice.model_validate(response.json())
 
     def voices(self, model: Optional[str] = None) -> list[VoicesResponse]:
         """Get available voices (V1 API).
