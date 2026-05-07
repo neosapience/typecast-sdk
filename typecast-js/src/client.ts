@@ -263,6 +263,9 @@ export class TypecastClient {
    */
   async cloneVoice(req: CloneVoiceRequest): Promise<CustomVoice> {
     const { audioBytes, filename } = await validateCloneInputsAsync(req.audio, req.name);
+    if (req.model !== 'ssfm-v21' && req.model !== 'ssfm-v30') {
+      throw new TypeError(`model must be 'ssfm-v21' or 'ssfm-v30'; got ${String(req.model)}`);
+    }
     // Copy to a plain ArrayBuffer so TypeScript accepts it as a valid BlobPart.
     // (Uint8Array may reference a SharedArrayBuffer which is not BlobPart-compatible.)
     const audioBuffer = audioBytes.buffer.slice(
@@ -297,7 +300,10 @@ export class TypecastClient {
    * @throws Error on non-2xx response (e.g., 404 if not owned or already deleted).
    */
   async deleteVoice(voiceId: string): Promise<void> {
-    const response = await fetch(this.buildUrl(`/v1/voices/${voiceId}`), {
+    if (!voiceId || !voiceId.startsWith('uc_')) {
+      throw new TypeError(`voiceId must start with 'uc_'; got ${String(voiceId)}`);
+    }
+    const response = await fetch(this.buildUrl(`/v1/voices/${encodeURIComponent(voiceId)}`), {
       method: 'DELETE',
       headers: this.headers,
     });

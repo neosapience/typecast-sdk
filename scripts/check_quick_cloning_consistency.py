@@ -208,7 +208,7 @@ def main() -> int:
             issues.append(
                 f"{key}: python={py_fields.get(key)!r} js={js_fields.get(key)!r}"
             )
-    for sub in ("length", "sha256", "mime"):
+    for sub in ("filename", "length", "sha256", "mime"):
         pv = py_file.get(sub) if isinstance(py_file, dict) else None
         jv = js_file.get(sub) if isinstance(js_file, dict) else None
         if pv != jv:

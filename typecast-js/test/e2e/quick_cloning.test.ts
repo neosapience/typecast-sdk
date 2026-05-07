@@ -1,8 +1,9 @@
 /**
  * E2E tests for quick voice cloning against a real Typecast API.
  *
- * Skipped unless TYPECAST_API_KEY is set. Targets `api.icepeak.in` (dev) by
- * default; override with TYPECAST_API_HOST.
+ * Skipped unless TYPECAST_API_KEY is set. The client defaults to the
+ * production host (api.typecast.ai); set TYPECAST_API_HOST to override
+ * (typically to https://api.icepeak.in for dev).
  */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import path from 'node:path';
@@ -85,6 +86,6 @@ describe.skipIf(!HAS_KEY)('quick voice cloning E2E', () => {
       model: 'ssfm-v30',
     });
     await client.deleteVoice(v.voiceId);
-    await expect(client.deleteVoice(v.voiceId)).rejects.toThrow();
+    await expect(client.deleteVoice(v.voiceId)).rejects.toThrow(/404/);
   }, 30000);
 });
