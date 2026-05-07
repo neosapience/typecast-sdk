@@ -1,7 +1,6 @@
 """Internal helpers for quick voice cloning (sync/async shared)."""
 from __future__ import annotations
 
-import io
 import os
 from pathlib import Path
 from typing import BinaryIO, Union
