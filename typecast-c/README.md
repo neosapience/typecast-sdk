@@ -217,6 +217,86 @@ void typecast_voices_response_free(TypecastVoicesResponse* response);
 void typecast_voice_free(TypecastVoice* voice);
 ```
 
+### Quick Voice Cloning
+
+Clone a voice from your own audio sample and use it immediately for TTS.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include "typecast.h"
+
+int main(void) {
+    TypecastClient* client = typecast_client_create("your-api-key");
+
+    /* Load audio bytes from a file */
+    FILE* f = fopen("sample.wav", "rb");
+    fseek(f, 0, SEEK_END); long sz = ftell(f); fseek(f, 0, SEEK_SET);
+    unsigned char* audio = malloc((size_t)sz);
+    fread(audio, 1, (size_t)sz, f); fclose(f);
+
+    /* Clone the voice (max 25 MB, name 1-30 chars) */
+    TypecastCustomVoice voice;
+    TypecastErrorCode rc = typecast_clone_voice(
+        client,
+        audio, (size_t)sz,
+        "sample.wav",       /* filename hint for MIME detection */
+        "My Voice",         /* display name, 1-30 characters    */
+        "ssfm-v30",
+        &voice
+    );
+    free(audio);
+
+    if (rc == TYPECAST_OK) {
+        printf("Cloned voice_id: %s\n", voice.voice_id);
+
+        /* Use the cloned voice */
+        TypecastTTSRequest req = {0};
+        req.text     = "Hello from my cloned voice!";
+        req.voice_id = voice.voice_id;
+        req.model    = TYPECAST_MODEL_SSFM_V30;
+        TypecastTTSResponse* resp = typecast_text_to_speech(client, &req);
+        if (resp) { typecast_tts_response_free(resp); }
+
+        /* Delete when no longer needed */
+        typecast_delete_voice(client, voice.voice_id);
+    }
+
+    typecast_client_destroy(client);
+    return 0;
+}
+```
+
+**Validation rules** (checked before any HTTP call):
+
+| Rule | Value |
+|---|---|
+| `TYPECAST_CLONING_MAX_FILE_SIZE` | 25 MB |
+| `TYPECAST_NAME_MIN_LENGTH` | 1 character |
+| `TYPECAST_NAME_MAX_LENGTH` | 30 characters |
+
+**API reference:**
+
+```c
+/* Clone a voice from raw audio bytes */
+TypecastErrorCode typecast_clone_voice(
+    TypecastClient* client,
+    const unsigned char* audio, size_t audio_len,
+    const char* filename,       /* multipart filename hint, e.g. "sample.wav" */
+    const char* name,           /* 1-30 characters */
+    const char* model,          /* "ssfm-v21" or "ssfm-v30" */
+    TypecastCustomVoice* out    /* filled on success */
+);
+
+/* Soft-delete a cloned voice */
+TypecastErrorCode typecast_delete_voice(
+    TypecastClient* client,
+    const char* voice_id        /* "uc_..." prefix */
+);
+```
+
+See `examples/quick_cloning.c` for a full end-to-end example.
+
 ## Models
 
 | Model                     | Description                        | Emotions                                             |
