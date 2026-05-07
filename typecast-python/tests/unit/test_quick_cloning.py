@@ -137,3 +137,35 @@ def test_delete_voice_raises_on_404(mocker):
 
     with pytest.raises(NotFoundError):
         client.delete_voice("uc_xxx")
+
+
+# ---------------------------------------------------------------------------
+# Async client tests
+# ---------------------------------------------------------------------------
+from aioresponses import aioresponses  # noqa: E402
+
+from typecast.async_client import AsyncTypecast  # noqa: E402
+
+
+ASYNC_HOST = "https://dummy.example"
+
+
+async def test_async_clone_voice_returns_custom_voice():
+    fixture = _load_fixture("success_v30.json")
+    with aioresponses() as m:
+        m.post(f"{ASYNC_HOST}/v1/voices/clone", status=200, payload=fixture)
+        async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
+            voice = await client.clone_voice(
+                audio=b"\x00" * 1024, name="demo", model="ssfm-v30"
+            )
+            assert voice.voice_id == fixture["voice_id"]
+            assert voice.name == fixture["name"]
+            assert voice.model == fixture["model"]
+
+
+async def test_async_delete_voice_returns_none():
+    with aioresponses() as m:
+        m.delete(f"{ASYNC_HOST}/v1/voices/uc_xxx", status=204)
+        async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
+            result = await client.delete_voice("uc_xxx")
+            assert result is None
