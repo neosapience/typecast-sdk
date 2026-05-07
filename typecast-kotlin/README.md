@@ -69,6 +69,7 @@ client.close()
 - **Voice Discovery**: Browse available voices with filtering options
 - **Emotion Control**: Use preset emotions or context-aware smart emotions
 - **Audio Customization**: Control volume, pitch, tempo, and output format
+- **Quick Voice Cloning**: Clone a voice from a short audio sample (WAV/MP3, up to 25 MB)
 
 ## Usage Examples
 
@@ -195,6 +196,56 @@ The `granularity` parameter controls what alignment data is returned:
 
 The caption exporter automatically picks the best available granularity:
 words (if ≥ 2 words present) → characters (if present) → single word.
+
+<details>
+<summary><b>Quick Voice Cloning</b></summary>
+
+Clone your own voice from a short audio sample (WAV or MP3, up to 25 MB). The
+returned `voiceId` starts with `uc_` and can be used immediately in
+`textToSpeech` calls.
+
+```kotlin
+import com.neosapience.TypecastClient
+import com.neosapience.models.CustomVoice
+import java.io.File
+
+val client = TypecastClient.create("your-api-key")
+
+// Clone from a File
+val audioFile = File("my_voice_sample.wav")
+val cloned: CustomVoice = client.cloneVoice(audioFile, "My Cloned Voice", "ssfm-v30")
+
+println("Created voice ID: ${cloned.voiceId}")
+println("Name:  ${cloned.name}")
+println("Model: ${cloned.model}")
+
+// Use the cloned voice for TTS
+val request = TTSRequest.builder()
+    .voiceId(cloned.voiceId)
+    .text("Hello from my cloned voice!")
+    .model(TTSModel.SSFM_V30)
+    .build()
+val response = client.textToSpeech(request)
+
+// Delete the voice when no longer needed
+client.deleteVoice(cloned.voiceId)
+println("Voice deleted.")
+
+client.close()
+```
+
+You can also pass raw bytes if you already have audio in memory:
+
+```kotlin
+val audioBytes: ByteArray = File("sample.wav").readBytes()
+val cloned = client.cloneVoice(audioBytes, "sample.wav", "My Voice", "ssfm-v30")
+```
+
+Constraints enforced client-side before the request is sent:
+- Audio must not exceed **25 MB** (`CustomVoice.CLONING_MAX_FILE_SIZE`)
+- Name must be **1–30 characters** (`CustomVoice.NAME_MIN_LENGTH` / `CustomVoice.NAME_MAX_LENGTH`)
+
+</details>
 
 ### Using with Seed for Reproducibility
 

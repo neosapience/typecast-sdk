@@ -8,11 +8,15 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.Closeable
+import java.io.File
 import java.io.InputStream
+import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 
 /**
@@ -352,6 +356,103 @@ class TypecastClient private constructor(
             if (field != null) field.toString().trim('"') else responseBody
         } catch (e: Exception) {
             responseBody
+        }
+    }
+
+    /**
+     * Creates a quick-cloned custom voice from an audio sample.
+     *
+     * Calls `POST /v1/voices/clone` with a multipart/form-data body containing
+     * the audio file, voice name, and synthesis model.
+     *
+     * @param audio    the raw audio bytes (WAV, MP3, or other format; max 25 MB)
+     * @param filename the filename including extension, used to derive the MIME type
+     *                 (e.g. `"sample.wav"`, `"voice.mp3"`)
+     * @param name     the display name for the new voice (1–30 characters)
+     * @param model    the synthesis model to use (e.g. `"ssfm-v30"`)
+     * @return the created [CustomVoice] with its assigned [CustomVoice.voiceId]
+     * @throws IllegalArgumentException if [name] length is outside 1–30, or if [audio] exceeds 25 MB
+     * @throws TypecastException if the API returns an error response
+     */
+    fun cloneVoice(audio: ByteArray, filename: String, name: String, model: String): CustomVoice {
+        if (name.length < CustomVoice.NAME_MIN_LENGTH || name.length > CustomVoice.NAME_MAX_LENGTH) {
+            throw IllegalArgumentException(
+                "name must be ${CustomVoice.NAME_MIN_LENGTH}-${CustomVoice.NAME_MAX_LENGTH} " +
+                    "characters; got ${name.length}"
+            )
+        }
+        if (audio.size > CustomVoice.CLONING_MAX_FILE_SIZE) {
+            throw IllegalArgumentException(
+                "audio file exceeds 25MB limit; got ${audio.size} bytes"
+            )
+        }
+
+        val mime = guessAudioMime(filename).toMediaType()
+        val filePart: RequestBody = audio.toRequestBody(mime)
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("name", name)
+            .addFormDataPart("model", model)
+            .addFormDataPart("file", filename, filePart)
+            .build()
+
+        val httpRequest = Request.Builder()
+            .url("$baseUrl/v1/voices/clone")
+            .addHeader(API_KEY_HEADER, apiKey)
+            .post(body)
+            .build()
+
+        return executeRequest(httpRequest)
+    }
+
+    /**
+     * Convenience overload that reads bytes from a [File] and delegates to
+     * [cloneVoice(ByteArray, String, String, String)][cloneVoice].
+     *
+     * @param audioFile the audio file to upload (max 25 MB)
+     * @param name      the display name for the new voice (1–30 characters)
+     * @param model     the synthesis model to use (e.g. `"ssfm-v30"`)
+     * @return the created [CustomVoice] with its assigned [CustomVoice.voiceId]
+     * @throws IllegalArgumentException if [name] length or file size is invalid
+     * @throws TypecastException if the API returns an error response
+     */
+    fun cloneVoice(audioFile: File, name: String, model: String): CustomVoice {
+        val bytes = Files.readAllBytes(audioFile.toPath())
+        return cloneVoice(bytes, audioFile.name, name, model)
+    }
+
+    /**
+     * Deletes a quick-cloned custom voice.
+     *
+     * Calls `DELETE /v1/voices/{voiceId}`. A 204 or 200 response is treated as success.
+     *
+     * @param voiceId the ID of the custom voice to delete (has `"uc_"` prefix)
+     * @throws TypecastException if the API returns an error response
+     */
+    fun deleteVoice(voiceId: String) {
+        val httpRequest = Request.Builder()
+            .url("$baseUrl/v1/voices/$voiceId")
+            .addHeader(API_KEY_HEADER, apiKey)
+            .delete()
+            .build()
+
+        httpClient.newCall(httpRequest).execute().use { response ->
+            if (!response.isSuccessful) {
+                val body = response.body?.string() ?: ""
+                throw buildError(response.code, body)
+            }
+        }
+    }
+
+    /**
+     * Guesses the audio MIME type from a filename extension.
+     */
+    private fun guessAudioMime(filename: String): String {
+        val lower = filename.lowercase()
+        return when {
+            lower.endsWith(".wav") -> "audio/wav"
+            lower.endsWith(".mp3") -> "audio/mpeg"
+            else -> "application/octet-stream"
         }
     }
 
