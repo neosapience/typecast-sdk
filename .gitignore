@@ -314,6 +314,9 @@ logs/
 # Audio output files (in root directories, not source code)
 *.wav
 *.mp3
+# Exception: shared test fixtures
+!test-fixtures/**/*.wav
+!test-fixtures/**/*.mp3
 # Note: Removed 'output.*' pattern as it incorrectly matches Output.java/Output.cs source files
 
 # ----------------
