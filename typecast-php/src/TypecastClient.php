@@ -14,6 +14,7 @@ use Neosapience\Typecast\Exceptions\RateLimitException;
 use Neosapience\Typecast\Exceptions\TypecastException;
 use Neosapience\Typecast\Exceptions\UnauthorizedException;
 use Neosapience\Typecast\Exceptions\UnprocessableEntityException;
+use Neosapience\Typecast\Models\CustomVoice;
 use Neosapience\Typecast\Models\SubscriptionResponse;
 use Neosapience\Typecast\Models\TTSRequest;
 use Neosapience\Typecast\Models\TTSRequestStream;
@@ -292,6 +293,104 @@ class TypecastClient
         }
 
         return VoiceV2::fromArray($items[0]);
+    }
+
+    /**
+     * Create a quick-cloned custom voice from an audio sample.
+     *
+     * @param string|resource $audio Audio bytes or a readable resource.
+     *                               String file paths are NOT auto-detected —
+     *                               read via file_get_contents() and pass bytes.
+     * @param string $filename       Multipart filename hint (e.g., "sample.wav").
+     * @param string $name           Voice name, 1–30 characters.
+     * @param string $model          SSFM model version, e.g. "ssfm-v21" or "ssfm-v30".
+     * @return CustomVoice
+     * @throws \InvalidArgumentException on validation failure.
+     * @throws TypecastException on HTTP error.
+     */
+    public function cloneVoice($audio, string $filename, string $name, string $model): CustomVoice
+    {
+        $nameLen = strlen($name);
+        if ($nameLen < CustomVoice::NAME_MIN_LENGTH || $nameLen > CustomVoice::NAME_MAX_LENGTH) {
+            throw new \InvalidArgumentException(sprintf(
+                'name must be %d-%d characters; got %d',
+                CustomVoice::NAME_MIN_LENGTH,
+                CustomVoice::NAME_MAX_LENGTH,
+                $nameLen,
+            ));
+        }
+
+        $bytes = is_resource($audio) ? stream_get_contents($audio) : (string) $audio;
+        if (strlen($bytes) > CustomVoice::CLONING_MAX_FILE_SIZE) {
+            throw new \InvalidArgumentException(sprintf(
+                'audio file exceeds 25MB limit; got %d bytes',
+                strlen($bytes),
+            ));
+        }
+
+        try {
+            $response = $this->httpClient->request('POST', '/v1/voices/clone', [
+                'multipart' => [
+                    ['name' => 'name',  'contents' => $name],
+                    ['name' => 'model', 'contents' => $model],
+                    [
+                        'name'     => 'file',
+                        'contents' => $bytes,
+                        'filename' => $filename,
+                        'headers'  => ['Content-Type' => self::guessAudioMime($filename)],
+                    ],
+                ],
+                'headers' => ['X-API-KEY' => $this->apiKey],
+            ]);
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
+
+        $statusCode = $response->getStatusCode();
+        if ($statusCode !== 200) {
+            $this->handleError($statusCode, (string) $response->getBody());
+        }
+
+        /** @var array<string, mixed> $data */
+        $data = $this->decodeJson((string) $response->getBody());
+
+        return CustomVoice::fromArray($data);
+    }
+
+    /**
+     * Delete a custom voice by its voice ID.
+     *
+     * @param string $voiceId The "uc_"-prefixed voice ID returned by cloneVoice.
+     * @throws TypecastException on HTTP error.
+     */
+    public function deleteVoice(string $voiceId): void
+    {
+        try {
+            $response = $this->httpClient->request('DELETE', '/v1/voices/' . $voiceId, [
+                'headers' => ['X-API-KEY' => $this->apiKey],
+            ]);
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
+
+        $statusCode = $response->getStatusCode();
+        if ($statusCode !== 204) {
+            $this->handleError($statusCode, (string) $response->getBody());
+        }
+    }
+
+    /**
+     * Guess the MIME type of an audio file from its extension.
+     */
+    private static function guessAudioMime(string $filename): string
+    {
+        $lower = strtolower($filename);
+        if (str_ends_with($lower, '.wav'))  return 'audio/wav';
+        if (str_ends_with($lower, '.mp3'))  return 'audio/mpeg';
+        if (str_ends_with($lower, '.ogg'))  return 'audio/ogg';
+        if (str_ends_with($lower, '.flac')) return 'audio/flac';
+        if (str_ends_with($lower, '.m4a'))  return 'audio/mp4';
+        return 'application/octet-stream';
     }
 
     /**

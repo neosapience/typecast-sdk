@@ -133,6 +133,52 @@ $voices = $client->getVoicesV2(new VoicesV2Filter(
 $voice = $client->getVoiceV2('tc_xxx');
 ```
 
+### Quick Voice Cloning
+
+Clone a voice from a short audio sample (up to 25 MB). The returned `CustomVoice`
+object contains a `voiceId` with the `uc_` prefix that can be used directly in
+`textToSpeech` calls.
+
+```php
+use Neosapience\Typecast\Models\CustomVoice;
+
+// Read an audio sample (WAV, MP3, OGG, FLAC, or M4A; max 25 MB)
+$audioBytes = file_get_contents('sample.wav');
+
+$voice = $client->cloneVoice(
+    audio: $audioBytes,
+    filename: 'sample.wav',
+    name: 'My Custom Voice',
+    model: 'ssfm-v21',
+);
+
+echo "Cloned voice ID: {$voice->voiceId}\n";  // e.g. "uc_abc123"
+
+// Use the cloned voice for TTS
+$tts = $client->textToSpeech(new \Neosapience\Typecast\Models\TTSRequest(
+    voiceId: $voice->voiceId,
+    text: 'Hello from my cloned voice!',
+    model: 'ssfm-v21',
+));
+file_put_contents('cloned.wav', $tts->audioData);
+
+// Delete the voice when no longer needed
+$client->deleteVoice($voice->voiceId);
+```
+
+**Validation rules** (checked before any network call):
+
+- `name` must be 1–30 characters (`CustomVoice::NAME_MIN_LENGTH` / `CustomVoice::NAME_MAX_LENGTH`)
+- `audio` must not exceed 25 MB (`CustomVoice::CLONING_MAX_FILE_SIZE`)
+
+You can also pass a PHP resource instead of raw bytes:
+
+```php
+$fp = fopen('sample.wav', 'rb');
+$voice = $client->cloneVoice(audio: $fp, filename: 'sample.wav', name: 'Resource Voice', model: 'ssfm-v30');
+fclose($fp);
+```
+
 ## Error Handling
 
 The SDK throws specific exceptions for each HTTP error:
