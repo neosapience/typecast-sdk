@@ -10,9 +10,11 @@ import com.neosapience.exceptions.*;
 import com.neosapience.models.*;
 import okhttp3.*;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -741,6 +743,118 @@ public class TypecastClient {
         } catch (IOException e) {
             throw new TypecastException("Failed to make API request", e);
         }
+    }
+
+    /**
+     * Creates a quick-cloned custom voice from an audio sample.
+     *
+     * <p>Calls {@code POST /v1/voices/clone} with a multipart/form-data body
+     * containing the audio file, voice name, and synthesis model.</p>
+     *
+     * @param audio    the raw audio bytes (WAV, MP3, or other format; max 25 MB)
+     * @param filename the filename including extension, used to derive the MIME type
+     *                 (e.g. {@code "sample.wav"}, {@code "voice.mp3"})
+     * @param name     the display name for the new voice (1–30 characters)
+     * @param model    the synthesis model to use (e.g. {@code "ssfm-v30"})
+     * @return the created {@link CustomVoice} with its assigned {@code voiceId}
+     * @throws IllegalArgumentException if {@code name} length is outside 1–30, or
+     *                                  if {@code audio} exceeds 25 MB
+     * @throws TypecastException        if the API returns an error response
+     */
+    public CustomVoice cloneVoice(byte[] audio, String filename, String name, String model) {
+        if (name.length() < CustomVoice.NAME_MIN_LENGTH || name.length() > CustomVoice.NAME_MAX_LENGTH) {
+            throw new IllegalArgumentException(
+                    "name must be " + CustomVoice.NAME_MIN_LENGTH + "-" + CustomVoice.NAME_MAX_LENGTH
+                    + " characters; got " + name.length());
+        }
+        if (audio.length > CustomVoice.CLONING_MAX_FILE_SIZE) {
+            throw new IllegalArgumentException(
+                    "audio file exceeds 25MB limit; got " + audio.length + " bytes");
+        }
+
+        MediaType mime = MediaType.parse(guessAudioMime(filename));
+        RequestBody filePart = RequestBody.create(audio, mime);
+        RequestBody body = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("name", name)
+                .addFormDataPart("model", model)
+                .addFormDataPart("file", filename, filePart)
+                .build();
+
+        Request httpRequest = new Request.Builder()
+                .url(baseUrl + "/v1/voices/clone")
+                .addHeader(API_KEY_HEADER, apiKey)
+                .post(body)
+                .build();
+
+        try (Response response = httpClient.newCall(httpRequest).execute()) {
+            String responseJson = response.body().string();
+            if (!response.isSuccessful()) {
+                throw createException(response.code(), responseJson);
+            }
+            return gson.fromJson(responseJson, CustomVoice.class);
+        } catch (IOException e) {
+            throw new TypecastException("Failed to make API request", e);
+        }
+    }
+
+    /**
+     * Convenience overload that reads bytes from a {@link File} and delegates to
+     * {@link #cloneVoice(byte[], String, String, String)}.
+     *
+     * @param audioFile the audio file to upload (max 25 MB)
+     * @param name      the display name for the new voice (1–30 characters)
+     * @param model     the synthesis model to use (e.g. {@code "ssfm-v30"})
+     * @return the created {@link CustomVoice} with its assigned {@code voiceId}
+     * @throws IOException              if the file cannot be read
+     * @throws IllegalArgumentException if {@code name} length or file size is invalid
+     * @throws TypecastException        if the API returns an error response
+     */
+    public CustomVoice cloneVoice(File audioFile, String name, String model) throws IOException {
+        byte[] bytes = Files.readAllBytes(audioFile.toPath());
+        return cloneVoice(bytes, audioFile.getName(), name, model);
+    }
+
+    /**
+     * Deletes a quick-cloned custom voice.
+     *
+     * <p>Calls {@code DELETE /v1/voices/{voiceId}}. A 204 or 200 response is
+     * treated as success.</p>
+     *
+     * @param voiceId the ID of the custom voice to delete (must have "uc_" prefix)
+     * @throws TypecastException if the API returns an error response
+     */
+    public void deleteVoice(String voiceId) {
+        Request httpRequest = new Request.Builder()
+                .url(baseUrl + "/v1/voices/" + voiceId)
+                .addHeader(API_KEY_HEADER, apiKey)
+                .delete()
+                .build();
+
+        try (Response response = httpClient.newCall(httpRequest).execute()) {
+            if (!response.isSuccessful()) {
+                throw createException(response.code(), response.body().string());
+            }
+        } catch (IOException e) {
+            throw new TypecastException("Failed to make API request", e);
+        }
+    }
+
+    /**
+     * Guesses the audio MIME type from a filename extension.
+     *
+     * @param filename the filename (e.g. {@code "sample.wav"})
+     * @return the MIME type string
+     */
+    private static String guessAudioMime(String filename) {
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".wav")) {
+            return "audio/wav";
+        }
+        if (lower.endsWith(".mp3")) {
+            return "audio/mpeg";
+        }
+        return "application/octet-stream";
     }
 
     private TypecastException createException(int statusCode, String responseBody) {

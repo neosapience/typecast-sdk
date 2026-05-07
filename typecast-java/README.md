@@ -318,6 +318,65 @@ try {
 
 </details>
 
+<details>
+<summary><b>Quick Voice Cloning</b></summary>
+
+Clone your own voice from a short audio sample (WAV or MP3, up to 25 MB). The
+returned `voiceId` starts with `uc_` and can be used immediately in
+`textToSpeech` calls.
+
+```java
+import com.neosapience.TypecastClient;
+import com.neosapience.models.CustomVoice;
+
+import java.io.File;
+
+public class CloningExample {
+    public static void main(String[] args) throws Exception {
+        TypecastClient client = new TypecastClient("your-api-key");
+
+        // Clone from a File
+        File audioFile = new File("my_voice_sample.wav");
+        CustomVoice cloned = client.cloneVoice(audioFile, "My Cloned Voice", "ssfm-v30");
+
+        System.out.println("Created voice ID: " + cloned.getVoiceId());
+        System.out.println("Name:  " + cloned.getName());
+        System.out.println("Model: " + cloned.getModel());
+
+        // Use the cloned voice for TTS
+        TTSRequest request = TTSRequest.builder()
+                .voiceId(cloned.getVoiceId())
+                .text("Hello from my cloned voice!")
+                .model(TTSModel.SSFM_V30)
+                .build();
+        TTSResponse response = client.textToSpeech(request);
+
+        // Delete the voice when no longer needed
+        client.deleteVoice(cloned.getVoiceId());
+        System.out.println("Voice deleted.");
+
+        client.close();
+    }
+}
+```
+
+You can also pass raw bytes if you already have audio in memory:
+
+```java
+byte[] audioBytes = Files.readAllBytes(Paths.get("sample.wav"));
+CustomVoice cloned = client.cloneVoice(audioBytes, "sample.wav", "My Voice", "ssfm-v30");
+```
+
+**Validation rules (enforced client-side before the API call):**
+
+| Parameter | Constraint                      |
+| :-------- | :------------------------------ |
+| `audio`   | Max 25 MB                       |
+| `name`    | 1–30 characters                 |
+| `model`   | Any valid model string          |
+
+</details>
+
 ## Available Models
 
 | Model      | Languages | Emotion Presets                                                    |
