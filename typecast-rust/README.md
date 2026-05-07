@@ -246,6 +246,65 @@ cargo test --test timestamps_test
 cargo test --features e2e --test e2e_test
 ```
 
+## Quick Voice Cloning
+
+Clone any voice from a short audio recording and use it immediately for TTS.
+
+### Clone a voice
+
+```rust
+use typecast_rust::TypecastClient;
+
+#[tokio::main]
+async fn main() -> typecast_rust::Result<()> {
+    let client = TypecastClient::from_env()?;
+
+    // Read your audio file (WAV or MP3, max 25 MB)
+    let audio = std::fs::read("sample.wav")
+        .map_err(|e| typecast_rust::TypecastError::IoError(e.to_string()))?;
+
+    // Clone the voice
+    let voice = client
+        .clone_voice(audio, "sample.wav", "My Custom Voice", "ssfm-v30")
+        .await?;
+    println!("Cloned voice ID: {}", voice.voice_id);
+
+    Ok(())
+}
+```
+
+### Delete a cloned voice
+
+```rust
+use typecast_rust::TypecastClient;
+
+#[tokio::main]
+async fn main() -> typecast_rust::Result<()> {
+    let client = TypecastClient::from_env()?;
+    client.delete_voice("cv_abc123").await?;
+    println!("Voice deleted.");
+    Ok(())
+}
+```
+
+### Validation constants
+
+| Constant | Value | Description |
+|---|---|---|
+| `CLONING_MAX_FILE_SIZE` | `25 * 1024 * 1024` | Maximum audio file size in bytes |
+| `NAME_MIN_LENGTH` | `1` | Minimum character count for voice name |
+| `NAME_MAX_LENGTH` | `30` | Maximum character count for voice name |
+
+Both `clone_voice` and `delete_voice` are async and return `Result<_, TypecastError>`.
+Validation errors (oversized file, name out of range) are returned before any network call.
+
+### Run the example
+
+```bash
+# Clone a voice from a local WAV file
+cargo run --example quick_cloning -- sample.wav "My Voice" ssfm-v30
+```
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
