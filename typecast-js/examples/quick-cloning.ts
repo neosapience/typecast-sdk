@@ -1,5 +1,5 @@
 /**
- * Quick voice cloning: clone -> speak -> delete.
+ * Instant cloning: clone -> speak -> delete.
  *
  * Usage:
  *   export TYPECAST_API_KEY="your-api-key"

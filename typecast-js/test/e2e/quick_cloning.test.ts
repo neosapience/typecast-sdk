@@ -1,5 +1,5 @@
 /**
- * E2E tests for quick voice cloning against a real Typecast API.
+ * E2E tests for instant cloning against a real Typecast API.
  *
  * Skipped unless TYPECAST_API_KEY is set. The client defaults to the
  * production host (api.typecast.ai); set TYPECAST_API_HOST to override
@@ -21,7 +21,7 @@ function uniqueName(prefix: string): string {
   return `${prefix}-${Date.now()}`;
 }
 
-describe.skipIf(!HAS_KEY)('quick voice cloning E2E', () => {
+describe.skipIf(!HAS_KEY)('instant cloning E2E', () => {
   let client: TypecastClient;
   const created: string[] = [];
 

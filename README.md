@@ -83,7 +83,7 @@ const audio = await client.tts.speak({
 - **Multiple Formats** — Export as WAV, MP3, and more
 - **Streaming Support** — Real-time audio streaming for low-latency applications
 - **Word/Character Timestamps** — Alignment data + SRT/VTT export for subtitles, karaoke, and per-character highlighting
-- **Quick Voice Cloning** — Upload a short audio sample, get a custom voice ID, and synthesize with it in one flow
+- **Instant cloning** — Upload a short audio sample, get a custom voice ID, and synthesize with it in one flow
 - **Simple Integration** — Clean, idiomatic APIs for each language
 
 <br/>

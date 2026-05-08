@@ -1,4 +1,4 @@
-"""E2E tests for quick voice cloning against a real Typecast API.
+"""E2E tests for instant cloning against a real Typecast API.
 
 Skipped unless ``TYPECAST_API_KEY`` is set. Targets ``api.icepeak.in`` (dev) by
 default; override with ``TYPECAST_API_HOST``.

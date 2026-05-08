@@ -1,4 +1,4 @@
-"""Internal helpers for quick voice cloning (sync/async shared)."""
+"""Internal helpers for instant cloning (sync/async shared)."""
 from __future__ import annotations
 
 import os

@@ -263,7 +263,7 @@ the two alignment arrays. For non-whitespace languages (Japanese,
 Chinese), pair with `granularity="char"` — word-level alignment will
 collapse the entire sentence into a single segment.
 
-### Quick Voice Cloning
+### Instant cloning
 
 Clone a custom voice from a short audio sample (≤ 25 MB), then use it just like any built-in voice. The cloned voice ID has a `uc_` prefix and works with `text_to_speech` directly.
 

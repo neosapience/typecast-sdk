@@ -1,4 +1,4 @@
-"""Unit tests for quick voice cloning DX."""
+"""Unit tests for instant cloning DX."""
 import io
 import json
 from pathlib import Path

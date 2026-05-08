@@ -1,4 +1,4 @@
-"""Quick voice cloning: clone -> speak -> delete in one flow.
+"""Instant cloning: clone -> speak -> delete in one flow.
 
 Usage:
     export TYPECAST_API_KEY="your-api-key"
