@@ -33,7 +33,7 @@ Convert text to lifelike speech using AI-powered voices
   - [Voice Discovery](#voice-discovery)
   - [Emotion Control](#emotion-control)
   - [Audio Output Settings](#audio-output-settings)
-  - [Quick Voice Cloning](#quick-voice-cloning)
+  - [Instant cloning](#quick-voice-cloning)
 - [Platform-Specific Usage](#platform-specific-usage)
   - [iOS](#ios)
   - [macOS](#macos)
@@ -347,7 +347,7 @@ let audio = try await client.textToSpeech(TTSRequest(
 
 ---
 
-### Quick Voice Cloning
+### Instant cloning
 
 Clone any voice from a short audio sample and use it immediately for text-to-speech.
 

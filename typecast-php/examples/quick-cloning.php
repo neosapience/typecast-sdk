@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Quick Voice Cloning — PHP SDK Example
+ * Instant cloning — PHP SDK Example
  *
  * Demonstrates how to clone a voice from an audio sample, use it for TTS,
  * and delete it when done.
@@ -91,7 +91,7 @@ echo "\n--- Synthesising speech with the cloned voice ---\n";
 try {
     $tts = $client->textToSpeech(new TTSRequest(
         voiceId: $voice->voiceId,
-        text: 'Hello! This is my quick-cloned voice speaking.',
+        text: 'Hello! This is my custom voice (created via instant cloning) speaking.',
         model: $voice->model,
     ));
 

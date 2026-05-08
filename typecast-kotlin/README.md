@@ -69,7 +69,7 @@ client.close()
 - **Voice Discovery**: Browse available voices with filtering options
 - **Emotion Control**: Use preset emotions or context-aware smart emotions
 - **Audio Customization**: Control volume, pitch, tempo, and output format
-- **Quick Voice Cloning**: Clone a voice from a short audio sample (WAV/MP3, up to 25 MB)
+- **Instant cloning**: Clone a voice from a short audio sample (WAV/MP3, up to 25 MB)
 
 ## Usage Examples
 
@@ -198,7 +198,7 @@ The caption exporter automatically picks the best available granularity:
 words (if ≥ 2 words present) → characters (if present) → single word.
 
 <details>
-<summary><b>Quick Voice Cloning</b></summary>
+<summary><b>Instant cloning</b></summary>
 
 Clone your own voice from a short audio sample (WAV or MP3, up to 25 MB). The
 returned `voiceId` starts with `uc_` and can be used immediately in

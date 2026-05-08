@@ -246,7 +246,7 @@ cargo test --test timestamps_test
 cargo test --features e2e --test e2e_test
 ```
 
-## Quick Voice Cloning
+## Instant cloning
 
 Clone any voice from a short audio recording and use it immediately for TTS.
 

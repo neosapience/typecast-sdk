@@ -371,7 +371,7 @@ public class TypecastClient : IDisposable
 
     #endregion
 
-    #region Quick Voice Cloning
+    #region Instant cloning
 
     /// <summary>
     /// Clones a voice from an audio sample via POST /v1/voices/clone.

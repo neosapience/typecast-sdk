@@ -133,7 +133,7 @@ $voices = $client->getVoicesV2(new VoicesV2Filter(
 $voice = $client->getVoiceV2('tc_xxx');
 ```
 
-### Quick Voice Cloning
+### Instant cloning
 
 Clone a voice from a short audio sample (up to 25 MB). The returned `CustomVoice`
 object contains a `voiceId` with the `uc_` prefix that can be used directly in

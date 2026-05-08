@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Neosapience\Typecast\Models;
 
 /**
- * Response of POST /v1/voices/clone — quick-cloned custom voice metadata.
+ * Response of POST /v1/voices/clone — custom voice (created via instant cloning) metadata.
  *
  * The voiceId has the "uc_" prefix and can be used directly as the voiceId
  * parameter in textToSpeech calls.

@@ -348,7 +348,7 @@ func (c *Client) GetVoice(ctx context.Context, voiceID string, model TTSModel) (
 	return voices, nil
 }
 
-// CloneVoice creates a quick-cloned custom voice from an audio sample.
+// CloneVoice creates a custom voice (created via instant cloning) from an audio sample.
 //
 // audio is the raw audio bytes. filename is the multipart filename hint
 // (e.g., "sample.wav") and is used for MIME type inference. name is 1-30

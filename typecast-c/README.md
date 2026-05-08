@@ -217,7 +217,7 @@ void typecast_voices_response_free(TypecastVoicesResponse* response);
 void typecast_voice_free(TypecastVoice* voice);
 ```
 
-### Quick Voice Cloning
+### Instant cloning
 
 Clone a voice from your own audio sample and use it immediately for TTS.
 

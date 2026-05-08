@@ -10,7 +10,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 
 /**
- * Example: quick voice cloning — clone a voice from an audio file, synthesize
+ * Example: instant cloning — clone a voice from an audio file, synthesize
  * speech with it, then delete the voice.
  *
  * <p>Usage:</p>
@@ -56,7 +56,7 @@ public class QuickCloning {
             System.out.println("\nSynthesizing speech...");
             TTSRequest request = TTSRequest.builder()
                     .voiceId(cloned.getVoiceId())
-                    .text("Hello! This is my quick-cloned voice speaking.")
+                    .text("Hello! This is my custom voice (created via instant cloning) speaking.")
                     .model(TTSModel.SSFM_V30)
                     .build();
 

@@ -266,7 +266,7 @@ pub const VoicesV2Filter = struct {
     use_cases: ?[]const u8 = null,
 };
 
-// ── Quick Voice Cloning ────────────────────────────────────────────────
+// ── Instant cloning ────────────────────────────────────────────────
 
 /// Maximum audio file size accepted by the cloning endpoint (25 MB).
 pub const CLONING_MAX_FILE_SIZE: usize = 25 * 1024 * 1024;

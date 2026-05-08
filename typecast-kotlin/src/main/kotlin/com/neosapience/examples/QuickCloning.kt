@@ -8,7 +8,7 @@ import java.nio.file.Files
 import java.nio.file.Paths
 
 /**
- * Example: quick voice cloning — clone a voice from an audio sample, synthesize
+ * Example: instant cloning — clone a voice from an audio sample, synthesize
  * speech with it, then delete the clone when done.
  *
  * Requirements:

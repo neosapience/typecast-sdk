@@ -223,7 +223,7 @@ public final class TypecastClient: Sendable {
         return try handleResponse(data: data, response: response)
     }
 
-    // MARK: - Quick Voice Cloning
+    // MARK: - Instant cloning
 
     /// Clone a voice from an audio sample.
     ///

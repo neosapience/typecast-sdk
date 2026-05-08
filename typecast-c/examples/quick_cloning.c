@@ -1,5 +1,5 @@
 /**
- * Typecast C SDK - Quick Voice Cloning Example
+ * Typecast C SDK - Instant cloning Example
  *
  * Demonstrates how to clone a custom voice from an audio file and then
  * use it for text-to-speech synthesis.

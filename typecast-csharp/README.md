@@ -230,7 +230,7 @@ var request = new TTSRequest("Hello, world!", voiceId, TTSModel.SsfmV30)
 };
 ```
 
-### Quick Voice Cloning
+### Instant cloning
 
 Clone your own voice (or any voice sample) and use it for TTS with no separate contract.
 The cloned voice ID carries a `uc_` prefix and can be passed directly to `TextToSpeechAsync`.

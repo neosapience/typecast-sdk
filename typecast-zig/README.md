@@ -27,7 +27,7 @@ Convert text to lifelike speech using AI-powered voices
   - [Text to Speech with Timestamps](#text-to-speech-with-timestamps)
   - [Voice Discovery](#voice-discovery)
   - [Emotion Control](#emotion-control)
-  - [Quick Voice Cloning](#quick-voice-cloning)
+  - [Instant cloning](#quick-voice-cloning)
 - [Supported Languages](#supported-languages)
 - [Error Handling](#error-handling)
 - [License](#license)
@@ -108,7 +108,7 @@ pub fn main() !void {
 | **Streaming** | Chunked audio delivery via callback for low-latency playback |
 | **Timestamp TTS** | Word/character alignment data with SRT/VTT subtitle generation |
 | **Voice Discovery** | Filter voices by model, gender, age, and use cases |
-| **Quick Voice Cloning** | Upload audio to create a custom voice; delete when no longer needed |
+| **Instant cloning** | Upload audio to create a custom voice; delete when no longer needed |
 | **Zero Dependencies** | Uses only the Zig standard library |
 
 ---
@@ -309,7 +309,7 @@ const response = try client.textToSpeech(.{
 defer allocator.free(response.audio_data);
 ```
 
-### Quick Voice Cloning
+### Instant cloning
 
 Upload a WAV or MP3 recording to create a custom voice, use it for synthesis,
 and delete it when you no longer need it.

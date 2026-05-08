@@ -360,7 +360,7 @@ class TypecastClient private constructor(
     }
 
     /**
-     * Creates a quick-cloned custom voice from an audio sample.
+     * Creates a custom voice (created via instant cloning) from an audio sample.
      *
      * Calls `POST /v1/voices/clone` with a multipart/form-data body containing
      * the audio file, voice name, and synthesis model.
@@ -422,7 +422,7 @@ class TypecastClient private constructor(
     }
 
     /**
-     * Deletes a quick-cloned custom voice.
+     * Deletes a custom voice (created via instant cloning).
      *
      * Calls `DELETE /v1/voices/{voiceId}`. A 204 or 200 response is treated as success.
      *

@@ -1,7 +1,7 @@
 package com.neosapience.models;
 
 /**
- * Response of POST /v1/voices/clone — quick-cloned custom voice metadata.
+ * Response of POST /v1/voices/clone — custom voice (created via instant cloning) metadata.
  *
  * <p>The {@code voiceId} field has the {@code "uc_"} prefix and can be used
  * directly as {@code voice_id} in {@code textToSpeech} calls.</p>

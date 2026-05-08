@@ -1,6 +1,6 @@
 import Foundation
 
-/// Metadata for a quick-cloned custom voice returned by POST /v1/voices/clone.
+/// Metadata for a custom voice (created via instant cloning) returned by POST /v1/voices/clone.
 ///
 /// `voiceId` carries the "uc_" prefix and can be passed directly as
 /// `voiceId` in `textToSpeech` calls.

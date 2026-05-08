@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace Typecast.Models;
 
 /// <summary>
-/// Response of POST /v1/voices/clone — quick-cloned custom voice metadata.
+/// Response of POST /v1/voices/clone — custom voice (created via instant cloning) metadata.
 /// VoiceId has the "uc_" prefix and can be used directly as voice_id in TextToSpeechAsync.
 /// </summary>
 public record CustomVoice(
@@ -13,7 +13,7 @@ public record CustomVoice(
 );
 
 /// <summary>
-/// Constants that govern the Quick Voice Cloning endpoint constraints.
+/// Constants that govern the Instant cloning endpoint constraints.
 /// </summary>
 public static class QuickCloningLimits
 {

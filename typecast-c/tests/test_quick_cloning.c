@@ -1,5 +1,5 @@
 /**
- * Typecast C SDK - Quick Voice Cloning tests
+ * Typecast C SDK - Instant cloning tests
  *
  * Covers typecast_clone_voice() and typecast_delete_voice() using the same
  * in-process mock HTTP server pattern as test_mock.c.
@@ -606,7 +606,7 @@ static void test_delete_voice_network_error(void) {
 int main(void) {
     mock_init();
 
-    printf("=== Quick Voice Cloning Tests ===\n\n");
+    printf("=== Instant cloning Tests ===\n\n");
 
     /* clone_voice validation (no HTTP) */
     RUN(clone_null_client);

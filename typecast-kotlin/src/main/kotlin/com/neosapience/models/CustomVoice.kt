@@ -4,7 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Response of POST /v1/voices/clone — quick-cloned custom voice metadata.
+ * Response of POST /v1/voices/clone — custom voice (created via instant cloning) metadata.
  *
  * The [voiceId] field has the `"uc_"` prefix and can be used directly as
  * `voice_id` in [com.neosapience.TypecastClient.textToSpeech] calls.

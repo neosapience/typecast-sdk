@@ -746,7 +746,7 @@ public class TypecastClient {
     }
 
     /**
-     * Creates a quick-cloned custom voice from an audio sample.
+     * Creates a custom voice (created via instant cloning) from an audio sample.
      *
      * <p>Calls {@code POST /v1/voices/clone} with a multipart/form-data body
      * containing the audio file, voice name, and synthesis model.</p>
@@ -816,7 +816,7 @@ public class TypecastClient {
     }
 
     /**
-     * Deletes a quick-cloned custom voice.
+     * Deletes a custom voice (created via instant cloning).
      *
      * <p>Calls {@code DELETE /v1/voices/{voiceId}}. A 204 or 200 response is
      * treated as success.</p>

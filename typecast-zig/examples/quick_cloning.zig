@@ -1,4 +1,4 @@
-/// Quick Voice Cloning example for the Typecast Zig SDK.
+/// Instant cloning example for the Typecast Zig SDK.
 ///
 /// Usage:
 ///   TYPECAST_API_KEY=<key> zig build example-quick-cloning

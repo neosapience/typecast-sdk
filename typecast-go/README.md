@@ -25,7 +25,7 @@ Convert text to lifelike speech using AI-powered voices
 - [Usage](#usage)
   - [Configuration](#configuration)
   - [Text to Speech](#text-to-speech)
-  - [Quick Voice Cloning](#quick-voice-cloning)
+  - [Instant cloning](#quick-voice-cloning)
   - [Voice Discovery](#voice-discovery)
   - [Emotion Control](#emotion-control)
 - [Supported Languages](#supported-languages)
@@ -85,7 +85,7 @@ func main() {
 | **Emotion Control** | Preset emotions or smart context-aware inference |
 | **Audio Customization** | Volume, pitch, tempo, and format (WAV/MP3) |
 | **Voice Discovery** | Filter voices by model, gender, age, and use cases |
-| **Quick Voice Cloning** | Clone a voice from a short audio sample (≤ 25 MB, 1-30 char name) |
+| **Instant cloning** | Clone a voice from a short audio sample (≤ 25 MB, 1-30 char name) |
 | **Context Support** | Full context.Context support for cancellation and timeouts |
 | **Zero Dependencies** | Uses only Go standard library |
 
@@ -173,7 +173,7 @@ Pass `"word"` or `"char"` to receive only one of the alignment arrays. For
 non-whitespace languages (Japanese, Chinese), pair with `"char"` — word-level
 alignment will collapse the entire sentence into a single segment.
 
-### Quick Voice Cloning
+### Instant cloning
 
 Clone any voice from a short audio sample and use it immediately with `TextToSpeech`.
 

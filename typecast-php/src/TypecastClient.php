@@ -296,7 +296,7 @@ class TypecastClient
     }
 
     /**
-     * Create a quick-cloned custom voice from an audio sample.
+     * Create a custom voice (created via instant cloning) from an audio sample.
      *
      * @param string|resource $audio Audio bytes or a readable resource.
      *                               String file paths are NOT auto-detected —

@@ -1,4 +1,4 @@
-//! Quick Voice Cloning example
+//! Instant cloning example
 //!
 //! Clones a voice from a local audio file and optionally synthesizes speech
 //! with the new voice.

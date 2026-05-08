@@ -319,7 +319,7 @@ try {
 </details>
 
 <details>
-<summary><b>Quick Voice Cloning</b></summary>
+<summary><b>Instant cloning</b></summary>
 
 Clone your own voice from a short audio sample (WAV or MP3, up to 25 MB). The
 returned `voiceId` starts with `uc_` and can be used immediately in

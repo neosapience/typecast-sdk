@@ -1,4 +1,4 @@
-// Example: Quick Voice Cloning — clone a voice and synthesize speech with it.
+// Example: Instant cloning — clone a voice and synthesize speech with it.
 //
 // Prerequisites:
 //   TYPECAST_API_KEY  — your Typecast API key
