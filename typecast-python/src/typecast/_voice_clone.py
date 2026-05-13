@@ -44,9 +44,14 @@ def validate_clone_inputs(audio: AudioInput, name: str) -> tuple[bytes, str]:
         filename = "audio.wav"
     elif hasattr(audio, "read"):
         audio_bytes = audio.read()
-        filename = getattr(audio, "name", None) or "audio.wav"
-        if filename and os.sep in filename:
-            filename = os.path.basename(filename)
+        if isinstance(audio_bytes, bytearray):
+            audio_bytes = bytes(audio_bytes)
+        if not isinstance(audio_bytes, bytes):
+            raise TypeError(
+                "audio file object must be opened in binary mode and return bytes"
+            )
+        raw_name = getattr(audio, "name", None) or "audio.wav"
+        filename = os.path.basename(str(raw_name).replace("\\", "/"))
     else:
         raise TypeError(
             "audio must be a file path (str/Path), bytes, or readable binary file object"

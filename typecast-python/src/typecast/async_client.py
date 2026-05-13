@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import AsyncIterator, BinaryIO, Optional, Union
+from urllib.parse import quote
 
 import aiohttp
 
@@ -281,7 +282,7 @@ class AsyncTypecast:
 
         timeout = aiohttp.ClientTimeout(total=60, connect=10)
         async with self.session.delete(
-            f"{self.host}/v1/voices/{voice_id}",
+            f"{self.host}/v1/voices/{quote(voice_id, safe='')}",
             timeout=timeout,
         ) as response:
             if response.status not in (200, 204):

@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import BinaryIO, Iterator, Optional, Union
+from urllib.parse import quote
 
 import requests
 
@@ -269,7 +270,7 @@ class Typecast:
                 (e.g., ``NotFoundError`` if the voice doesn't exist or isn't owned).
         """
         response = self.session.delete(
-            f"{self.host}/v1/voices/{voice_id}",
+            f"{self.host}/v1/voices/{quote(voice_id, safe='')}",
             timeout=(10, 60),
         )
         if response.status_code not in (200, 204):
