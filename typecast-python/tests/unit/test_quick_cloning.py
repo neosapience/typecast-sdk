@@ -226,6 +226,24 @@ def test_validate_normalizes_windows_path_in_file_object_name():
     assert filename == "voice.wav"
 
 
+def test_clone_voice_rejects_unknown_model():
+    client = Typecast(api_key="test-key")
+    with pytest.raises(ValueError, match="model must be one of"):
+        client.clone_voice(audio=b"\x00" * 1024, name="demo", model="ssfm-v99")
+
+
+def test_delete_voice_rejects_non_custom_id():
+    client = Typecast(api_key="test-key")
+    with pytest.raises(ValueError, match="voice_id must start with"):
+        client.delete_voice("tc_not_custom")
+
+
+def test_delete_voice_rejects_non_string_voice_id():
+    client = Typecast(api_key="test-key")
+    with pytest.raises(ValueError, match="voice_id must start with"):
+        client.delete_voice(12345)  # type: ignore[arg-type]
+
+
 def test_guess_audio_mime_branches():
     from typecast.client import _guess_audio_mime
     assert _guess_audio_mime("foo.WAV") == "audio/wav"

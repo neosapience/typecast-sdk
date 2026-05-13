@@ -8,8 +8,32 @@ from typing import BinaryIO, Union
 CLONING_MAX_FILE_SIZE = 25 * 1024 * 1024  # must match typecast-api `cloning_max_file_size`
 NAME_MIN_LENGTH = 1
 NAME_MAX_LENGTH = 30
+ALLOWED_CLONE_MODELS = frozenset({"ssfm-v21", "ssfm-v30"})
+CUSTOM_VOICE_ID_PREFIX = "uc_"
 
 AudioInput = Union[str, Path, bytes, BinaryIO]
+
+
+def normalize_clone_model(model: object) -> str:
+    """Coerce ``model`` to its string form and reject values outside the API contract.
+
+    Accepts a ``TTSModel`` enum (uses ``.value``) or a string. Raises ``ValueError``
+    when the resolved value is not in :data:`ALLOWED_CLONE_MODELS` so callers fail
+    fast client-side instead of relying on a 422 from the API.
+    """
+    model_str = model.value if hasattr(model, "value") else str(model)
+    if model_str not in ALLOWED_CLONE_MODELS:
+        allowed = ", ".join(sorted(ALLOWED_CLONE_MODELS))
+        raise ValueError(f"model must be one of: {allowed}; got {model_str!r}")
+    return model_str
+
+
+def validate_custom_voice_id(voice_id: str) -> None:
+    """Reject non-custom voice ids before they reach the DELETE endpoint."""
+    if not isinstance(voice_id, str) or not voice_id.startswith(CUSTOM_VOICE_ID_PREFIX):
+        raise ValueError(
+            f"voice_id must start with {CUSTOM_VOICE_ID_PREFIX!r}; got {voice_id!r}"
+        )
 
 
 def validate_clone_inputs(audio: AudioInput, name: str) -> tuple[bytes, str]:

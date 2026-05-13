@@ -5,7 +5,11 @@ from urllib.parse import quote
 import requests
 
 from . import conf
-from ._voice_clone import validate_clone_inputs
+from ._voice_clone import (
+    normalize_clone_model,
+    validate_clone_inputs,
+    validate_custom_voice_id,
+)
 from .exceptions import (
     BadRequestError,
     InternalServerError,
@@ -240,7 +244,7 @@ class Typecast:
             TypecastError subclasses: per HTTP status from the API.
         """
         audio_bytes, filename = validate_clone_inputs(audio, name)
-        model_str = model.value if hasattr(model, "value") else str(model)
+        model_str = normalize_clone_model(model)
 
         files = {
             "file": (filename, audio_bytes, _guess_audio_mime(filename)),
@@ -269,6 +273,7 @@ class Typecast:
             TypecastError subclasses: per HTTP status from the API
                 (e.g., ``NotFoundError`` if the voice doesn't exist or isn't owned).
         """
+        validate_custom_voice_id(voice_id)
         response = self.session.delete(
             f"{self.host}/v1/voices/{quote(voice_id, safe='')}",
             timeout=(10, 60),

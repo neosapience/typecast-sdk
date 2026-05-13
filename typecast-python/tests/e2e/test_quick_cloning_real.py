@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+from typecast.exceptions import BadRequestError, NotFoundError
+
 from typecast import Typecast
 from typecast.exceptions import BadRequestError, NotFoundError
 from typecast.models import TTSRequest, CustomVoice
@@ -43,8 +45,11 @@ def cleanup(client: Typecast) -> list[str]:
     for vid in created:
         try:
             client.delete_voice(vid)
-        except Exception:
-            pass  # best-effort cleanup
+        except (NotFoundError, BadRequestError):
+            # Best-effort cleanup: a 404 means the voice is already gone, and
+            # a 400 typically means the id no longer matches the contract.
+            # Any other exception should propagate so real regressions surface.
+            pass
 
 
 def _unique_name(prefix: str) -> str:

@@ -112,7 +112,7 @@ def _run_python(host: str) -> tuple[bytes, str]:
         f"os.environ['TYPECAST_API_HOST'] = '{host}'; "
         "from typecast import Typecast; "
         "c = Typecast(); "
-        f"c.clone_voice(audio='{sample_str}', name='consistency-check', model='ssfm-v30')"
+        f"c.clone_voice(audio={sample_str!r}, name='consistency-check', model='ssfm-v30')"
     )
     try:
         result = subprocess.run(

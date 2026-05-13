@@ -5,7 +5,11 @@ from urllib.parse import quote
 import aiohttp
 
 from . import conf
-from ._voice_clone import validate_clone_inputs
+from ._voice_clone import (
+    normalize_clone_model,
+    validate_clone_inputs,
+    validate_custom_voice_id,
+)
 from .client import _guess_audio_mime
 from .exceptions import (
     BadRequestError,
@@ -245,7 +249,7 @@ class AsyncTypecast:
             raise TypecastError("Client session not initialized; use 'async with'.")
 
         audio_bytes, filename = validate_clone_inputs(audio, name)
-        model_str = model.value if hasattr(model, "value") else str(model)
+        model_str = normalize_clone_model(model)
 
         form = aiohttp.FormData()
         form.add_field("name", name)
@@ -280,6 +284,7 @@ class AsyncTypecast:
         if self.session is None:
             raise TypecastError("Client session not initialized; use 'async with'.")
 
+        validate_custom_voice_id(voice_id)
         timeout = aiohttp.ClientTimeout(total=60, connect=10)
         async with self.session.delete(
             f"{self.host}/v1/voices/{quote(voice_id, safe='')}",
