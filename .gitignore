@@ -10,6 +10,8 @@
 .env.*.local
 *.env
 !.env.example
+config.yaml
+credentials.json
 
 # ----------------
 # Node.js / JavaScript

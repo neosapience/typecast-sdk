@@ -99,7 +99,7 @@ def test_clone_voice_sends_multipart_body(mocker):
     file_part = call_kwargs["files"]["file"]
     assert file_part[0] == "audio.wav"
     assert file_part[1] == b"\x00" * 1024
-    assert file_part[2] in ("audio/wav", "application/octet-stream")
+    assert file_part[2] == "audio/wav"
     assert "/v1/voices/clone" in post_mock.call_args.args[0]
 
 

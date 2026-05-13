@@ -1,7 +1,7 @@
 """E2E tests for instant cloning against a real Typecast API.
 
-Skipped unless ``TYPECAST_API_KEY`` is set. Targets ``api.icepeak.in`` (dev) by
-default; override with ``TYPECAST_API_HOST``.
+Skipped unless ``TYPECAST_API_KEY`` is set. Set ``TYPECAST_API_HOST`` to point
+at the desired Typecast API host (production or a development environment).
 
 Each test cleans up its cloned voice via ``delete_voice`` to avoid filling the slot.
 """

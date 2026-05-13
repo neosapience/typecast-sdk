@@ -29,6 +29,9 @@ SAMPLE = ROOT / "test-fixtures" / "quick-cloning" / "sample.wav"
 RESPONSE_BODY = (
     b'{"voice_id": "uc_consistency_check", "name": "consistency-check", "model": "ssfm-v30"}'
 )
+# Cap each SDK subprocess so this merge-gate script fails fast in CI instead of
+# hanging on a wedged `uv` or `node` invocation.
+SUBPROCESS_TIMEOUT_SECONDS = 60
 
 
 class _StubHandler(http.server.BaseHTTPRequestHandler):
@@ -111,11 +114,17 @@ def _run_python(host: str) -> tuple[bytes, str]:
         "c = Typecast(); "
         f"c.clone_voice(audio='{sample_str}', name='consistency-check', model='ssfm-v30')"
     )
-    result = subprocess.run(
-        ["uv", "run", "--project", "typecast-python", "python", "-c", code],
-        cwd=ROOT,
-        capture_output=True,
-    )
+    try:
+        result = subprocess.run(
+            ["uv", "run", "--project", "typecast-python", "python", "-c", code],
+            cwd=ROOT,
+            capture_output=True,
+            timeout=SUBPROCESS_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"Python SDK invocation timed out after {SUBPROCESS_TIMEOUT_SECONDS}s"
+        ) from exc
     if result.returncode != 0:
         print("Python SDK stderr:", result.stderr.decode(), file=sys.stderr)
         raise RuntimeError(f"Python SDK invocation failed (exit {result.returncode})")
@@ -138,11 +147,17 @@ c.cloneVoice({{ audio: {repr(sample_str)}, name: 'consistency-check', model: 'ss
   .then(() => process.exit(0))
   .catch(e => {{ console.error(String(e)); process.exit(1); }});
 """
-    result = subprocess.run(
-        ["node", "-e", code],
-        cwd=ROOT,
-        capture_output=True,
-    )
+    try:
+        result = subprocess.run(
+            ["node", "-e", code],
+            cwd=ROOT,
+            capture_output=True,
+            timeout=SUBPROCESS_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"JS SDK invocation timed out after {SUBPROCESS_TIMEOUT_SECONDS}s"
+        ) from exc
     if result.returncode != 0:
         print("JS SDK stderr:", result.stderr.decode(), file=sys.stderr)
         raise RuntimeError(f"JS SDK invocation failed (exit {result.returncode})")

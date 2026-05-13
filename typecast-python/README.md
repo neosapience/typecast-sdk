@@ -303,6 +303,8 @@ client.delete_voice(voice.voice_id)
 **Async usage** is identical via `AsyncTypecast`:
 
 ```python
+from typecast import AsyncTypecast
+
 async with AsyncTypecast(api_key="YOUR_API_KEY") as client:
     voice = await client.clone_voice(audio="sample.wav", name="my-voice", model="ssfm-v30")
     await client.delete_voice(voice.voice_id)
