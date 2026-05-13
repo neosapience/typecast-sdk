@@ -24,6 +24,7 @@ from .exceptions import (
 from .models import (
     CustomVoice,
     SubscriptionResponse,
+    TTSModel,
     TTSRequest,
     TTSRequestStream,
     TTSRequestWithTimestamps,
