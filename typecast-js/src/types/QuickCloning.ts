@@ -89,9 +89,10 @@ export async function validateCloneInputsAsync(
 }
 
 function validateName(name: string): void {
-  if (name.length < NAME_MIN_LENGTH || name.length > NAME_MAX_LENGTH) {
+  const charCount = Array.from(name).length;
+  if (charCount < NAME_MIN_LENGTH || charCount > NAME_MAX_LENGTH) {
     throw new Error(
-      `name must be ${NAME_MIN_LENGTH}-${NAME_MAX_LENGTH} characters; got ${name.length}`,
+      `name must be ${NAME_MIN_LENGTH}-${NAME_MAX_LENGTH} characters; got ${charCount}`,
     );
   }
 }
