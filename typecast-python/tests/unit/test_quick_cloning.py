@@ -189,6 +189,43 @@ def test_validate_strips_directory_from_file_object_name(tmp_path):
     assert filename == "voice.mp3"  # basename, not full path
 
 
+def test_validate_accepts_file_object_returning_bytearray():
+    class _BytearrayReader:
+        # `audio.read()` legitimately returns bytearray for some libraries
+        # (e.g., array module buffers) — we should coerce it back to bytes.
+        name = "foo.wav"
+
+        def read(self):
+            return bytearray(b"\x00" * 1024)
+
+    audio_bytes, filename = validate_clone_inputs(_BytearrayReader(), "demo")
+    assert isinstance(audio_bytes, bytes)
+    assert audio_bytes == b"\x00" * 1024
+    assert filename == "foo.wav"
+
+
+def test_validate_rejects_text_mode_file_object():
+    # StringIO returns str from .read(); reject before it reaches the API as a
+    # malformed multipart body or a size check on character count.
+    buf = io.StringIO("not binary content")
+    buf.name = "foo.wav"
+    with pytest.raises(TypeError, match="binary mode"):
+        validate_clone_inputs(buf, "demo")
+
+
+def test_validate_normalizes_windows_path_in_file_object_name():
+    class _WindowsPathReader:
+        # On Unix, os.sep is "/" so a raw "C:\\..." name would NOT be
+        # basename'd; the explicit backslash->slash normalize fixes that.
+        name = r"C:\Users\me\voice.wav"
+
+        def read(self):
+            return b"\x00" * 1024
+
+    _, filename = validate_clone_inputs(_WindowsPathReader(), "demo")
+    assert filename == "voice.wav"
+
+
 def test_guess_audio_mime_branches():
     from typecast.client import _guess_audio_mime
     assert _guess_audio_mime("foo.WAV") == "audio/wav"
