@@ -367,26 +367,15 @@ func (c *Client) CloneVoice(ctx context.Context, audio []byte, filename, name, m
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	if err := writer.WriteField("name", name); err != nil {
-		return nil, err
-	}
-	if err := writer.WriteField("model", model); err != nil {
-		return nil, err
-	}
+	_ = writer.WriteField("name", name)
+	_ = writer.WriteField("model", model)
 
 	fileHeader := make(textproto.MIMEHeader)
 	fileHeader.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filename))
 	fileHeader.Set("Content-Type", guessAudioMime(filename))
-	filePart, err := writer.CreatePart(fileHeader)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := filePart.Write(audio); err != nil {
-		return nil, err
-	}
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
+	filePart, _ := writer.CreatePart(fileHeader)
+	_, _ = filePart.Write(audio)
+	_ = writer.Close()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/voices/clone", body)
 	if err != nil {

@@ -2308,10 +2308,13 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
     curl_easy_reset(curl);
 
     curl_mime* mime = curl_mime_init(curl);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="curl_mime_init failure cannot be induced through the public API" */
     if (!mime) {
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to init mime");
         return TYPECAST_ERROR_OUT_OF_MEMORY;
     }
+    /* LCOV_EXCL_STOP */
 
     /* "name" field */
     curl_mimepart* part = curl_mime_addpart(mime);

@@ -496,6 +496,35 @@ static void test_clone_voice_201_response(void) {
     typecast_client_destroy(c);
 }
 
+static void test_clone_voice_sets_supported_mime_types(void) {
+    struct {
+        const char* filename;
+        const char* expected_mime;
+    } cases[] = {
+        {"clip.ogg",  "audio/ogg"},
+        {"clip.flac", "audio/flac"},
+        {"clip.m4a",  "audio/mp4"},
+        {"clip.webm", "audio/webm"},
+        {"clip.bin",  "application/octet-stream"},
+        {NULL,        "application/octet-stream"},
+    };
+
+    TypecastClient* c = new_client();
+    unsigned char audio[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        mock_enqueue_text(200, "{\"voice_id\":\"uc_mime\",\"name\":\"V\",\"model\":\"ssfm-v30\"}");
+
+        TypecastCustomVoice out;
+        TypecastErrorCode rc = typecast_clone_voice(c, audio, sizeof(audio),
+                                                    cases[i].filename, "V", "ssfm-v30", &out);
+        ASSERT_EQ(rc, TYPECAST_OK);
+        ASSERT(strstr(g_srv.last_body, cases[i].expected_mime) != NULL);
+    }
+
+    typecast_client_destroy(c);
+}
+
 static void test_clone_voice_http_error(void) {
     TypecastClient* c = new_client();
     mock_enqueue_text(422, "{\"detail\":\"invalid audio format\"}");
@@ -626,6 +655,7 @@ int main(void) {
     /* clone_voice HTTP paths */
     RUN(clone_voice_returns_custom_voice);
     RUN(clone_voice_201_response);
+    RUN(clone_voice_sets_supported_mime_types);
     RUN(clone_voice_http_error);
     RUN(clone_voice_404);
     RUN(clone_voice_network_error);

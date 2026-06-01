@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -159,6 +160,73 @@ func TestCloneVoicePreValidatesNameLength(t *testing.T) {
 	}
 }
 
+// TestCloneVoicePropagatesHTTPError checks that non-200 clone responses are
+// converted into APIError values.
+func TestCloneVoicePropagatesHTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(ErrorResponse{Detail: "Voice cloning is not available on your plan"})
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv, "k")
+	_, err := c.CloneVoice(context.Background(), []byte("audio"), "sample.wav", "MyVoice", "ssfm-v30")
+	if err == nil {
+		t.Fatal("expected non-nil error for 403")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if !apiErr.IsForbidden() {
+		t.Errorf("expected IsForbidden(), got status %d", apiErr.StatusCode)
+	}
+}
+
+// TestCloneVoicePropagatesRequestCreationError checks invalid base URL handling.
+func TestCloneVoicePropagatesRequestCreationError(t *testing.T) {
+	c := &Client{apiKey: "k", baseURL: "http://[::1", httpClient: http.DefaultClient}
+	_, err := c.CloneVoice(context.Background(), []byte("audio"), "sample.wav", "MyVoice", "ssfm-v30")
+	if err == nil || !strings.Contains(err.Error(), "failed to create request") {
+		t.Fatalf("expected request creation error, got %v", err)
+	}
+}
+
+// TestCloneVoicePropagatesDoError checks transport failures from the injected
+// HTTP client.
+func TestCloneVoicePropagatesDoError(t *testing.T) {
+	c := &Client{
+		apiKey:  "k",
+		baseURL: "https://api.example.test",
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return nil, io.ErrUnexpectedEOF
+			}),
+		},
+	}
+
+	_, err := c.CloneVoice(context.Background(), []byte("audio"), "sample.wav", "MyVoice", "ssfm-v30")
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("expected io.ErrUnexpectedEOF, got %v", err)
+	}
+}
+
+// TestCloneVoicePropagatesDecodeError checks malformed success JSON handling.
+func TestCloneVoicePropagatesDecodeError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("{"))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv, "k")
+	_, err := c.CloneVoice(context.Background(), []byte("audio"), "sample.wav", "MyVoice", "ssfm-v30")
+	if err == nil || !strings.Contains(err.Error(), "failed to decode clone voice response") {
+		t.Fatalf("expected decode error, got %v", err)
+	}
+}
+
 // TestDeleteVoiceReturnsNilOn204 checks that a 204 No Content response
 // results in a nil error and the URL ends with the given voice ID.
 func TestDeleteVoiceReturnsNilOn204(t *testing.T) {
@@ -182,6 +250,19 @@ func TestDeleteVoiceReturnsNilOn204(t *testing.T) {
 	}
 }
 
+// TestDeleteVoiceReturnsNilOn200 checks that 200 OK is also accepted.
+func TestDeleteVoiceReturnsNilOn200(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv, "k")
+	if err := c.DeleteVoice(context.Background(), "uc_xxx"); err != nil {
+		t.Fatalf("expected nil error for 200, got: %v", err)
+	}
+}
+
 // TestDeleteVoiceErrorOn404 checks that a 404 response returns a non-nil error.
 func TestDeleteVoiceErrorOn404(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -201,6 +282,52 @@ func TestDeleteVoiceErrorOn404(t *testing.T) {
 	}
 	if !apiErr.IsNotFound() {
 		t.Errorf("expected IsNotFound(), got status %d", apiErr.StatusCode)
+	}
+}
+
+// TestDeleteVoicePropagatesRequestCreationError checks invalid base URL handling.
+func TestDeleteVoicePropagatesRequestCreationError(t *testing.T) {
+	c := &Client{apiKey: "k", baseURL: "http://[::1", httpClient: http.DefaultClient}
+	err := c.DeleteVoice(context.Background(), "uc_xxx")
+	if err == nil || !strings.Contains(err.Error(), "failed to create request") {
+		t.Fatalf("expected request creation error, got %v", err)
+	}
+}
+
+// TestDeleteVoicePropagatesDoError checks transport failures from the injected
+// HTTP client.
+func TestDeleteVoicePropagatesDoError(t *testing.T) {
+	c := &Client{
+		apiKey:  "k",
+		baseURL: "https://api.example.test",
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return nil, io.ErrUnexpectedEOF
+			}),
+		},
+	}
+
+	err := c.DeleteVoice(context.Background(), "uc_xxx")
+	if !errors.Is(err, io.ErrUnexpectedEOF) {
+		t.Fatalf("expected io.ErrUnexpectedEOF, got %v", err)
+	}
+}
+
+func TestGuessAudioMime(t *testing.T) {
+	tests := []struct {
+		name string
+		want string
+	}{
+		{name: "sample.wav", want: "audio/wav"},
+		{name: "sample.WAV", want: "audio/wav"},
+		{name: "sample.mp3", want: "audio/mpeg"},
+		{name: "sample.bin", want: "application/octet-stream"},
+	}
+
+	for _, tc := range tests {
+		if got := guessAudioMime(tc.name); got != tc.want {
+			t.Errorf("guessAudioMime(%q): got %q, want %q", tc.name, got, tc.want)
+		}
 	}
 }
 
@@ -261,4 +388,10 @@ func TestCloneVoiceMultipartReaderParsing(t *testing.T) {
 	if parts["file"] != "pcmdata" {
 		t.Errorf("file part: got %q, want pcmdata", parts["file"])
 	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }

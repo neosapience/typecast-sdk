@@ -120,6 +120,72 @@ public class QuickCloningTests : IDisposable
         capturedBody.Should().MatchRegex(@"name=.?file.?");
     }
 
+    [Theory]
+    [InlineData("test.mp3", "audio/mpeg")]
+    [InlineData("test.bin", "application/octet-stream")]
+    public async Task CloneVoiceAsync_Sets_File_Content_Type_From_Extension(string filename, string expectedContentType)
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(CloneVoiceJson, Encoding.UTF8, "application/json")
+        };
+
+        string? capturedBody = null;
+
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) =>
+            {
+                capturedBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            })
+            .ReturnsAsync(response);
+
+        await _client.CloneVoiceAsync(new byte[512], filename, "My Voice", "ssfm-v30");
+
+        capturedBody.Should().Contain($"Content-Type: {expectedContentType}");
+    }
+
+    [Fact]
+    public async Task CloneVoiceAsync_FilePath_Overload_Reads_File_And_Uses_Basename()
+    {
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(CloneVoiceJson, Encoding.UTF8, "application/json")
+        };
+
+        string? capturedBody = null;
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) =>
+            {
+                capturedBody = req.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            })
+            .ReturnsAsync(response);
+
+        var path = Path.Combine(Path.GetTempPath(), $"typecast-{Guid.NewGuid():N}.mp3");
+        await File.WriteAllBytesAsync(path, new byte[] { 1, 2, 3, 4 });
+        try
+        {
+            var result = await _client.CloneVoiceAsync(path, "My Voice", "ssfm-v30");
+
+            result.VoiceId.Should().Be("uc_abc123");
+            capturedBody.Should().Contain(Path.GetFileName(path));
+            capturedBody.Should().Contain("Content-Type: audio/mpeg");
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // 3. CloneVoiceAsync rejects audio exceeding 25 MB (no HTTP call)
     // ──────────────────────────────────────────────────────────────────────────
