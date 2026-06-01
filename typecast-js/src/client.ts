@@ -282,7 +282,8 @@ export class TypecastClient {
     );
 
     // Strip Content-Type so fetch can set multipart/form-data with boundary.
-    const { 'Content-Type': _omitContentType, ...headers } = this.headers;
+    const headers = { ...this.headers };
+    delete headers['Content-Type'];
 
     const response = await fetch(this.buildUrl('/v1/voices/clone'), {
       method: 'POST',
