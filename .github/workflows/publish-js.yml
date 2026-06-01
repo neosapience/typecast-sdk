@@ -35,10 +35,10 @@ jobs:
       - name: Upgrade npm
         run: npm install -g npm@latest
 
-      - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ""
-          NPM_CONFIG_USERCONFIG: /tmp/npm-trusted-publisher.npmrc
+      - name: Check OIDC availability
         run: |
-          printf 'registry=https://registry.npmjs.org/\n' > "$NPM_CONFIG_USERCONFIG"
-          npm publish --provenance --access public
+          test -n "$ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+          test -n "$ACTIONS_ID_TOKEN_REQUEST_URL"
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
