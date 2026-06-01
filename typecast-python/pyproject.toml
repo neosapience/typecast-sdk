@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "typecast-python"
-version = "0.3.0"
+version = "0.3.1"
 description = "Official Typecast Python SDK - Convert text to lifelike speech using AI-powered voices"
 authors = [
     {name = "Neosapience", email = "help@typecast.ai"}

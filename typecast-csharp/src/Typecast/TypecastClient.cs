@@ -439,7 +439,12 @@ public class TypecastClient : IDisposable
         string model,
         CancellationToken cancellationToken = default)
     {
+#if NETSTANDARD2_0
+        cancellationToken.ThrowIfCancellationRequested();
+        var audio = File.ReadAllBytes(audioFile);
+#else
         var audio = await File.ReadAllBytesAsync(audioFile, cancellationToken).ConfigureAwait(false);
+#endif
         return await CloneVoiceAsync(audio, Path.GetFileName(audioFile), name, model, cancellationToken)
             .ConfigureAwait(false);
     }
