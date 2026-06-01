@@ -223,6 +223,130 @@ public final class TypecastClient: Sendable {
         return try handleResponse(data: data, response: response)
     }
 
+    // MARK: - Instant cloning
+
+    /// Clone a voice from an audio sample.
+    ///
+    /// Sends a `multipart/form-data` POST to `POST /v1/voices/clone` and
+    /// returns the metadata of the newly created custom voice.
+    ///
+    /// - Parameters:
+    ///   - audio: Raw audio bytes of the sample (WAV or MP3 recommended).
+    ///   - filename: File name including extension — used to set the
+    ///     `Content-Type` of the file part (e.g. `"sample.wav"`).
+    ///   - name: Display name for the cloned voice (1–30 characters).
+    ///   - model: TTS model to clone the voice for (e.g. `"ssfm-v30"`).
+    /// - Returns: ``CustomVoice`` with the assigned `voiceId` (has "uc_" prefix).
+    /// - Throws: ``TypecastError/badRequest(_:)`` when `name` length or file
+    ///   size violates ``QuickCloningLimits``; other ``TypecastError`` cases
+    ///   for HTTP errors.
+    public func cloneVoice(
+        audio: Data,
+        filename: String,
+        name: String,
+        model: String
+    ) async throws -> CustomVoice {
+        let nameTrimmed = name.count
+        guard (QuickCloningLimits.nameMinLength...QuickCloningLimits.nameMaxLength).contains(nameTrimmed) else {
+            throw TypecastError.badRequest(
+                "name must be \(QuickCloningLimits.nameMinLength)-\(QuickCloningLimits.nameMaxLength) characters; got \(nameTrimmed)"
+            )
+        }
+        guard audio.count <= QuickCloningLimits.cloningMaxFileSize else {
+            throw TypecastError.badRequest(
+                "audio file exceeds 25 MB limit; got \(audio.count) bytes"
+            )
+        }
+
+        let boundary = "----TypecastBoundary\(UUID().uuidString)"
+        var body = Data()
+        let crlf = "\r\n"
+
+        func appendStr(_ string: String) {
+            body.append(string.data(using: .utf8)!)
+        }
+
+        // name field
+        appendStr("--\(boundary)\(crlf)")
+        appendStr("Content-Disposition: form-data; name=\"name\"\(crlf)\(crlf)")
+        appendStr("\(name)\(crlf)")
+        // model field
+        appendStr("--\(boundary)\(crlf)")
+        appendStr("Content-Disposition: form-data; name=\"model\"\(crlf)\(crlf)")
+        appendStr("\(model)\(crlf)")
+        // file field
+        appendStr("--\(boundary)\(crlf)")
+        appendStr("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\(crlf)")
+        appendStr("Content-Type: \(guessAudioMime(filename))\(crlf)\(crlf)")
+        body.append(audio)
+        appendStr("\(crlf)--\(boundary)--\(crlf)")
+
+        let url = try buildURL(path: "/v1/voices/clone")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue(configuration.apiKey, forHTTPHeaderField: "X-API-KEY")
+        request.httpBody = body
+
+        let (data, response) = try await session.data(for: request)
+        return try handleResponse(data: data, response: response)
+    }
+
+    /// Clone a voice from an audio file on disk.
+    ///
+    /// Convenience overload that reads the file at `audioFileURL` into memory
+    /// and delegates to ``cloneVoice(audio:filename:name:model:)``.
+    ///
+    /// - Parameters:
+    ///   - audioFileURL: Local `file://` URL to the audio sample.
+    ///   - name: Display name for the cloned voice (1–30 characters).
+    ///   - model: TTS model to clone the voice for (e.g. `"ssfm-v30"`).
+    /// - Returns: ``CustomVoice`` with the assigned `voiceId`.
+    public func cloneVoice(
+        audioFileURL: URL,
+        name: String,
+        model: String
+    ) async throws -> CustomVoice {
+        let audio = try Data(contentsOf: audioFileURL)
+        return try await cloneVoice(
+            audio: audio,
+            filename: audioFileURL.lastPathComponent,
+            name: name,
+            model: model
+        )
+    }
+
+    /// Delete a previously cloned custom voice.
+    ///
+    /// Sends `DELETE /v1/voices/{voiceId}`. A 204 response is treated as
+    /// success; any other status maps to a ``TypecastError``.
+    ///
+    /// - Parameter voiceId: The identifier of the custom voice to delete
+    ///   (the "uc_" prefixed string returned by ``cloneVoice(audio:filename:name:model:)``).
+    public func deleteVoice(_ voiceId: String) async throws {
+        let url = try buildURL(path: "/v1/voices/\(voiceId)")
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue(configuration.apiKey, forHTTPHeaderField: "X-API-KEY")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw TypecastError.invalidResponse("Invalid response type")
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw TypecastError.fromResponse(statusCode: httpResponse.statusCode, data: data)
+        }
+    }
+
+    // MARK: - Private helpers for voice cloning
+
+    private func guessAudioMime(_ filename: String) -> String {
+        let lower = filename.lowercased()
+        if lower.hasSuffix(".wav") { return "audio/wav" }
+        if lower.hasSuffix(".mp3") { return "audio/mpeg" }
+        return "application/octet-stream"
+    }
+
     // MARK: - Deprecated V1 API
     
     /// Get available voices (V1 API)

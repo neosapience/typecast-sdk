@@ -613,3 +613,27 @@ pub struct ErrorResponse {
     /// Error message describing the issue
     pub detail: String,
 }
+
+// ---------------------------------------------------------------------------
+// Voice cloning
+// ---------------------------------------------------------------------------
+
+/// Maximum audio file size for voice cloning (25 MB)
+pub const CLONING_MAX_FILE_SIZE: usize = 25 * 1024 * 1024;
+
+/// Minimum character length for a custom voice name
+pub const NAME_MIN_LENGTH: usize = 1;
+
+/// Maximum character length for a custom voice name
+pub const NAME_MAX_LENGTH: usize = 30;
+
+/// A custom (user-cloned) voice returned by the clone-voice endpoint
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+pub struct CustomVoice {
+    /// Unique voice identifier assigned after cloning
+    pub voice_id: String,
+    /// Human-readable name given to this custom voice
+    pub name: String,
+    /// TTS model the voice was cloned with (e.g. `"ssfm-v30"`)
+    pub model: String,
+}

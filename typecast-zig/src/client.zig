@@ -245,6 +245,118 @@ pub const Client = struct {
         return result;
     }
 
+    /// POST /v1/voices/clone — upload audio and create a custom voice.
+    ///
+    /// - `audio`    : raw audio bytes (WAV or MP3, max 25 MB)
+    /// - `filename` : original filename including extension (used for MIME detection)
+    /// - `name`     : display name for the new voice (1–30 characters)
+    /// - `model`    : TTS model string, e.g. "ssfm-v21" or "ssfm-v30"
+    ///
+    /// The returned `CustomVoice` owns all string memory; free with
+    /// `allocator.free(result.voice_id)` etc. when done.
+    pub fn cloneVoice(
+        self: *Client,
+        allocator: std.mem.Allocator,
+        audio: []const u8,
+        filename: []const u8,
+        name: []const u8,
+        model: []const u8,
+    ) !models.CustomVoice {
+        if (name.len < models.NAME_MIN_LENGTH or name.len > models.NAME_MAX_LENGTH)
+            return error.InvalidName;
+        if (audio.len > models.CLONING_MAX_FILE_SIZE)
+            return error.AudioTooLarge;
+
+        const boundary = "----TypecastZigBoundary1234567890AB";
+        const mime = guessAudioMime(filename);
+
+        // Build multipart body using a growable buffer.
+        var aw: std.io.Writer.Allocating = .init(allocator);
+        errdefer aw.deinit();
+
+        // Part: name
+        try aw.writer.print("--{s}\r\n", .{boundary});
+        try aw.writer.print("Content-Disposition: form-data; name=\"name\"\r\n\r\n", .{});
+        try aw.writer.print("{s}\r\n", .{name});
+
+        // Part: model
+        try aw.writer.print("--{s}\r\n", .{boundary});
+        try aw.writer.print("Content-Disposition: form-data; name=\"model\"\r\n\r\n", .{});
+        try aw.writer.print("{s}\r\n", .{model});
+
+        // Part: file
+        try aw.writer.print("--{s}\r\n", .{boundary});
+        try aw.writer.print("Content-Disposition: form-data; name=\"file\"; filename=\"{s}\"\r\n", .{filename});
+        try aw.writer.print("Content-Type: {s}\r\n\r\n", .{mime});
+        try aw.writer.writeAll(audio);
+        try aw.writer.print("\r\n--{s}--\r\n", .{boundary});
+        try aw.writer.flush();
+
+        const body_bytes = try aw.toOwnedSlice();
+        defer allocator.free(body_bytes);
+
+        // Content-Type header includes boundary
+        const ct = try std.fmt.allocPrint(
+            allocator,
+            "multipart/form-data; boundary={s}",
+            .{boundary},
+        );
+        defer allocator.free(ct);
+
+        const path = "/v1/voices/clone";
+        const uri = try buildUri(self.base_url, path, null);
+
+        var req = try self.http_client.request(.POST, uri, .{
+            .extra_headers = &.{
+                .{ .name = "X-API-KEY", .value = self.api_key },
+                .{ .name = "Content-Type", .value = ct },
+            },
+        });
+        defer req.deinit();
+
+        try req.sendBodyComplete(@constCast(body_bytes));
+
+        var redirect_buf: [4096]u8 = undefined;
+        var response = try req.receiveHead(&redirect_buf);
+
+        try mapStatusError(response.head.status);
+
+        var transfer_buf: [16384]u8 = undefined;
+        const reader = response.reader(&transfer_buf);
+        const json_data = try reader.allocRemaining(allocator, .unlimited);
+        defer allocator.free(json_data);
+
+        return json_helpers.parseCustomVoice(allocator, json_data);
+    }
+
+    /// DELETE /v1/voices/{voice_id} — remove a custom (cloned) voice.
+    pub fn deleteVoice(self: *Client, voice_id: []const u8) !void {
+        const path = try std.fmt.allocPrint(self.allocator, "/v1/voices/{s}", .{voice_id});
+        defer self.allocator.free(path);
+
+        const uri = try buildUri(self.base_url, path, null);
+
+        var req = try self.http_client.request(.DELETE, uri, .{
+            .extra_headers = &.{
+                .{ .name = "X-API-KEY", .value = self.api_key },
+            },
+        });
+        defer req.deinit();
+
+        try req.sendBodiless();
+
+        var redirect_buf: [4096]u8 = undefined;
+        var response = try req.receiveHead(&redirect_buf);
+
+        try mapStatusError(response.head.status);
+
+        // Drain body (204 No Content has no body, 200 may have one — discard either way)
+        var transfer_buf: [4096]u8 = undefined;
+        const reader = response.reader(&transfer_buf);
+        const drain = try reader.allocRemaining(self.allocator, .unlimited);
+        self.allocator.free(drain);
+    }
+
     // ── Internal helpers ──────────────────────────────────────────────
 
     fn doGet(self: *Client, path: []const u8, query: ?[]const u8) ![]u8 {
@@ -379,5 +491,24 @@ pub const Client = struct {
                 try writer.print("%{X:0>2}", .{c});
             }
         }
+    }
+
+    /// Guess the MIME type from an audio filename extension.
+    fn guessAudioMime(filename: []const u8) []const u8 {
+        if (endsWithIgnoreCase(filename, ".wav")) return "audio/wav";
+        if (endsWithIgnoreCase(filename, ".mp3")) return "audio/mpeg";
+        if (endsWithIgnoreCase(filename, ".ogg")) return "audio/ogg";
+        if (endsWithIgnoreCase(filename, ".flac")) return "audio/flac";
+        if (endsWithIgnoreCase(filename, ".m4a")) return "audio/mp4";
+        return "application/octet-stream";
+    }
+
+    fn endsWithIgnoreCase(s: []const u8, suffix: []const u8) bool {
+        if (s.len < suffix.len) return false;
+        const tail = s[s.len - suffix.len ..];
+        for (tail, suffix) |a, b| {
+            if (std.ascii.toLower(a) != std.ascii.toLower(b)) return false;
+        }
+        return true;
     }
 };

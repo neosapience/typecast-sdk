@@ -263,6 +263,53 @@ the two alignment arrays. For non-whitespace languages (Japanese,
 Chinese), pair with `granularity="char"` — word-level alignment will
 collapse the entire sentence into a single segment.
 
+### Instant cloning
+
+Clone a custom voice from a short audio sample (≤ 25 MB), then use it just like any built-in voice. The cloned voice ID has a `uc_` prefix and works with `text_to_speech` directly.
+
+```python
+from typecast import Typecast
+from typecast.models import TTSRequest
+
+client = Typecast(api_key="YOUR_API_KEY")
+
+# 1) Clone
+voice = client.clone_voice(
+    audio="path/to/sample.wav",   # str path | Path | bytes | file object
+    name="my-voice",               # 1-30 chars
+    model="ssfm-v30",              # or "ssfm-v21"
+)
+print(voice.voice_id)              # uc_64a1b2...
+
+# 2) Synthesize with the cloned voice
+audio = client.text_to_speech(TTSRequest(
+    text="Hello from my cloned voice!",
+    voice_id=voice.voice_id,
+    model="ssfm-v30",
+))
+with open("output.wav", "wb") as f:
+    f.write(audio.audio_data)
+
+# 3) Delete when done
+client.delete_voice(voice.voice_id)
+```
+
+**Limits**
+
+- Audio file: max 25 MB. Supported formats: WAV, MP3.
+- Voice name: 1–30 characters.
+- Model: `ssfm-v21` or `ssfm-v30`.
+
+**Async usage** is identical via `AsyncTypecast`:
+
+```python
+from typecast import AsyncTypecast
+
+async with AsyncTypecast(api_key="YOUR_API_KEY") as client:
+    voice = await client.clone_voice(audio="sample.wav", name="my-voice", model="ssfm-v30")
+    await client.delete_voice(voice.voice_id)
+```
+
 ---
 
 ## Supported Languages

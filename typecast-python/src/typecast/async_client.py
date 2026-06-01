@@ -1,8 +1,16 @@
-from typing import AsyncIterator, Optional
+from pathlib import Path
+from typing import AsyncIterator, BinaryIO, Optional, Union
+from urllib.parse import quote
 
 import aiohttp
 
 from . import conf
+from ._voice_clone import (
+    normalize_clone_model,
+    validate_clone_inputs,
+    validate_custom_voice_id,
+)
+from .client import _guess_audio_mime
 from .exceptions import (
     BadRequestError,
     InternalServerError,
@@ -14,7 +22,9 @@ from .exceptions import (
     UnprocessableEntityError,
 )
 from .models import (
+    CustomVoice,
     SubscriptionResponse,
+    TTSModel,
     TTSRequest,
     TTSRequestStream,
     TTSRequestWithTimestamps,
@@ -61,7 +71,9 @@ class AsyncTypecast:
         self.session: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):
-        headers = {"Content-Type": "application/json"}
+        # Auth header at session scope; per-request Content-Type is set by aiohttp
+        # (json= auto-sets application/json, data=FormData() auto-sets multipart).
+        headers = {}
         if self.api_key:
             headers["X-API-KEY"] = self.api_key
         self.session = aiohttp.ClientSession(headers=headers)
@@ -211,6 +223,77 @@ class AsyncTypecast:
                 self._handle_error(response.status, text)
             data = await response.json()
         return TTSWithTimestampsResponse.model_validate(data)
+
+    async def clone_voice(
+        self,
+        audio: Union[str, Path, bytes, BinaryIO],
+        name: str,
+        model: Union[str, "TTSModel"],
+    ) -> CustomVoice:
+        """Create a quick-cloned custom voice from an audio sample (async).
+
+        Args:
+            audio: Audio sample. Accepts file path (str/Path), raw bytes,
+                or a readable binary file object. Max 25 MB.
+            name: Voice name, 1-30 characters.
+            model: Engine model. ``"ssfm-v21"`` or ``"ssfm-v30"`` (or ``TTSModel`` enum).
+
+        Returns:
+            ``CustomVoice`` with ``voice_id`` (uc_ prefix), ``name``, and ``model``.
+
+        Raises:
+            ValueError: name length out of range or audio exceeds 25 MB.
+            FileNotFoundError: ``audio`` is a path to a non-existent file.
+            TypecastError: client session not initialized or HTTP error.
+        """
+        if self.session is None:
+            raise TypecastError("Client session not initialized; use 'async with'.")
+
+        audio_bytes, filename = validate_clone_inputs(audio, name)
+        model_str = normalize_clone_model(model)
+
+        form = aiohttp.FormData()
+        form.add_field("name", name)
+        form.add_field("model", model_str)
+        form.add_field(
+            "file",
+            audio_bytes,
+            filename=filename,
+            content_type=_guess_audio_mime(filename),
+        )
+        timeout = aiohttp.ClientTimeout(total=300, connect=10)
+        async with self.session.post(
+            f"{self.host}/v1/voices/clone",
+            data=form,
+            timeout=timeout,
+        ) as response:
+            if response.status != 200:
+                text = await response.text()
+                self._handle_error(response.status, text)
+            body = await response.json()
+            return CustomVoice.model_validate(body)
+
+    async def delete_voice(self, voice_id: str) -> None:
+        """Soft-delete a custom voice (async).
+
+        Args:
+            voice_id: Voice identifier with ``uc_`` prefix.
+
+        Raises:
+            TypecastError subclasses: per HTTP status from the API.
+        """
+        if self.session is None:
+            raise TypecastError("Client session not initialized; use 'async with'.")
+
+        validate_custom_voice_id(voice_id)
+        timeout = aiohttp.ClientTimeout(total=60, connect=10)
+        async with self.session.delete(
+            f"{self.host}/v1/voices/{quote(voice_id, safe='')}",
+            timeout=timeout,
+        ) as response:
+            if response.status not in (200, 204):
+                text = await response.text()
+                self._handle_error(response.status, text)
 
     async def voices(self, model: Optional[str] = None) -> list[VoicesResponse]:
         """Get available voices (V1 API) asynchronously.

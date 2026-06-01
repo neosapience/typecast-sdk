@@ -290,6 +290,24 @@ type ErrorResponse struct {
 	Detail string `json:"detail"`
 }
 
+// CustomVoice is the response body of POST /v1/voices/clone.
+// VoiceID has the "uc_" prefix and can be used directly as voice_id in TextToSpeech.
+type CustomVoice struct {
+	VoiceID string `json:"voice_id"`
+	Name    string `json:"name"`
+	Model   string `json:"model"`
+}
+
+const (
+	// CloningMaxFileSize is the maximum allowed audio file size for CloneVoice (25 MB).
+	// Must match typecast-api `cloning_max_file_size` env (default 25 * 1024 * 1024).
+	CloningMaxFileSize int64 = 25 * 1024 * 1024
+	// NameMinLength is the minimum character length for a custom voice name.
+	NameMinLength int = 1
+	// NameMaxLength is the maximum character length for a custom voice name.
+	NameMaxLength int = 30
+)
+
 // PlanTier represents the subscription plan tier
 type PlanTier string
 

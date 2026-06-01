@@ -4,8 +4,9 @@
 
 use crate::errors::{Result, TypecastError};
 use crate::models::{
-    Age, AudioFormat, ErrorResponse, Gender, SubscriptionResponse, TTSModel, TTSRequest,
-    TTSRequestStream, TTSResponse, UseCase, VoiceV2, VoicesV2Filter,
+    Age, AudioFormat, CustomVoice, ErrorResponse, Gender, SubscriptionResponse, TTSModel,
+    TTSRequest, TTSRequestStream, TTSResponse, UseCase, VoiceV2, VoicesV2Filter,
+    CLONING_MAX_FILE_SIZE, NAME_MAX_LENGTH, NAME_MIN_LENGTH,
 };
 use bytes::Bytes;
 use futures_util::stream::{Stream, StreamExt};
@@ -527,6 +528,147 @@ impl TypecastClient {
 
         let subscription: SubscriptionResponse = response.json().await?;
         Ok(subscription)
+    }
+
+    /// Clone a voice from an audio recording.
+    ///
+    /// Uploads the audio file as `multipart/form-data` to `POST /v1/voices/clone`
+    /// and returns a [`CustomVoice`] representing the newly created voice.
+    ///
+    /// # Arguments
+    ///
+    /// * `audio` - Raw audio bytes (WAV or MP3). Must not exceed 25 MB.
+    /// * `filename` - File name used in the multipart part (e.g. `"sample.wav"`).
+    ///   The extension determines the MIME type sent to the API.
+    /// * `name` - Display name for the custom voice (1–30 characters).
+    /// * `model` - TTS model to use for cloning (e.g. `"ssfm-v30"`).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TypecastError::ValidationError`] if `name` is outside 1–30 characters
+    /// or if `audio` exceeds the 25 MB limit before any network call is made.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use typecast_rust::TypecastClient;
+    ///
+    /// # async fn example() -> typecast_rust::Result<()> {
+    /// let client = TypecastClient::from_env()?;
+    /// let audio = std::fs::read("sample.wav").unwrap();
+    /// let voice = client.clone_voice(audio, "sample.wav", "My Voice", "ssfm-v30").await?;
+    /// println!("Cloned voice ID: {}", voice.voice_id);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn clone_voice(
+        &self,
+        audio: Vec<u8>,
+        filename: &str,
+        name: &str,
+        model: &str,
+    ) -> Result<CustomVoice> {
+        let name_len = name.chars().count();
+        if !(NAME_MIN_LENGTH..=NAME_MAX_LENGTH).contains(&name_len) {
+            return Err(TypecastError::ValidationError {
+                detail: format!(
+                    "name must be {}-{} characters; got {}",
+                    NAME_MIN_LENGTH, NAME_MAX_LENGTH, name_len
+                ),
+            });
+        }
+        if audio.len() > CLONING_MAX_FILE_SIZE {
+            return Err(TypecastError::ValidationError {
+                detail: format!(
+                    "audio file exceeds 25MB limit; got {} bytes",
+                    audio.len()
+                ),
+            });
+        }
+
+        let mime = guess_audio_mime(filename);
+        let part = reqwest::multipart::Part::bytes(audio)
+            .file_name(filename.to_string())
+            .mime_str(mime)
+            .expect("guess_audio_mime only returns valid MIME constants");
+        let form = reqwest::multipart::Form::new()
+            .text("name", name.to_string())
+            .text("model", model.to_string())
+            .part("file", part);
+
+        let url = self.build_url("/v1/voices/clone", None);
+        let response = self
+            .client
+            .post(&url)
+            .header("X-API-KEY", &self.api_key)
+            .multipart(form)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+
+        let voice: CustomVoice = response.json().await?;
+        Ok(voice)
+    }
+
+    /// Delete a custom (cloned) voice by its ID.
+    ///
+    /// Sends `DELETE /v1/voices/{voice_id}`. A 204 No Content response is
+    /// treated as success; any other non-2xx status is mapped to a
+    /// [`TypecastError`].
+    ///
+    /// # Arguments
+    ///
+    /// * `voice_id` - The voice ID returned by [`TypecastClient::clone_voice`].
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use typecast_rust::TypecastClient;
+    ///
+    /// # async fn example() -> typecast_rust::Result<()> {
+    /// let client = TypecastClient::from_env()?;
+    /// client.delete_voice("cv_abc123").await?;
+    /// println!("Voice deleted.");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn delete_voice(&self, voice_id: &str) -> Result<()> {
+        let url = self.build_url(&format!("/v1/voices/{}", voice_id), None);
+        let response = self
+            .client
+            .delete(&url)
+            .header("X-API-KEY", &self.api_key)
+            .send()
+            .await?;
+
+        let status = response.status();
+        if !status.is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+        Ok(())
+    }
+}
+
+/// Infer an audio MIME type from a filename extension.
+///
+/// Defaults to `application/octet-stream` for unrecognised extensions.
+fn guess_audio_mime(filename: &str) -> &'static str {
+    let lower = filename.to_lowercase();
+    if lower.ends_with(".wav") {
+        "audio/wav"
+    } else if lower.ends_with(".mp3") {
+        "audio/mpeg"
+    } else if lower.ends_with(".ogg") {
+        "audio/ogg"
+    } else if lower.ends_with(".flac") {
+        "audio/flac"
+    } else if lower.ends_with(".m4a") {
+        "audio/mp4"
+    } else {
+        "application/octet-stream"
     }
 }
 

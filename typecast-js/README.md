@@ -272,6 +272,42 @@ one of the two alignment arrays. For non-whitespace languages (Japanese,
 Chinese), pair with `granularity: 'char'` — word-level alignment will
 collapse the entire sentence into a single segment.
 
+### Instant cloning
+
+Clone a custom voice from a short audio sample (≤ 25 MB), then use it just like any built-in voice. The cloned voice ID has a `uc_` prefix and works with `textToSpeech` directly.
+
+```typescript
+import { TypecastClient } from '@neosapience/typecast-js';
+import fs from 'node:fs/promises';
+
+const client = new TypecastClient({ apiKey: process.env.TYPECAST_API_KEY });
+
+// 1) Clone
+const voice = await client.cloneVoice({
+  audio: './sample.wav',          // string path | Uint8Array | Buffer | Blob | File
+  name: 'my-voice',                // 1-30 chars
+  model: 'ssfm-v30',               // or 'ssfm-v21'
+});
+console.log(voice.voiceId);        // uc_64a1b2...
+
+// 2) Synthesize with the cloned voice
+const audio = await client.textToSpeech({
+  text: 'Hello from my cloned voice!',
+  voice_id: voice.voiceId,
+  model: 'ssfm-v30',
+});
+await fs.writeFile('output.wav', new Uint8Array(audio.audioData));
+
+// 3) Delete when done
+await client.deleteVoice(voice.voiceId);
+```
+
+**Limits**
+
+- Audio file: max 25 MB. Supported formats: WAV, MP3.
+- Voice name: 1–30 characters.
+- Model: `ssfm-v21` or `ssfm-v30`.
+
 ---
 
 ## Supported Languages

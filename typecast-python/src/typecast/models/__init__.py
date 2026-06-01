@@ -20,6 +20,7 @@ from .tts import (
 )
 from .voices import (
     AgeEnum,
+    CustomVoice,
     GenderEnum,
     ModelInfo,
     UseCaseEnum,
@@ -33,6 +34,7 @@ __all__ = [
     "AlignmentSegmentCharacter",
     "AlignmentSegmentWord",
     "Credits",
+    "CustomVoice",
     "EmotionPreset",
     "Error",
     "GenderEnum",

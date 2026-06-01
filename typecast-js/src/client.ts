@@ -7,6 +7,12 @@ import {
   TTSWithTimestampsResponse,
   WithTimestampsResult,
 } from './types/Timestamps';
+import {
+  type CloneVoiceRequest,
+  type CustomVoice,
+  guessAudioMime,
+  validateCloneInputsAsync,
+} from './types/QuickCloning';
 
 export class TypecastClient {
   private baseHost: string;
@@ -240,5 +246,72 @@ export class TypecastClient {
       { headers: this.headers }
     );
     return this.handleResponse<SubscriptionResponse>(response);
+  }
+
+  /**
+   * Create a quick-cloned custom voice from an audio sample.
+   *
+   * The cloned voice ID has a `uc_` prefix and works directly with
+   * `textToSpeech` / `textToSpeechWithTimestamps` etc.
+   *
+   * @param req.audio  Audio sample. Accepts string path (Node), Uint8Array,
+   *                   Buffer, Blob, or File. Max 25 MB.
+   * @param req.name   Voice name, 1-30 characters.
+   * @param req.model  Engine model: `"ssfm-v21"` or `"ssfm-v30"`.
+   * @returns The created `CustomVoice` (`voiceId` has `uc_` prefix).
+   * @throws  Error on validation failure or non-2xx response.
+   */
+  async cloneVoice(req: CloneVoiceRequest): Promise<CustomVoice> {
+    const { audioBytes, filename } = await validateCloneInputsAsync(req.audio, req.name);
+    if (req.model !== 'ssfm-v21' && req.model !== 'ssfm-v30') {
+      throw new TypeError(`model must be 'ssfm-v21' or 'ssfm-v30'; got ${String(req.model)}`);
+    }
+    // Copy to a plain ArrayBuffer so TypeScript accepts it as a valid BlobPart.
+    // (Uint8Array may reference a SharedArrayBuffer which is not BlobPart-compatible.)
+    const audioBuffer = audioBytes.buffer.slice(
+      audioBytes.byteOffset,
+      audioBytes.byteOffset + audioBytes.byteLength,
+    ) as ArrayBuffer;
+    const form = new FormData();
+    form.append('name', req.name);
+    form.append('model', req.model);
+    form.append(
+      'file',
+      new Blob([audioBuffer], { type: guessAudioMime(filename) }),
+      filename,
+    );
+
+    // Strip Content-Type so fetch can set multipart/form-data with boundary.
+    const { 'Content-Type': _omitContentType, ...headers } = this.headers;
+
+    const response = await fetch(this.buildUrl('/v1/voices/clone'), {
+      method: 'POST',
+      headers,
+      body: form,
+    });
+    const body = await this.handleResponse<{ voice_id: string; name: string; model: string }>(response);
+    return { voiceId: body.voice_id, name: body.name, model: body.model };
+  }
+
+  /**
+   * Soft-delete a custom voice by ID.
+   *
+   * @param voiceId Voice identifier with `uc_` prefix.
+   * @throws Error on non-2xx response (e.g., 404 if not owned or already deleted).
+   */
+  async deleteVoice(voiceId: string): Promise<void> {
+    if (!voiceId || !voiceId.startsWith('uc_')) {
+      throw new TypeError(`voiceId must start with 'uc_'; got ${String(voiceId)}`);
+    }
+    const response = await fetch(this.buildUrl(`/v1/voices/${encodeURIComponent(voiceId)}`), {
+      method: 'DELETE',
+      headers: this.headers,
+    });
+    /* c8 ignore start */  // handleResponse always throws on !ok; the post-call brace is unreachable
+    if (!response.ok) {
+      await this.handleResponse(response);
+    }
+    /* c8 ignore stop */
+    // 204 No Content: nothing to return.
   }
 }

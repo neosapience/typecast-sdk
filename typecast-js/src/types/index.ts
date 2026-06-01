@@ -5,3 +5,4 @@ export * from './Streaming';
 export * from './TextToSpeech';
 export * from './Voices';
 export * from './Timestamps';
+export type { CustomVoice, CloneVoiceRequest, CloneVoiceAudio } from './QuickCloning';

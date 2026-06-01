@@ -660,6 +660,70 @@ TYPECAST_API const char* typecast_plan_tier_to_string(TypecastPlanTier plan);
 TYPECAST_API int typecast_plan_tier_from_string(const char* str);
 
 /* ============================================
+ * Custom Voice Cloning
+ * ============================================ */
+
+/** Maximum audio file size accepted by the cloning endpoint (25 MB) */
+#define TYPECAST_CLONING_MAX_FILE_SIZE (25L * 1024 * 1024)
+
+/** Minimum character length for a custom voice name */
+#define TYPECAST_NAME_MIN_LENGTH 1
+
+/** Maximum character length for a custom voice name */
+#define TYPECAST_NAME_MAX_LENGTH 30
+
+/**
+ * Cloned custom voice descriptor returned by typecast_clone_voice().
+ */
+typedef struct {
+    char voice_id[64];  /* uc_<24-hex> + NUL; 64 bytes leaves headroom */
+    char name[64];      /* Server enforces max 30 chars + NUL             */
+    char model[16];     /* "ssfm-v21" / "ssfm-v30" + NUL                 */
+} TypecastCustomVoice;
+
+/**
+ * Clone a custom voice from raw audio bytes.
+ *
+ * Sends the audio data to POST /v1/voices/clone as a multipart upload.
+ * On success, writes the resulting voice descriptor into @p out and returns
+ * TYPECAST_OK. On validation or HTTP failure, sets the client last_error
+ * and returns a non-zero error code.
+ *
+ * @param client    Pointer to an initialized TypecastClient (required)
+ * @param audio     Pointer to raw audio bytes (must not be NULL)
+ * @param audio_len Number of audio bytes; must be > 0 and <= 25 MB
+ * @param filename  Multipart filename hint (e.g., "sample.wav")
+ * @param name      Voice name, NUL-terminated, 1..30 characters
+ * @param model     Model string: "ssfm-v21" or "ssfm-v30"
+ * @param out       Written on success; must not be NULL
+ * @return TYPECAST_OK (0) on success, non-zero TypecastErrorCode on error
+ */
+TYPECAST_API TypecastErrorCode typecast_clone_voice(
+    TypecastClient* client,
+    const unsigned char* audio,
+    size_t audio_len,
+    const char* filename,
+    const char* name,
+    const char* model,
+    TypecastCustomVoice* out
+);
+
+/**
+ * Soft-delete a custom voice by ID.
+ *
+ * Sends DELETE /v1/voices/{voice_id}. Returns TYPECAST_OK on 204 No Content.
+ * On HTTP error, sets the client last_error and returns a non-zero code.
+ *
+ * @param client   Pointer to an initialized TypecastClient (required)
+ * @param voice_id Voice ID with "uc_" prefix (required)
+ * @return TYPECAST_OK (0) on success, non-zero TypecastErrorCode on error
+ */
+TYPECAST_API TypecastErrorCode typecast_delete_voice(
+    TypecastClient* client,
+    const char* voice_id
+);
+
+/* ============================================
  * Utility Functions
  * ============================================ */
 
