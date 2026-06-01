@@ -11,6 +11,9 @@ jobs:
   publish:
     name: Publish @neosapience/typecast-js
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         working-directory: typecast-js
