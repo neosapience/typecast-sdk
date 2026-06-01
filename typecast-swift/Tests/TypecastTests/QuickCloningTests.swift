@@ -116,6 +116,31 @@ final class QuickCloningTests: XCTestCase {
         )
     }
 
+    func testCloneVoiceSetsMp3AndDefaultMimeTypes() async throws {
+        let cases = [
+            ("sample.mp3", "audio/mpeg"),
+            ("sample.bin", "application/octet-stream")
+        ]
+
+        for (filename, expectedMime) in cases {
+            let responseJSON = #"{"voice_id":"uc_mime","name":"Mime","model":"ssfm-v30"}"#.data(using: .utf8)!
+            MockURLProtocol.requestHandler = { req in
+                (self.httpResponse(url: req.url!, status: 200), responseJSON)
+            }
+
+            _ = try await client.cloneVoice(
+                audio: Data(repeating: 0x20, count: 32),
+                filename: filename,
+                name: "Mime",
+                model: "ssfm-v30"
+            )
+
+            let body = try XCTUnwrap(MockURLProtocol.lastBody)
+            let bodyText = String(decoding: body, as: UTF8.self)
+            XCTAssertTrue(bodyText.contains("Content-Type: \(expectedMime)"))
+        }
+    }
+
     // MARK: - Test 3: rejects oversized audio
 
     func testCloneVoiceRejectsOversizedAudio() async throws {
@@ -223,6 +248,55 @@ final class QuickCloningTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error type: \(error)")
         }
+    }
+
+    func testDeleteVoiceThrowsOnNonHTTPResponse() async {
+        MockURLProtocol.rawResponseHandler = { req in
+            let response = URLResponse(
+                url: req.url!,
+                mimeType: nil,
+                expectedContentLength: 0,
+                textEncodingName: nil
+            )
+            return (response, nil)
+        }
+
+        do {
+            try await client.deleteVoice("uc_non_http")
+            XCTFail("Expected invalidResponse")
+        } catch let error as TypecastError {
+            guard case .invalidResponse = error else {
+                XCTFail("Expected .invalidResponse, got \(error)")
+                return
+            }
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    func testCloneVoiceFileURLOverloadReadsFileAndUsesBasename() async throws {
+        let responseJSON = #"{"voice_id":"uc_file","name":"File","model":"ssfm-v30"}"#.data(using: .utf8)!
+        MockURLProtocol.requestHandler = { req in
+            (self.httpResponse(url: req.url!, status: 200), responseJSON)
+        }
+
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("typecast-\(UUID().uuidString)")
+            .appendingPathExtension("mp3")
+        try Data(repeating: 0x20, count: 16).write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+
+        let result = try await client.cloneVoice(
+            audioFileURL: fileURL,
+            name: "File",
+            model: "ssfm-v30"
+        )
+
+        XCTAssertEqual(result.voiceId, "uc_file")
+        let body = try XCTUnwrap(MockURLProtocol.lastBody)
+        let bodyText = String(decoding: body, as: UTF8.self)
+        XCTAssertTrue(bodyText.contains(fileURL.lastPathComponent))
+        XCTAssertTrue(bodyText.contains("Content-Type: audio/mpeg"))
     }
 
     // MARK: - Bonus: valid boundary name lengths (edge cases)

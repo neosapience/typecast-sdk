@@ -438,7 +438,7 @@ class TypecastClient private constructor(
 
         httpClient.newCall(httpRequest).execute().use { response ->
             if (!response.isSuccessful) {
-                val body = response.body?.string() ?: ""
+                val body = response.body!!.string()
                 throw buildError(response.code, body)
             }
         }

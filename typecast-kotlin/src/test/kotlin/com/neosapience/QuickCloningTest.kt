@@ -191,6 +191,19 @@ class QuickCloningTest {
         }
     }
 
+    @Test
+    @DisplayName("deleteVoice handles an error response with an empty body")
+    fun deleteVoiceErrorWithEmptyBody() {
+        mockServer.enqueue(
+            MockResponse().setResponseCode(500)
+        )
+
+        val ex = assertThrows(com.neosapience.exceptions.InternalServerException::class.java) {
+            client.deleteVoice("uc_empty_body")
+        }
+        assertEquals("", ex.responseBody)
+    }
+
     // ==================== CustomVoice model coverage ====================
 
     @Test

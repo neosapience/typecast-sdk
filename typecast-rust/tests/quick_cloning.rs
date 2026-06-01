@@ -113,6 +113,91 @@ async fn clone_voice_sends_multipart_body() {
     _m.assert_async().await;
 }
 
+#[tokio::test]
+async fn clone_voice_sets_supported_mime_types() {
+    let cases = [
+        ("sample.mp3", "audio/mpeg"),
+        ("sample.ogg", "audio/ogg"),
+        ("sample.flac", "audio/flac"),
+        ("sample.m4a", "audio/mp4"),
+        ("sample.bin", "application/octet-stream"),
+    ];
+
+    for (filename, expected_mime) in cases {
+        let mut server = Server::new_async().await;
+        let _m = server
+            .mock("POST", "/v1/voices/clone")
+            .match_body(mockito::Matcher::Regex(expected_mime.into()))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(clone_response_json())
+            .create_async()
+            .await;
+
+        let client = make_client(&server);
+        let result = client
+            .clone_voice(small_wav(), filename, "My Voice", "ssfm-v30")
+            .await;
+        assert!(result.is_ok(), "expected Ok for {filename}, got {result:?}");
+        _m.assert_async().await;
+    }
+}
+
+#[tokio::test]
+async fn clone_voice_returns_err_on_http_error() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/voices/clone")
+        .with_status(422)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"detail":"invalid audio format"}"#)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let err = client
+        .clone_voice(small_wav(), "sample.wav", "My Voice", "ssfm-v30")
+        .await
+        .expect_err("should fail on 422");
+    assert!(
+        matches!(err, TypecastError::ValidationError { .. }),
+        "expected ValidationError, got {err:?}"
+    );
+}
+
+#[tokio::test]
+async fn clone_voice_returns_err_on_malformed_success_json() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/voices/clone")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body("{")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let err = client
+        .clone_voice(small_wav(), "sample.wav", "My Voice", "ssfm-v30")
+        .await
+        .expect_err("should fail on malformed JSON");
+    assert!(matches!(err, TypecastError::HttpError(_)), "expected HttpError, got {err:?}");
+}
+
+#[tokio::test]
+async fn clone_voice_returns_err_on_transport_failure() {
+    let config = ClientConfig::new("test-api-key")
+        .base_url("http://127.0.0.1:9")
+        .timeout(Duration::from_millis(100));
+    let client = TypecastClient::new(config).expect("client builds");
+
+    let err = client
+        .clone_voice(small_wav(), "sample.wav", "My Voice", "ssfm-v30")
+        .await
+        .expect_err("should fail when transport cannot connect");
+    assert!(matches!(err, TypecastError::HttpError(_)), "expected HttpError, got {err:?}");
+}
+
 // ---------------------------------------------------------------------------
 // Test 3: clone_voice rejects audio that exceeds 25 MB
 // ---------------------------------------------------------------------------
@@ -221,4 +306,18 @@ async fn delete_voice_returns_err_on_404() {
         .await
         .expect_err("should fail on 404");
     assert!(err.is_not_found(), "expected NotFound, got {err:?}");
+}
+
+#[tokio::test]
+async fn delete_voice_returns_err_on_transport_failure() {
+    let config = ClientConfig::new("test-api-key")
+        .base_url("http://127.0.0.1:9")
+        .timeout(Duration::from_millis(100));
+    let client = TypecastClient::new(config).expect("client builds");
+
+    let err = client
+        .delete_voice("uc_xxx")
+        .await
+        .expect_err("should fail when transport cannot connect");
+    assert!(matches!(err, TypecastError::HttpError(_)), "expected HttpError, got {err:?}");
 }

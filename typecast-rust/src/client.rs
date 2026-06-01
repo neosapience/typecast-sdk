@@ -590,9 +590,7 @@ impl TypecastClient {
         let part = reqwest::multipart::Part::bytes(audio)
             .file_name(filename.to_string())
             .mime_str(mime)
-            .map_err(|e| TypecastError::BadRequest {
-                detail: format!("invalid MIME type: {}", e),
-            })?;
+            .expect("guess_audio_mime only returns valid MIME constants");
         let form = reqwest::multipart::Form::new()
             .text("name", name.to_string())
             .text("model", model.to_string())
