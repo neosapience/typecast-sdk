@@ -2229,3 +2229,247 @@ TYPECAST_API void typecast_tts_with_timestamps_response_free(
 
     free(response);
 }
+
+/* ============================================
+ * Custom Voice Cloning Implementation
+ * ============================================ */
+
+/**
+ * Guess MIME type from filename extension.
+ * Returns "application/octet-stream" for unrecognised extensions.
+ */
+static const char* guess_audio_mime(const char* filename) {
+    if (!filename) return "application/octet-stream";
+
+    const char* dot = strrchr(filename, '.');
+    if (!dot) return "application/octet-stream";
+    dot++; /* skip the '.' */
+
+    if (strncasecmp(dot, "wav",  3) == 0) return "audio/wav";
+    if (strncasecmp(dot, "mp3",  3) == 0) return "audio/mpeg";
+    if (strncasecmp(dot, "ogg",  3) == 0) return "audio/ogg";
+    if (strncasecmp(dot, "flac", 4) == 0) return "audio/flac";
+    if (strncasecmp(dot, "m4a",  3) == 0) return "audio/mp4";
+    if (strncasecmp(dot, "webm", 4) == 0) return "audio/webm";
+    return "application/octet-stream";
+}
+
+TYPECAST_API TypecastErrorCode typecast_clone_voice(
+    TypecastClient* client,
+    const unsigned char* audio,
+    size_t audio_len,
+    const char* filename,
+    const char* name,
+    const char* model,
+    TypecastCustomVoice* out
+) {
+    /* ---- Validate parameters ---- */
+    if (!client) return TYPECAST_ERROR_INVALID_PARAM;
+
+    if (!audio || audio_len == 0) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "audio bytes are required");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+    if (audio_len > (size_t)TYPECAST_CLONING_MAX_FILE_SIZE) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM,
+                  "audio exceeds maximum size of 25 MB");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+    if (!name || strlen(name) < TYPECAST_NAME_MIN_LENGTH) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM,
+                  "name must be at least 1 character");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+    if (strlen(name) > TYPECAST_NAME_MAX_LENGTH) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM,
+                  "name must not exceed 30 characters");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+    if (!model || strlen(model) == 0) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "model is required");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+    if (!out) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "out must not be NULL");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+
+    clear_error(client);
+
+    /* ---- Build URL ---- */
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/voices/clone", client->host);
+
+    /* ---- Setup response buffer ---- */
+    ResponseBuffer response_buf = {0};
+
+    /* ---- Build multipart body ---- */
+    CURL* curl = client->curl;
+    curl_easy_reset(curl);
+
+    curl_mime* mime = curl_mime_init(curl);
+    if (!mime) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to init mime");
+        return TYPECAST_ERROR_OUT_OF_MEMORY;
+    }
+
+    /* "name" field */
+    curl_mimepart* part = curl_mime_addpart(mime);
+    curl_mime_name(part, "name");
+    curl_mime_data(part, name, CURL_ZERO_TERMINATED);
+
+    /* "model" field */
+    part = curl_mime_addpart(mime);
+    curl_mime_name(part, "model");
+    curl_mime_data(part, model, CURL_ZERO_TERMINATED);
+
+    /* "file" field */
+    part = curl_mime_addpart(mime);
+    curl_mime_name(part, "file");
+    curl_mime_filename(part, filename ? filename : "audio");
+    curl_mime_type(part, guess_audio_mime(filename));
+    curl_mime_data(part, (const char*)audio, audio_len);
+
+    /* ---- Auth header ---- */
+    struct curl_slist* headers = NULL;
+    char api_key_header[256];
+    snprintf(api_key_header, sizeof(api_key_header), "X-API-KEY: %s", client->api_key);
+    headers = curl_slist_append(headers, api_key_header);
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_buf);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 120L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+
+    /* ---- Perform ---- */
+    CURLcode res = curl_easy_perform(curl);
+    curl_mime_free(mime);
+    curl_slist_free_all(headers);
+
+    if (res != CURLE_OK) {
+        set_error(client, TYPECAST_ERROR_NETWORK, curl_easy_strerror(res));
+        if (response_buf.data) free(response_buf.data);
+        return TYPECAST_ERROR_NETWORK;
+    }
+
+    /* ---- Check HTTP status ---- */
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+    if (http_code != 200 && http_code != 201) {
+        TypecastErrorCode err_code = http_status_to_error(http_code);
+        char* err_msg = NULL;
+        if (response_buf.data && response_buf.size > 0) {
+            cJSON* err_json = cJSON_Parse((const char*)response_buf.data);
+            if (err_json) {
+                cJSON* detail = cJSON_GetObjectItem(err_json, "detail");
+                if (cJSON_IsString(detail)) {
+                    err_msg = strdup_safe(detail->valuestring);
+                }
+                cJSON_Delete(err_json);
+            }
+        }
+        set_error(client, err_code, err_msg ? err_msg : typecast_error_message(err_code));
+        if (err_msg) free(err_msg);
+        if (response_buf.data) free(response_buf.data);
+        return err_code;
+    }
+
+    /* ---- Parse JSON response ---- */
+    cJSON* json = NULL;
+    if (response_buf.data && response_buf.size > 0) {
+        json = cJSON_Parse((const char*)response_buf.data);
+    }
+    free(response_buf.data);
+
+    if (!json) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Failed to parse clone response");
+        return TYPECAST_ERROR_JSON_PARSE;
+    }
+
+    /* Clear the output struct and fill it */
+    memset(out, 0, sizeof(*out));
+
+    cJSON* voice_id_j = cJSON_GetObjectItem(json, "voice_id");
+    if (cJSON_IsString(voice_id_j)) {
+        snprintf(out->voice_id, sizeof(out->voice_id), "%s", voice_id_j->valuestring);
+    }
+
+    cJSON* name_j = cJSON_GetObjectItem(json, "name");
+    if (cJSON_IsString(name_j)) {
+        snprintf(out->name, sizeof(out->name), "%s", name_j->valuestring);
+    }
+
+    cJSON* model_j = cJSON_GetObjectItem(json, "model");
+    if (cJSON_IsString(model_j)) {
+        snprintf(out->model, sizeof(out->model), "%s", model_j->valuestring);
+    }
+
+    cJSON_Delete(json);
+    return TYPECAST_OK;
+}
+
+TYPECAST_API TypecastErrorCode typecast_delete_voice(
+    TypecastClient* client,
+    const char* voice_id
+) {
+    if (!client) return TYPECAST_ERROR_INVALID_PARAM;
+
+    if (!voice_id || strlen(voice_id) == 0) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is required");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+
+    clear_error(client);
+
+    /* ---- Build URL ---- */
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/voices/%s", client->host, voice_id);
+
+    /* ---- Setup response buffer (DELETE may return a body on error) ---- */
+    ResponseBuffer response_buf = {0};
+
+    /* ---- Setup CURL ---- */
+    CURL* curl = client->curl;
+    curl_easy_reset(curl);
+
+    struct curl_slist* headers = NULL;
+    char api_key_header[256];
+    snprintf(api_key_header, sizeof(api_key_header), "X-API-KEY: %s", client->api_key);
+    headers = curl_slist_append(headers, api_key_header);
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_buf);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+
+    /* ---- Perform ---- */
+    CURLcode res = curl_easy_perform(curl);
+    curl_slist_free_all(headers);
+
+    if (res != CURLE_OK) {
+        set_error(client, TYPECAST_ERROR_NETWORK, curl_easy_strerror(res));
+        if (response_buf.data) free(response_buf.data);
+        return TYPECAST_ERROR_NETWORK;
+    }
+
+    /* ---- Check HTTP status (204 = success for DELETE) ---- */
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+    if (response_buf.data) free(response_buf.data);
+
+    if (http_code == 204 || http_code == 200) {
+        return TYPECAST_OK;
+    }
+
+    TypecastErrorCode err_code = http_status_to_error(http_code);
+    set_error(client, err_code, typecast_error_message(err_code));
+    return err_code;
+}

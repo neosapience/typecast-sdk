@@ -371,6 +371,107 @@ public class TypecastClient : IDisposable
 
     #endregion
 
+    #region Instant cloning
+
+    /// <summary>
+    /// Clones a voice from an audio sample via POST /v1/voices/clone.
+    /// The returned <see cref="CustomVoice.VoiceId"/> has the "uc_" prefix and
+    /// can be passed directly as <c>voice_id</c> in <see cref="TextToSpeechAsync"/>.
+    /// </summary>
+    /// <param name="audio">Raw audio bytes (WAV or MP3). Must not exceed 25 MB.</param>
+    /// <param name="filename">
+    /// File name including extension (e.g., "sample.wav"). Used to set the
+    /// Content-Type of the file part in the multipart body.
+    /// </param>
+    /// <param name="name">Display name for the cloned voice (1–30 characters).</param>
+    /// <param name="model">TTS model string, e.g., "ssfm-v30".</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Metadata of the newly created custom voice.</returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="audio"/> exceeds 25 MB or <paramref name="name"/>
+    /// is outside the 1–30 character range.
+    /// </exception>
+    /// <exception cref="TypecastException">Thrown when the API returns an error.</exception>
+    public async Task<CustomVoice> CloneVoiceAsync(
+        byte[] audio,
+        string filename,
+        string name,
+        string model,
+        CancellationToken cancellationToken = default)
+    {
+        if (name.Length < QuickCloningLimits.NameMinLength || name.Length > QuickCloningLimits.NameMaxLength)
+            throw new ArgumentException(
+                $"name must be {QuickCloningLimits.NameMinLength}–{QuickCloningLimits.NameMaxLength} characters; got {name.Length}.",
+                nameof(name));
+
+        if (audio.LongLength > QuickCloningLimits.CloningMaxFileSize)
+            throw new ArgumentException(
+                $"audio file exceeds the 25 MB limit; got {audio.LongLength} bytes.",
+                nameof(audio));
+
+        var content = new MultipartFormDataContent();
+        content.Add(new StringContent(name), "name");
+        content.Add(new StringContent(model), "model");
+
+        var fileContent = new ByteArrayContent(audio);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(GuessAudioMime(filename));
+        content.Add(fileContent, "file", filename);
+
+        var url = $"{_apiHost}/v1/voices/clone";
+        // Note: do not dispose content before the response is read; let the
+        // HttpResponseMessage lifetime manage it (HttpClient disposes the
+        // request content after sending).
+        using var response = await _httpClient.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
+        return await HandleJsonResponseAsync<CustomVoice>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Clones a voice from a local audio file via POST /v1/voices/clone.
+    /// </summary>
+    /// <param name="audioFile">Path to the audio file (WAV or MP3). Must not exceed 25 MB.</param>
+    /// <param name="name">Display name for the cloned voice (1–30 characters).</param>
+    /// <param name="model">TTS model string, e.g., "ssfm-v30".</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Metadata of the newly created custom voice.</returns>
+    public async Task<CustomVoice> CloneVoiceAsync(
+        string audioFile,
+        string name,
+        string model,
+        CancellationToken cancellationToken = default)
+    {
+        var audio = await File.ReadAllBytesAsync(audioFile, cancellationToken).ConfigureAwait(false);
+        return await CloneVoiceAsync(audio, Path.GetFileName(audioFile), name, model, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Deletes a custom voice via DELETE /v1/voices/{voiceId}.
+    /// </summary>
+    /// <param name="voiceId">The custom voice ID to delete (e.g., "uc_abc123").</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <exception cref="TypecastException">Thrown when the API returns an error.</exception>
+    public async Task DeleteVoiceAsync(string voiceId, CancellationToken cancellationToken = default)
+    {
+        var url = $"{_apiHost}/v1/voices/{Uri.EscapeDataString(voiceId)}";
+        using var response = await _httpClient.DeleteAsync(url, cancellationToken).ConfigureAwait(false);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            throw TypecastException.FromStatusCode((int)response.StatusCode, errorBody);
+        }
+    }
+
+    private static string GuessAudioMime(string filename)
+    {
+        var lower = filename.ToLowerInvariant();
+        if (lower.EndsWith(".wav", StringComparison.Ordinal)) return "audio/wav";
+        if (lower.EndsWith(".mp3", StringComparison.Ordinal)) return "audio/mpeg";
+        return "application/octet-stream";
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private string SerializeTimestampRequest(TTSRequestWithTimestamps request)

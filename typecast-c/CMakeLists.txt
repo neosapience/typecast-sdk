@@ -129,6 +129,14 @@ if(TYPECAST_BUILD_EXAMPLES)
     elseif(TYPECAST_BUILD_STATIC)
         target_link_libraries(example_with_timestamps PRIVATE typecast_static CURL::libcurl)
     endif()
+
+    add_executable(example_quick_cloning examples/quick_cloning.c)
+    target_include_directories(example_quick_cloning PRIVATE include)
+    if(TYPECAST_BUILD_SHARED)
+        target_link_libraries(example_quick_cloning PRIVATE typecast)
+    elseif(TYPECAST_BUILD_STATIC)
+        target_link_libraries(example_quick_cloning PRIVATE typecast_static CURL::libcurl)
+    endif()
 endif()
 
 # Tests
@@ -177,6 +185,21 @@ if(TYPECAST_BUILD_TESTS)
 
     add_test(NAME typecast_timestamp_tests COMMAND test_timestamps
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
+    # Quick Voice Cloning tests (mock server, no API key required)
+    add_executable(test_quick_cloning tests/test_quick_cloning.c)
+    target_include_directories(test_quick_cloning PRIVATE include)
+
+    if(TYPECAST_BUILD_SHARED)
+        target_link_libraries(test_quick_cloning PRIVATE typecast)
+    elseif(TYPECAST_BUILD_STATIC)
+        target_link_libraries(test_quick_cloning PRIVATE typecast_static CURL::libcurl)
+    endif()
+    if(NOT WIN32)
+        target_link_libraries(test_quick_cloning PRIVATE Threads::Threads)
+    endif()
+
+    add_test(NAME test_quick_cloning COMMAND test_quick_cloning)
 
     # Integration test (requires API key)
     add_executable(test_integration tests/test_integration.c)

@@ -84,9 +84,10 @@ pub mod timestamps;
 pub use client::{ClientConfig, TypecastClient, DEFAULT_BASE_URL, DEFAULT_TIMEOUT_SECS};
 pub use errors::{Result, TypecastError};
 pub use models::{
-    Age, AudioFormat, Credits, EmotionPreset, ErrorResponse, Gender, Limits, ModelInfo, Output,
-    OutputStream, PlanTier, PresetPrompt, Prompt, SmartPrompt, SubscriptionResponse, TTSModel,
-    TTSPrompt, TTSRequest, TTSRequestStream, TTSResponse, UseCase, VoiceV2, VoicesV2Filter,
+    Age, AudioFormat, Credits, CustomVoice, EmotionPreset, ErrorResponse, Gender, Limits,
+    ModelInfo, Output, OutputStream, PlanTier, PresetPrompt, Prompt, SmartPrompt,
+    SubscriptionResponse, TTSModel, TTSPrompt, TTSRequest, TTSRequestStream, TTSResponse, UseCase,
+    VoiceV2, VoicesV2Filter, CLONING_MAX_FILE_SIZE, NAME_MAX_LENGTH, NAME_MIN_LENGTH,
 };
 pub use timestamps::{
     AlignmentSegmentCharacter, AlignmentSegmentWord, TTSRequestWithTimestamps,

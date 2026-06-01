@@ -265,3 +265,21 @@ pub const VoicesV2Filter = struct {
     age: ?Age = null,
     use_cases: ?[]const u8 = null,
 };
+
+// ── Instant cloning ────────────────────────────────────────────────
+
+/// Maximum audio file size accepted by the cloning endpoint (25 MB).
+pub const CLONING_MAX_FILE_SIZE: usize = 25 * 1024 * 1024;
+
+/// Minimum length of the custom voice name.
+pub const NAME_MIN_LENGTH: usize = 1;
+
+/// Maximum length of the custom voice name.
+pub const NAME_MAX_LENGTH: usize = 30;
+
+/// A custom (cloned) voice returned by the /v1/voices/clone endpoint.
+pub const CustomVoice = struct {
+    voice_id: []const u8,
+    name: []const u8,
+    model: []const u8,
+};

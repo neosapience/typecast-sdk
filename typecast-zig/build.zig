@@ -35,6 +35,19 @@ pub fn build(b: *std.Build) void {
     const mock_test_step = b.step("test-mock", "Run mock tests");
     mock_test_step.dependOn(&run_mock_tests.step);
 
+    // Quick-cloning tests (mock HTTP, multipart body shape, validation)
+    const quick_cloning_test_mod = b.createModule(.{
+        .root_source_file = b.path("tests/quick_cloning_test.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "typecast", .module = typecast_mod }},
+    });
+    const quick_cloning_tests = b.addTest(.{ .root_module = quick_cloning_test_mod });
+    const run_quick_cloning_tests = b.addRunArtifact(quick_cloning_tests);
+    test_step.dependOn(&run_quick_cloning_tests.step);
+    const quick_cloning_test_step = b.step("test-quick-cloning", "Run quick-cloning tests");
+    quick_cloning_test_step.dependOn(&run_quick_cloning_tests.step);
+
     // Timestamps tests (fixture byte-equality + mock HTTP)
     const timestamps_test_mod = b.createModule(.{
         .root_source_file = b.path("tests/timestamps_test.zig"),
@@ -95,4 +108,20 @@ pub fn build(b: *std.Build) void {
     const with_timestamps_step = b.step("example-with-timestamps", "Run TTS with timestamps example");
     with_timestamps_step.dependOn(&run_with_timestamps.step);
     b.installArtifact(with_timestamps_example);
+
+    // Quick Voice Cloning example
+    const quick_cloning_mod = b.createModule(.{
+        .root_source_file = b.path("examples/quick_cloning.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "typecast", .module = typecast_mod }},
+    });
+    const quick_cloning_example = b.addExecutable(.{
+        .name = "quick_cloning",
+        .root_module = quick_cloning_mod,
+    });
+    const run_quick_cloning = b.addRunArtifact(quick_cloning_example);
+    const quick_cloning_step = b.step("example-quick-cloning", "Run Quick Voice Cloning example");
+    quick_cloning_step.dependOn(&run_quick_cloning.step);
+    b.installArtifact(quick_cloning_example);
 }
