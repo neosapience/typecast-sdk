@@ -21,7 +21,7 @@ dependencies:
 
 ```dart
 import 'dart:io';
-import 'package:typecast_dart/typecast.dart';
+import 'package:typecast_dart/typecast_dart.dart';
 
 Future<void> main() async {
   final client = TypecastClient(apiKey: Platform.environment['TYPECAST_API_KEY']);

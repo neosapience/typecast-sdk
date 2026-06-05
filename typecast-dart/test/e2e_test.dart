@@ -4,7 +4,7 @@ library;
 import 'dart:io';
 
 import 'package:test/test.dart';
-import 'package:typecast_dart/typecast.dart';
+import 'package:typecast_dart/typecast_dart.dart';
 
 void main() {
   test('live API lists voices and synthesizes speech', () async {

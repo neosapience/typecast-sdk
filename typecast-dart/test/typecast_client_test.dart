@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:test/test.dart';
-import 'package:typecast_dart/typecast.dart';
+import 'package:typecast_dart/typecast_dart.dart';
 
 void main() {
   group('TypecastClient', () {

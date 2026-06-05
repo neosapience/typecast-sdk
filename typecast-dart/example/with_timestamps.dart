@@ -1,4 +1,4 @@
-import 'package:typecast_dart/typecast.dart';
+import 'package:typecast_dart/typecast_dart.dart';
 
 Future<void> main() async {
   final client = TypecastClient();

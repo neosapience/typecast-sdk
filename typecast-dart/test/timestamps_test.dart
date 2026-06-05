@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
-import 'package:typecast_dart/typecast.dart';
+import 'package:typecast_dart/typecast_dart.dart';
 
 void main() {
   test('timestamps response exposes audio bytes and captions', () async {
