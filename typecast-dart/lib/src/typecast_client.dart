@@ -9,23 +9,34 @@ import 'models.dart';
 import 'timestamps.dart';
 
 class TypecastClient {
-  TypecastClient({String? apiKey, String? baseUrl, http.Client? httpClient})
-      : apiKey = apiKey ?? Platform.environment['TYPECAST_API_KEY'] ?? '',
+  TypecastClient({
+    String? apiKey,
+    String? baseUrl,
+    http.Client? httpClient,
+    this.requestTimeout = const Duration(seconds: 30),
+  })  : apiKey = apiKey ?? Platform.environment['TYPECAST_API_KEY'] ?? '',
         baseUrl = baseUrl ??
             Platform.environment['TYPECAST_API_HOST'] ??
             'https://api.typecast.ai',
-        _httpClient = httpClient ?? http.Client();
+        _httpClient = httpClient ?? http.Client() {
+    if (this.apiKey.isEmpty) {
+      throw ArgumentError('TYPECAST_API_KEY must be provided');
+    }
+  }
 
   final String apiKey;
   final String baseUrl;
+  final Duration requestTimeout;
   final http.Client _httpClient;
 
   Future<TtsResponse> textToSpeech(TtsRequest request) async {
-    final response = await _httpClient.post(
-      _url('/v1/text-to-speech'),
-      headers: _jsonHeaders(),
-      body: encodeJson(request.toJson()),
-    );
+    final response = await _httpClient
+        .post(
+          _url('/v1/text-to-speech'),
+          headers: _jsonHeaders(),
+          body: encodeJson(request.toJson()),
+        )
+        .timeout(requestTimeout);
     _raiseForStatus(response);
     final contentType = response.headers['content-type'] ?? 'audio/wav';
     return TtsResponse(
@@ -42,8 +53,9 @@ class TypecastClient {
     final httpRequest = http.Request('POST', _url('/v1/text-to-speech/stream'))
       ..headers.addAll(_jsonHeaders())
       ..body = encodeJson(request.toJson());
-    final response = await _httpClient.send(httpRequest);
-    await _raiseForStreamStatus(response);
+    final response =
+        await _httpClient.send(httpRequest).timeout(requestTimeout);
+    await _raiseForStreamStatus(response, requestTimeout);
     return response.stream;
   }
 
@@ -54,14 +66,16 @@ class TypecastClient {
     if (granularity != null && granularity != 'word' && granularity != 'char') {
       throw ArgumentError("granularity must be 'word' or 'char'");
     }
-    final response = await _httpClient.post(
-      _url(
-        '/v1/text-to-speech/with-timestamps',
-        granularity == null ? null : {'granularity': granularity},
-      ),
-      headers: _jsonHeaders(),
-      body: encodeJson(request.toJson()),
-    );
+    final response = await _httpClient
+        .post(
+          _url(
+            '/v1/text-to-speech/with-timestamps',
+            granularity == null ? null : {'granularity': granularity},
+          ),
+          headers: _jsonHeaders(),
+          body: encodeJson(request.toJson()),
+        )
+        .timeout(requestTimeout);
     _raiseForStatus(response);
     return TtsWithTimestampsResponse.fromJson(
       (jsonDecode(response.body) as Map).cast<String, dynamic>(),
@@ -69,10 +83,9 @@ class TypecastClient {
   }
 
   Future<SubscriptionResponse> getMySubscription() async {
-    final response = await _httpClient.get(
-      _url('/v1/users/me/subscription'),
-      headers: _headers(),
-    );
+    final response = await _httpClient
+        .get(_url('/v1/users/me/subscription'), headers: _headers())
+        .timeout(requestTimeout);
     _raiseForStatus(response);
     return SubscriptionResponse.fromJson(
       (jsonDecode(response.body) as Map).cast<String, dynamic>(),
@@ -80,10 +93,9 @@ class TypecastClient {
   }
 
   Future<List<VoiceV2>> getVoicesV2([VoicesV2Filter? filter]) async {
-    final response = await _httpClient.get(
-      _url('/v2/voices', filter?.toQuery()),
-      headers: _headers(),
-    );
+    final response = await _httpClient
+        .get(_url('/v2/voices', filter?.toQuery()), headers: _headers())
+        .timeout(requestTimeout);
     _raiseForStatus(response);
     return (jsonDecode(response.body) as List)
         .map((item) => VoiceV2.fromJson((item as Map).cast()))
@@ -91,10 +103,9 @@ class TypecastClient {
   }
 
   Future<VoiceV2> getVoiceV2(String voiceId) async {
-    final response = await _httpClient.get(
-      _url('/v2/voices/$voiceId'),
-      headers: _headers(),
-    );
+    final response = await _httpClient
+        .get(_url('/v2/voices/$voiceId'), headers: _headers())
+        .timeout(requestTimeout);
     _raiseForStatus(response);
     return VoiceV2.fromJson((jsonDecode(response.body) as Map).cast());
   }
@@ -118,17 +129,16 @@ class TypecastClient {
       ..files.add(
         http.MultipartFile.fromBytes('file', audio, filename: filename),
       );
-    final response = await _httpClient.send(request);
-    await _raiseForStreamStatus(response);
-    final body = await response.stream.bytesToString();
+    final response = await _httpClient.send(request).timeout(requestTimeout);
+    await _raiseForStreamStatus(response, requestTimeout);
+    final body = await response.stream.bytesToString().timeout(requestTimeout);
     return CustomVoice.fromJson((jsonDecode(body) as Map).cast());
   }
 
   Future<void> deleteVoice(String voiceId) async {
-    final response = await _httpClient.delete(
-      _url('/v1/voices/$voiceId'),
-      headers: _headers(),
-    );
+    final response = await _httpClient
+        .delete(_url('/v1/voices/$voiceId'), headers: _headers())
+        .timeout(requestTimeout);
     if (response.statusCode == 204) return;
     _raiseForStatus(response);
   }
@@ -159,9 +169,12 @@ void _raiseForStatus(http.Response response) {
   throw _exceptionFor(response.statusCode, _extractDetail(response.body));
 }
 
-Future<void> _raiseForStreamStatus(http.StreamedResponse response) async {
+Future<void> _raiseForStreamStatus(
+  http.StreamedResponse response,
+  Duration timeout,
+) async {
   if (response.statusCode >= 200 && response.statusCode < 300) return;
-  final body = await response.stream.bytesToString();
+  final body = await response.stream.bytesToString().timeout(timeout);
   throw _exceptionFor(response.statusCode, _extractDetail(body));
 }
 
