@@ -92,6 +92,9 @@ Makefile
 !typecast-dart/Makefile
 !typecast-dart/lib/
 !typecast-dart/lib/**
+!typecast-ruby/Makefile
+!typecast-ruby/lib/
+!typecast-ruby/lib/**
 *.cmake
 
 # Compiled objects
@@ -235,6 +238,13 @@ out/
 /target/
 Cargo.lock
 *~
+
+# ----------------
+# Ruby
+# ----------------
+.bundle/
+Gemfile.lock
+vendor/bundle/
 
 # ----------------
 # Swift
