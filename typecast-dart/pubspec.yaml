@@ -1,0 +1,14 @@
+name: typecast_dart
+description: Official Dart and Flutter SDK for the Typecast Text-to-Speech API.
+version: 0.1.0
+repository: https://github.com/neosapience/typecast-sdk/tree/main/typecast-dart
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  http: ^1.2.2
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.8

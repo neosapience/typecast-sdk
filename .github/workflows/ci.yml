@@ -231,6 +231,33 @@ jobs:
         run: make coverage
 
   # ============================================
+  # Dart SDK
+  # ============================================
+  test-dart:
+    name: Dart SDK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: typecast-dart
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Run analyzer
+        run: dart analyze
+
+      - name: Run coverage
+        run: make coverage
+
+  # ============================================
   # Summary Job
   # ============================================
   ci-success:
@@ -245,6 +272,7 @@ jobs:
       - test-rust
       - test-swift
       - test-c
+      - test-dart
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -258,7 +286,8 @@ jobs:
              [[ "${{ needs.test-csharp.result }}" == "failure" ]] || \
              [[ "${{ needs.test-rust.result }}" == "failure" ]] || \
              [[ "${{ needs.test-swift.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-c.result }}" == "failure" ]]; then
+             [[ "${{ needs.test-c.result }}" == "failure" ]] || \
+             [[ "${{ needs.test-dart.result }}" == "failure" ]]; then
             echo "One or more SDK coverage gates failed"
             exit 1
           fi
