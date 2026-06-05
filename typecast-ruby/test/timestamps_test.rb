@@ -1,6 +1,6 @@
 require "base64"
 require "minitest/autorun"
-require "tmpdir"
+require "tempfile"
 
 require "typecast"
 
@@ -20,11 +20,10 @@ class TimestampsTest < Minitest::Test
     assert_includes response.to_srt, "00:00:00,000 --> 00:00:00,500"
     assert_includes response.to_vtt, "WEBVTT"
 
-    path = File.join(Dir.tmpdir, "typecast_ruby_test.wav")
-    response.save_audio(path)
-    assert_equal 4, File.size(path)
-  ensure
-    File.delete(path) if path && File.exist?(path)
+    Tempfile.create(["typecast_ruby_test", ".wav"]) do |file|
+      response.save_audio(file.path)
+      assert_equal 4, File.size(file.path)
+    end
   end
 
   def test_character_segments_and_missing_segments

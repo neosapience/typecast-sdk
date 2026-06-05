@@ -13,9 +13,11 @@ module Typecast
 
     attr_reader :api_key, :base_url
 
-    def initialize(api_key: ENV["TYPECAST_API_KEY"], base_url: ENV["TYPECAST_API_HOST"] || DEFAULT_BASE_URL)
+    def initialize(api_key: ENV["TYPECAST_API_KEY"], base_url: ENV["TYPECAST_API_HOST"] || DEFAULT_BASE_URL, open_timeout: 10, read_timeout: 30)
       @api_key = api_key.to_s
-      @base_url = base_url
+      @base_url = normalize_base_url(base_url)
+      @open_timeout = open_timeout
+      @read_timeout = read_timeout
     end
 
     def text_to_speech(request)
@@ -57,7 +59,7 @@ module Typecast
     end
 
     def get_voice_v2(voice_id)
-      voices = JSON.parse(request_json(:get, "/v2/voices/#{voice_id}").body).map do |item|
+      voices = JSON.parse(request_json(:get, "/v2/voices/#{path_segment(voice_id)}").body).map do |item|
         Models::VoiceV2.from_h(item)
       end
       raise NotFoundError, "Voice not found: #{voice_id}" if voices.empty?
@@ -72,7 +74,7 @@ module Typecast
     end
 
     def delete_voice(voice_id)
-      request_raw(:delete, "/v1/voices/#{voice_id}")
+      request_raw(:delete, "/v1/voices/#{path_segment(voice_id)}")
       nil
     end
 
@@ -89,6 +91,9 @@ module Typecast
       headers.each { |key, value| request[key] = value }
       request.body = body unless body.nil?
       response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == "https") do |http|
+        http.open_timeout = @open_timeout
+        http.read_timeout = @read_timeout
+        http.write_timeout = @read_timeout if http.respond_to?(:write_timeout=)
         http.request(request)
       end
       handle_error(response)
@@ -99,12 +104,15 @@ module Typecast
       boundary = "typecast-ruby-#{SecureRandom.hex(8)}"
       body = +""
       fields.each do |name, value|
+        field_name = disposition_value(name)
+        field_value = multipart_body_value(value)
         body << "--#{boundary}\r\n"
-        body << "Content-Disposition: form-data; name=\"#{name}\"\r\n\r\n"
-        body << "#{value}\r\n"
+        body << "Content-Disposition: form-data; name=\"#{field_name}\"\r\n\r\n"
+        body << "#{field_value}\r\n"
       end
+      safe_filename = disposition_value(filename)
       body << "--#{boundary}\r\n"
-      body << "Content-Disposition: form-data; name=\"file\"; filename=\"#{filename}\"\r\n"
+      body << "Content-Disposition: form-data; name=\"file\"; filename=\"#{safe_filename}\"\r\n"
       body << "Content-Type: application/octet-stream\r\n\r\n"
       body << audio
       body << "\r\n--#{boundary}--\r\n"
@@ -123,6 +131,40 @@ module Typecast
     def validate_clone_inputs(audio, name)
       raise ArgumentError, "audio must be 25MB or smaller" if audio.bytesize > Models::CLONING_MAX_FILE_SIZE
       raise ArgumentError, "name must be 1-#{Models::CLONING_NAME_MAX_LENGTH} chars" if name.empty? || name.length > Models::CLONING_NAME_MAX_LENGTH
+    end
+
+    def normalize_base_url(value)
+      raw = value.to_s
+      raw = "https://#{raw}" unless raw.match?(%r{\Ahttps?://}i)
+      uri = URI.parse(raw)
+      if uri.scheme != "https" && !local_uri?(uri)
+        raise ArgumentError, "base_url must use HTTPS"
+      end
+      uri.to_s
+    rescue URI::InvalidURIError
+      raise ArgumentError, "base_url must be a valid URL"
+    end
+
+    def local_uri?(uri)
+      uri.scheme == "http" && ["localhost", "127.0.0.1", "::1"].include?(uri.hostname)
+    end
+
+    def disposition_value(value)
+      string = value.to_s
+      raise ArgumentError, "multipart field values must not contain CR or LF" if string.match?(/[\r\n]/)
+
+      string.gsub(/["\\]/) { |character| "\\#{character}" }
+    end
+
+    def multipart_body_value(value)
+      string = value.to_s
+      raise ArgumentError, "multipart field values must not contain CR or LF" if string.match?(/[\r\n]/)
+
+      string
+    end
+
+    def path_segment(value)
+      URI.encode_www_form_component(value.to_s).gsub("+", "%20")
     end
 
     def build_uri(path, query)

@@ -30,8 +30,17 @@ class ClientTest < Minitest::Test
     end
     yield "http://127.0.0.1:#{port}", captured
   ensure
-    thread&.join(1)
     server&.close
+    thread&.join(1)
+  end
+
+  def test_base_url_requires_https_for_remote_hosts
+    client = Typecast::Client.new(api_key: "key", base_url: "api.example.com")
+    assert_equal "https://api.example.com", client.base_url
+
+    assert_raises(ArgumentError) do
+      Typecast::Client.new(api_key: "key", base_url: "http://api.example.com")
+    end
   end
 
   def test_text_to_speech_posts_json_and_parses_audio
@@ -99,9 +108,10 @@ class ClientTest < Minitest::Test
   end
 
   def test_get_voice_v2_not_found
-    with_server(response_body: "[]") do |url, _captured|
+    with_server(response_body: "[]") do |url, captured|
       client = Typecast::Client.new(api_key: "key", base_url: url)
-      assert_raises(Typecast::NotFoundError) { client.get_voice_v2("tc_missing") }
+      assert_raises(Typecast::NotFoundError) { client.get_voice_v2("tc/missing voice") }
+      assert_includes captured.pop, "GET /v2/voices/tc%2Fmissing%20voice"
     end
   end
 
@@ -120,13 +130,21 @@ class ClientTest < Minitest::Test
     assert_raises(ArgumentError) do
       client.clone_voice(audio: "x" * (Typecast::Models::CLONING_MAX_FILE_SIZE + 1), filename: "a.wav", name: "Mine", model: "ssfm-v30")
     end
+
+    assert_raises(ArgumentError) do
+      client.clone_voice(audio: "abc", filename: "sample.wav\r\nX-Bad: 1", name: "Mine", model: "ssfm-v30")
+    end
+
+    assert_raises(ArgumentError) do
+      client.clone_voice(audio: "abc", filename: "sample.wav", name: "Bad\r\nName", model: "ssfm-v30")
+    end
   end
 
   def test_delete_voice_accepts_204
     with_server(response_status: 204) do |url, captured|
       client = Typecast::Client.new(api_key: "key", base_url: url)
-      client.delete_voice("uc_123")
-      assert_includes captured.pop, "DELETE /v1/voices/uc_123"
+      client.delete_voice("uc/123")
+      assert_includes captured.pop, "DELETE /v1/voices/uc%2F123"
     end
   end
 end
