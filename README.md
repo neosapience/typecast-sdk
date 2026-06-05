@@ -36,6 +36,7 @@ This monorepo contains official SDK clients for the [Typecast](https://typecast.
 |          <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/c/c-original.svg" alt="C" width="24"/>          | [**typecast-c**](./typecast-c)           | CMake                                       |
 |       <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/zig/zig-original.svg" alt="Zig" width="24"/>       | [**typecast-zig**](./typecast-zig)       | `zig fetch --save`                          |
 |        <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/php/php-original.svg" alt="PHP" width="24"/>        | [**typecast-php**](./typecast-php)       | `composer require neosapience/typecast-php`  |
+|       <img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/dart/dart-original.svg" alt="Dart" width="24"/>       | [**typecast-dart**](./typecast-dart)     | `dart pub add typecast_dart`                |
 
 <br/>
 
@@ -111,6 +112,7 @@ Each SDK is licensed under either the **MIT License** or **Apache License 2.0**.
 | typecast-c | MIT |
 | typecast-zig | MIT |
 | typecast-php | MIT |
+| typecast-dart | MIT |
 
 <br/>
 
@@ -157,6 +159,7 @@ Every SDK in this monorepo targets **100% code coverage** (line + function + bra
 | [typecast-swift](./typecast-swift) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-swift) |
 | [typecast-zig](./typecast-zig) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-zig) |
 | [typecast-php](./typecast-php) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-php) |
+| [typecast-dart](./typecast-dart) | [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](./typecast-dart) |
 
 Click any SDK name or badge to jump to that SDK's directory. Each SDK's
 README documents its installation, usage, and coverage workflow.

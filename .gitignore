@@ -89,6 +89,9 @@ Makefile
 !typecast-java/Makefile
 !typecast-rust/Makefile
 !typecast-kotlin/Makefile
+!typecast-dart/Makefile
+!typecast-dart/lib/
+!typecast-dart/lib/**
 *.cmake
 
 # Compiled objects
@@ -281,6 +284,12 @@ fastlane/test_output
 
 # Code Injection
 iOSInjectionProject/
+
+# ----------------
+# Dart
+# ----------------
+.dart_tool/
+pubspec.lock
 
 # ----------------
 # IDE / Editor
