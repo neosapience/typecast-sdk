@@ -2,20 +2,29 @@
 Pytest configuration and fixtures.
 """
 
-import os
 import shutil
 import socket
 import subprocess
 import time
 import urllib.request
+import inspect
+import json
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
+from aiohttp import ClientResponse, hdrs
+from aiohttp.client_reqrep import RequestInfo
+from aiohttp.helpers import TimerNoop
+from aioresponses.core import RequestMatch, stream_reader_factory
+from multidict import CIMultiDict, CIMultiDictProxy
 from dotenv import load_dotenv
 
 
 def pytest_configure(config):
     """Load .env file before running tests."""
+    _patch_aioresponses_for_aiohttp_314()
+
     # Get the project root directory (parent of tests directory)
     project_root = Path(__file__).parent.parent
     env_file = project_root / ".env"
@@ -25,6 +34,76 @@ def pytest_configure(config):
         print(f"\n✓ Loaded environment variables from {env_file}")
     else:
         print(f"\n⚠ No .env file found at {env_file}")
+
+
+def _patch_aioresponses_for_aiohttp_314():
+    """Adapt aioresponses 0.7.8 to aiohttp 3.14's ClientResponse signature."""
+    if "stream_writer" not in inspect.signature(ClientResponse).parameters:
+        return
+    if getattr(RequestMatch._build_response, "_typecast_aiohttp_314_patch", False):
+        return
+
+    def _build_response(
+        self,
+        url,
+        method=hdrs.METH_GET,
+        request_headers=None,
+        status=200,
+        body="",
+        content_type="application/json",
+        payload=None,
+        headers=None,
+        response_class=None,
+        reason=None,
+    ):
+        """Build a mocked ClientResponse using aiohttp 3.14 constructor args."""
+        if response_class is None:
+            response_class = ClientResponse
+        if payload is not None:
+            body = json.dumps(payload)
+        if not isinstance(body, bytes):
+            body = str.encode(body)
+        if request_headers is None:
+            request_headers = {}
+
+        loop = Mock()
+        loop.get_debug = Mock(return_value=True)
+        kwargs = {
+            "request_info": RequestInfo(
+                url=url,
+                method=method,
+                headers=CIMultiDictProxy(CIMultiDict(**request_headers)),
+                real_url=url,
+            ),
+            "writer": None,
+            "continue100": None,
+            "timer": TimerNoop(),
+            "traces": [],
+            "loop": loop,
+            "session": None,
+            "stream_writer": Mock(),
+        }
+
+        response_headers = CIMultiDict({hdrs.CONTENT_TYPE: content_type})
+        if headers:
+            response_headers.update(headers)
+        raw_headers = self._build_raw_headers(response_headers)
+        resp = response_class(method, url, **kwargs)
+
+        for header in response_headers.getall(hdrs.SET_COOKIE, ()):
+            resp.cookies.load(header)
+
+        resp._headers = response_headers
+        resp._raw_headers = raw_headers
+        resp.status = status
+        resp.reason = reason
+        resp.content = stream_reader_factory(loop)
+        resp.content.feed_data(body)
+        resp.content.feed_eof()
+        return resp
+
+    _build_response._typecast_aiohttp_314_patch = True
+    RequestMatch._build_response = _build_response
 
 
 def _free_port() -> int:
