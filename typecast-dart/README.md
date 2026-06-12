@@ -38,6 +38,41 @@ Future<void> main() async {
 }
 ```
 
+## Playback in Flutter
+
+Add an audio player package to your app:
+
+```yaml
+dependencies:
+  audioplayers: ^6.0.0
+```
+
+Then play the generated audio bytes directly:
+
+```dart
+import 'package:audioplayers/audioplayers.dart';
+import 'package:typecast_dart/typecast_dart.dart';
+
+final client = TypecastClient(apiKey: 'YOUR_API_KEY');
+final player = AudioPlayer();
+
+Future<void> playTts(String text) async {
+  final response = await client.textToSpeech(
+    TtsRequest(
+      voiceId: 'tc_672c5f5ce59fac2a48faeaee',
+      text: text,
+      model: TtsModel.ssfmV30,
+      language: LanguageCode.eng,
+      output: const Output(audioFormat: AudioFormat.wav),
+    ),
+  );
+
+  await player.play(BytesSource(response.audioData));
+}
+```
+
+For production Flutter apps, keep long-lived API keys on your backend. The Flutter app can request generated audio from your backend and still play the returned bytes with `BytesSource`.
+
 ## Features
 
 - Text-to-speech synthesis
