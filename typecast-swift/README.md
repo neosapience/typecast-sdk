@@ -29,6 +29,7 @@ Convert text to lifelike speech using AI-powered voices
 - [Usage](#usage)
   - [Configuration](#configuration)
   - [Text to Speech](#text-to-speech)
+  - [Playback](#playback)
   - [Text to Speech with Timestamps](#text-to-speech-with-timestamps)
   - [Voice Discovery](#voice-discovery)
   - [Emotion Control](#emotion-control)
@@ -185,6 +186,27 @@ let audio = try await client.speak(
     emotion: .happy,
     intensity: 1.5
 )
+```
+
+#### Playback
+
+`AudioResponse.audioData` can be played directly with `AVAudioPlayer` on Apple platforms:
+
+```swift
+import AVFoundation
+import Typecast
+
+let client = TypecastClient(apiKey: "YOUR_API_KEY")
+var audioPlayer: AVAudioPlayer?
+
+let response = try await client.textToSpeech(TTSRequest(
+    voiceId: "tc_672c5f5ce59fac2a48faeaee",
+    text: "Hello from Typecast Swift.",
+    model: .ssfmV30
+))
+
+audioPlayer = try AVAudioPlayer(data: response.audioData)
+audioPlayer?.play()
 ```
 
 ### Text to Speech with Timestamps
