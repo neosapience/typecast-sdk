@@ -68,6 +68,8 @@ class AsyncTypecast:
         """
         self.host = conf.get_host(host)
         self.api_key = conf.get_api_key(api_key)
+        if not self.api_key and conf.is_default_host(self.host):
+            raise ValueError("API key is required for the default Typecast API host")
         self.session: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):

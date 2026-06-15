@@ -15,7 +15,7 @@ from typecast.models import TTSRequest
 
 @pytest.fixture
 def typecast_client():
-    return Typecast()
+    return Typecast(api_key="test-key")
 
 
 class TestErrorHandling:

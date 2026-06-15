@@ -81,30 +81,14 @@ fn error_from_response_uses_default_detail_when_missing() {
 
 #[test]
 fn error_predicate_methods_cover_every_variant() {
-    let bad = TypecastError::BadRequest {
-        detail: "x".into(),
-    };
-    let unauth = TypecastError::Unauthorized {
-        detail: "x".into(),
-    };
-    let pay = TypecastError::PaymentRequired {
-        detail: "x".into(),
-    };
-    let forbid = TypecastError::Forbidden {
-        detail: "x".into(),
-    };
-    let nf = TypecastError::NotFound {
-        detail: "x".into(),
-    };
-    let val = TypecastError::ValidationError {
-        detail: "x".into(),
-    };
-    let rate = TypecastError::RateLimited {
-        detail: "x".into(),
-    };
-    let server = TypecastError::ServerError {
-        detail: "x".into(),
-    };
+    let bad = TypecastError::BadRequest { detail: "x".into() };
+    let unauth = TypecastError::Unauthorized { detail: "x".into() };
+    let pay = TypecastError::PaymentRequired { detail: "x".into() };
+    let forbid = TypecastError::Forbidden { detail: "x".into() };
+    let nf = TypecastError::NotFound { detail: "x".into() };
+    let val = TypecastError::ValidationError { detail: "x".into() };
+    let rate = TypecastError::RateLimited { detail: "x".into() };
+    let server = TypecastError::ServerError { detail: "x".into() };
     let unknown = TypecastError::Unknown {
         status_code: 418,
         detail: "x".into(),
@@ -440,9 +424,7 @@ fn enums_serialize_with_expected_strings() {
     let _ = serde_json::to_string(&voice).unwrap();
 
     // Cover Clone/Debug for ErrorResponse and TTSRequest.
-    let er = ErrorResponse {
-        detail: "x".into(),
-    };
+    let er = ErrorResponse { detail: "x".into() };
     let _ = format!("{er:?}");
     let _ = er.clone();
 }
@@ -497,6 +479,18 @@ fn client_new_rejects_invalid_api_key_header() {
 }
 
 #[test]
+fn client_new_rejects_empty_api_key_for_default_host() {
+    let result = TypecastClient::new(ClientConfig {
+        api_key: "   ".to_string(),
+        base_url: format!("{DEFAULT_BASE_URL}/"),
+        timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECS),
+    });
+    let err = result.unwrap_err();
+    assert!(err.is_unauthorized());
+    assert!(err.to_string().contains("Invalid or missing API key"));
+}
+
+#[test]
 fn client_from_env_uses_default_config() {
     // Even with no env, default api key may be empty - just validate it parses
     // when we set a value. We rely on the existing value (or empty) being a
@@ -539,6 +533,29 @@ async fn text_to_speech_returns_wav_with_duration_header() {
     assert_eq!(&resp.audio_data[..4], b"RIFF");
     let _ = format!("{resp:?}");
     let _ = resp.clone();
+}
+
+#[tokio::test]
+async fn text_to_speech_with_proxy_base_url_omits_auth_header_without_api_key() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech")
+        .match_header("x-api-key", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(b"RIFFproxy")
+        .create_async()
+        .await;
+
+    let config = ClientConfig {
+        api_key: String::new(),
+        base_url: server.url(),
+        timeout: Duration::from_secs(5),
+    };
+    let client = TypecastClient::new(config).unwrap();
+    let req = TTSRequest::new("tc_x", "hello proxy", TTSModel::SsfmV30);
+    let resp = client.text_to_speech(&req).await.unwrap();
+    assert_eq!(resp.format, AudioFormat::Wav);
 }
 
 #[tokio::test]

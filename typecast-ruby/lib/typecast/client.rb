@@ -14,8 +14,9 @@ module Typecast
     attr_reader :api_key, :base_url
 
     def initialize(api_key: ENV["TYPECAST_API_KEY"], base_url: ENV["TYPECAST_API_HOST"] || DEFAULT_BASE_URL, open_timeout: 10, read_timeout: 30)
-      @api_key = api_key.to_s
+      @api_key = api_key.to_s.strip
       @base_url = normalize_base_url(base_url)
+      validate_api_key!
       @open_timeout = open_timeout
       @read_timeout = read_timeout
     end
@@ -81,11 +82,11 @@ module Typecast
     private
 
     def request_json(method, path, body = nil, query = nil)
-      headers = { "X-API-KEY" => api_key, "Content-Type" => "application/json" }
+      headers = auth_headers.merge("Content-Type" => "application/json")
       request_raw(method, path, body.nil? ? nil : JSON.generate(body), headers, query)
     end
 
-    def request_raw(method, path, body = nil, headers = { "X-API-KEY" => api_key }, query = nil)
+    def request_raw(method, path, body = nil, headers = auth_headers, query = nil)
       uri = build_uri(path, query)
       request = request_for(method, uri)
       headers.each { |key, value| request[key] = value }
@@ -121,11 +122,24 @@ module Typecast
         :post,
         path,
         body,
-        {
-          "X-API-KEY" => api_key,
+        auth_headers.merge(
           "Content-Type" => "multipart/form-data; boundary=#{boundary}"
-        }
+        )
       )
+    end
+
+    def auth_headers
+      api_key.empty? ? {} : { "X-API-KEY" => api_key }
+    end
+
+    def validate_api_key!
+      return unless api_key.empty? && default_base_url?
+
+      raise ArgumentError, "api_key is required for the default Typecast API host"
+    end
+
+    def default_base_url?
+      normalized_base_url(base_url).casecmp?(normalized_base_url(DEFAULT_BASE_URL))
     end
 
     def validate_clone_inputs(audio, name)
@@ -143,6 +157,10 @@ module Typecast
       uri.to_s
     rescue URI::InvalidURIError
       raise ArgumentError, "base_url must be a valid URL"
+    end
+
+    def normalized_base_url(value)
+      value.to_s.strip.sub(%r{/+\z}, "")
     end
 
     def local_uri?(uri)

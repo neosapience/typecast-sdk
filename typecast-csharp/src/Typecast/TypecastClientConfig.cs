@@ -45,15 +45,31 @@ public class TypecastClientConfig
 
     /// <summary>
     /// Gets the effective API key, falling back to environment variable if not set.
+    /// Returns null when a proxy API host is configured and no key is available.
     /// </summary>
-    /// <returns>The API key</returns>
-    /// <exception cref="InvalidOperationException">Thrown when no API key is configured</exception>
+    /// <returns>The API key, or null for proxy mode</returns>
+    /// <exception cref="InvalidOperationException">Thrown when no API key is configured for the default API host</exception>
     public string GetEffectiveApiKey()
     {
-        var apiKey = ApiKey ?? Environment.GetEnvironmentVariable(ApiKeyEnvVar);
+        return GetEffectiveApiKey(DefaultApiHost)!;
+    }
+
+    /// <summary>
+    /// Gets the effective API key for a resolved API host.
+    /// </summary>
+    /// <returns>The API key, or null for proxy mode</returns>
+    /// <exception cref="InvalidOperationException">Thrown when no API key is configured for the default API host</exception>
+    public string? GetEffectiveApiKey(string effectiveApiHost)
+    {
+        var apiKey = (ApiKey ?? Environment.GetEnvironmentVariable(ApiKeyEnvVar))?.Trim();
         
         if (string.IsNullOrWhiteSpace(apiKey))
         {
+            if (!string.Equals(effectiveApiHost.Trim().TrimEnd('/'), DefaultApiHost, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
             throw new InvalidOperationException(
                 $"API key is required. Set the '{ApiKeyEnvVar}' environment variable or provide an API key in the configuration.");
         }

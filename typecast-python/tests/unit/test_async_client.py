@@ -220,6 +220,11 @@ class TestAsyncContextManager:
         async with AsyncTypecast(host=HOST, api_key="key") as client:
             assert client.session is not None
 
+    async def test_default_host_without_api_key_raises(self, monkeypatch):
+        monkeypatch.delenv("TYPECAST_API_KEY", raising=False)
+        with pytest.raises(ValueError, match="API key is required"):
+            AsyncTypecast()
+
     async def test_init_without_api_key_still_constructs(self):
         client = AsyncTypecast(host=HOST, api_key="some-key")
         assert client.api_key == "some-key"

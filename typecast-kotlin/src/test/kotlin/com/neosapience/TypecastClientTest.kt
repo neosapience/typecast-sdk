@@ -43,6 +43,61 @@ class TypecastClientTest {
     // ==================== TTS Tests ====================
 
     @Test
+    @DisplayName("proxy base URL can be used without API key")
+    fun proxyBaseUrl_withoutApiKey_omitsAuthHeader() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(okio.Buffer().write("audio".toByteArray()))
+        )
+
+        val proxyClient = TypecastClient.builder()
+            .baseUrl(mockServer.url("/").toString())
+            .build()
+
+        val request = TTSRequest.builder()
+            .voiceId("tc_test_voice")
+            .text("Hello, proxy!")
+            .model(TTSModel.SSFM_V30)
+            .build()
+
+        proxyClient.textToSpeech(request)
+
+        val recordedRequest = mockServer.takeRequest()
+        assertNull(recordedRequest.getHeader("X-API-KEY"))
+        proxyClient.close()
+    }
+
+    @Test
+    @DisplayName("proxy base URL treats blank API key as absent")
+    fun proxyBaseUrl_withBlankApiKey_omitsAuthHeader() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(okio.Buffer().write("audio".toByteArray()))
+        )
+
+        val proxyClient = TypecastClient.builder()
+            .apiKey("")
+            .baseUrl(mockServer.url("/").toString())
+            .build()
+
+        val request = TTSRequest.builder()
+            .voiceId("tc_test_voice")
+            .text("Hello, proxy!")
+            .model(TTSModel.SSFM_V30)
+            .build()
+
+        proxyClient.textToSpeech(request)
+
+        val recordedRequest = mockServer.takeRequest()
+        assertNull(recordedRequest.getHeader("X-API-KEY"))
+        proxyClient.close()
+    }
+
+    @Test
     @DisplayName("textToSpeech should successfully convert text to speech")
     fun textToSpeech_success() {
         val mockAudioData = "fake audio data".toByteArray(StandardCharsets.UTF_8)

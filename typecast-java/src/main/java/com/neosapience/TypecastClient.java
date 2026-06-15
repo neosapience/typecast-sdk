@@ -55,7 +55,7 @@ public class TypecastClient {
      *   <li>System environment variable (TYPECAST_API_KEY)</li>
      * </ol>
      * 
-     * @throws IllegalArgumentException if no API key is found
+     * @throws IllegalArgumentException if no API key is found and the default Typecast API host is used
      */
     public TypecastClient() {
         this(null, null);
@@ -65,7 +65,7 @@ public class TypecastClient {
      * Creates a new TypecastClient with the specified API key.
      * 
      * @param apiKey the Typecast API key
-     * @throws IllegalArgumentException if the API key is null or empty
+     * @throws IllegalArgumentException if the API key is null or empty and the default Typecast API host is used
      */
     public TypecastClient(String apiKey) {
         this(apiKey, null);
@@ -76,11 +76,11 @@ public class TypecastClient {
      * 
      * @param apiKey  the Typecast API key (or null to use environment)
      * @param baseUrl the base URL for the API (or null to use default)
-     * @throws IllegalArgumentException if no API key is found
+     * @throws IllegalArgumentException if no API key is found and the default Typecast API host is used
      */
     public TypecastClient(String apiKey, String baseUrl) {
-        this.apiKey = resolveApiKey(apiKey);
         this.baseUrl = resolveBaseUrl(baseUrl);
+        this.apiKey = resolveApiKey(apiKey, this.baseUrl);
         
         this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
@@ -101,8 +101,8 @@ public class TypecastClient {
      * @param httpClient custom OkHttpClient instance
      */
     public TypecastClient(String apiKey, String baseUrl, OkHttpClient httpClient) {
-        this.apiKey = resolveApiKey(apiKey);
         this.baseUrl = resolveBaseUrl(baseUrl);
+        this.apiKey = resolveApiKey(apiKey, this.baseUrl);
         this.httpClient = httpClient;
         
         this.gson = new GsonBuilder()
@@ -110,16 +110,20 @@ public class TypecastClient {
                 .create();
     }
 
-    private String resolveApiKey(String apiKey) {
-        if (apiKey != null && !apiKey.isEmpty()) {
-            return apiKey;
+    private String resolveApiKey(String apiKey, String resolvedBaseUrl) {
+        if (apiKey != null && !apiKey.trim().isEmpty()) {
+            return apiKey.trim();
         }
 
         // dotenv-java reads both .env and system environment variables.
         Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
         String envKey = dotenv.get("TYPECAST_API_KEY");
-        if (envKey != null && !envKey.isEmpty()) {
-            return envKey;
+        if (envKey != null && !envKey.trim().isEmpty()) {
+            return envKey.trim();
+        }
+
+        if (!isDefaultBaseUrl(resolvedBaseUrl)) {
+            return "";
         }
 
         throw new IllegalArgumentException(
@@ -127,22 +131,38 @@ public class TypecastClient {
     }
 
     private String resolveBaseUrl(String baseUrl) {
-        if (baseUrl != null && !baseUrl.isEmpty()) {
-            return stripTrailingSlash(baseUrl);
+        if (baseUrl != null && !baseUrl.trim().isEmpty()) {
+            return stripTrailingSlash(baseUrl.trim());
         }
 
         // dotenv-java reads both .env and system environment variables.
         Dotenv dotenv = Dotenv.configure().ignoreIfMissing().load();
         String envHost = dotenv.get("TYPECAST_API_HOST");
-        if (envHost != null && !envHost.isEmpty()) {
-            return stripTrailingSlash(envHost);
+        if (envHost != null && !envHost.trim().isEmpty()) {
+            return stripTrailingSlash(envHost.trim());
         }
 
         return DEFAULT_BASE_URL;
     }
 
     private static String stripTrailingSlash(String url) {
-        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+        String result = url;
+        while (result.endsWith("/")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
+    }
+
+    private static boolean isDefaultBaseUrl(String url) {
+        return DEFAULT_BASE_URL.equalsIgnoreCase(stripTrailingSlash(url.trim()));
+    }
+
+    private Request addAuthHeader(Request request) {
+        Request.Builder builder = request.newBuilder();
+        if (!apiKey.isEmpty()) {
+            builder.addHeader(API_KEY_HEADER, apiKey);
+        }
+        return builder.build();
     }
 
     /**
@@ -159,12 +179,11 @@ public class TypecastClient {
         String url = baseUrl + "/v1/text-to-speech";
         String jsonBody = buildTTSRequestJson(request);
 
-        Request httpRequest = new Request.Builder()
+        Request httpRequest = addAuthHeader(new Request.Builder()
                 .url(url)
-                .addHeader(API_KEY_HEADER, apiKey)
                 .addHeader("Content-Type", CONTENT_TYPE_JSON)
                 .post(RequestBody.create(jsonBody, JSON_MEDIA_TYPE))
-                .build();
+                .build());
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
             ResponseBody body = response.body();
@@ -233,12 +252,11 @@ public class TypecastClient {
 
         String jsonBody = buildTTSRequestWithTimestampsJson(request);
 
-        Request httpRequest = new Request.Builder()
+        Request httpRequest = addAuthHeader(new Request.Builder()
                 .url(urlBuilder.build())
-                .addHeader(API_KEY_HEADER, apiKey)
                 .addHeader("Content-Type", CONTENT_TYPE_JSON)
                 .post(RequestBody.create(jsonBody, JSON_MEDIA_TYPE))
-                .build();
+                .build());
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
             ResponseBody body = response.body();
@@ -352,12 +370,11 @@ public class TypecastClient {
         String url = baseUrl + "/v1/text-to-speech/stream";
         String jsonBody = buildTTSRequestStreamJson(request);
 
-        Request httpRequest = new Request.Builder()
+        Request httpRequest = addAuthHeader(new Request.Builder()
                 .url(url)
-                .addHeader(API_KEY_HEADER, apiKey)
                 .addHeader("Content-Type", CONTENT_TYPE_JSON)
                 .post(RequestBody.create(jsonBody, JSON_MEDIA_TYPE))
-                .build();
+                .build());
 
         OkHttpClient streamClient = httpClient.newBuilder()
                 .readTimeout(5, TimeUnit.MINUTES)
@@ -551,12 +568,11 @@ public class TypecastClient {
             urlBuilder.addQueryParameter("model", model.getValue());
         }
 
-        Request httpRequest = new Request.Builder()
+        Request httpRequest = addAuthHeader(new Request.Builder()
                 .url(urlBuilder.build())
-                .addHeader(API_KEY_HEADER, apiKey)
                 .addHeader("Content-Type", CONTENT_TYPE_JSON)
                 .get()
-                .build();
+                .build());
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
             String responseBody = response.body().string();
@@ -601,12 +617,11 @@ public class TypecastClient {
             urlBuilder.addQueryParameter("model", model.getValue());
         }
 
-        Request httpRequest = new Request.Builder()
+        Request httpRequest = addAuthHeader(new Request.Builder()
                 .url(urlBuilder.build())
-                .addHeader(API_KEY_HEADER, apiKey)
                 .addHeader("Content-Type", CONTENT_TYPE_JSON)
                 .get()
-                .build();
+                .build());
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
             String responseBody = response.body().string();
@@ -662,12 +677,11 @@ public class TypecastClient {
             }
         }
 
-        Request httpRequest = new Request.Builder()
+        Request httpRequest = addAuthHeader(new Request.Builder()
                 .url(urlBuilder.build())
-                .addHeader(API_KEY_HEADER, apiKey)
                 .addHeader("Content-Type", CONTENT_TYPE_JSON)
                 .get()
-                .build();
+                .build());
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
             String responseBody = response.body().string();
@@ -693,12 +707,11 @@ public class TypecastClient {
     public VoiceV2Response getVoiceV2(String voiceId) {
         String url = baseUrl + "/v2/voices/" + voiceId;
 
-        Request httpRequest = new Request.Builder()
+        Request httpRequest = addAuthHeader(new Request.Builder()
                 .url(url)
-                .addHeader(API_KEY_HEADER, apiKey)
                 .addHeader("Content-Type", CONTENT_TYPE_JSON)
                 .get()
-                .build();
+                .build());
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
             String responseBody = response.body().string();
@@ -725,12 +738,11 @@ public class TypecastClient {
     public SubscriptionResponse getMySubscription() {
         String url = baseUrl + "/v1/users/me/subscription";
 
-        Request httpRequest = new Request.Builder()
+        Request httpRequest = addAuthHeader(new Request.Builder()
                 .url(url)
-                .addHeader(API_KEY_HEADER, apiKey)
                 .addHeader("Content-Type", CONTENT_TYPE_JSON)
                 .get()
-                .build();
+                .build());
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
             String responseBody = response.body().string();
@@ -781,11 +793,10 @@ public class TypecastClient {
                 .addFormDataPart("file", filename, filePart)
                 .build();
 
-        Request httpRequest = new Request.Builder()
+        Request httpRequest = addAuthHeader(new Request.Builder()
                 .url(baseUrl + "/v1/voices/clone")
-                .addHeader(API_KEY_HEADER, apiKey)
                 .post(body)
-                .build();
+                .build());
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
             String responseJson = response.body().string();
@@ -825,11 +836,10 @@ public class TypecastClient {
      * @throws TypecastException if the API returns an error response
      */
     public void deleteVoice(String voiceId) {
-        Request httpRequest = new Request.Builder()
+        Request httpRequest = addAuthHeader(new Request.Builder()
                 .url(baseUrl + "/v1/voices/" + voiceId)
-                .addHeader(API_KEY_HEADER, apiKey)
                 .delete()
-                .build();
+                .build());
 
         try (Response response = httpClient.newCall(httpRequest).execute()) {
             if (!response.isSuccessful()) {

@@ -9,17 +9,19 @@ import 'models.dart';
 import 'timestamps.dart';
 
 class TypecastClient {
+  static const defaultBaseUrl = 'https://api.typecast.ai';
+
   TypecastClient({
     String? apiKey,
     String? baseUrl,
     http.Client? httpClient,
     this.requestTimeout = const Duration(seconds: 30),
-  })  : apiKey = apiKey ?? Platform.environment['TYPECAST_API_KEY'] ?? '',
-        baseUrl = baseUrl ??
-            Platform.environment['TYPECAST_API_HOST'] ??
-            'https://api.typecast.ai',
+  })  : apiKey = _resolveApiKey(apiKey),
+        baseUrl = _normalizeBaseUrl(
+          baseUrl ?? Platform.environment['TYPECAST_API_HOST'] ?? defaultBaseUrl,
+        ),
         _httpClient = httpClient ?? http.Client() {
-    if (this.apiKey.isEmpty) {
+    if (this.apiKey.isEmpty && _isDefaultBaseUrl(this.baseUrl)) {
       throw ArgumentError('TYPECAST_API_KEY must be provided');
     }
   }
@@ -123,7 +125,7 @@ class TypecastClient {
       throw ArgumentError('name must be 1-${CustomVoice.maxNameLength} chars');
     }
     final request = http.MultipartRequest('POST', _url('/v1/voices/clone'))
-      ..headers['X-API-KEY'] = apiKey
+      ..headers.addAll(_headers())
       ..fields['name'] = name
       ..fields['model'] = model.value
       ..files.add(
@@ -154,7 +156,7 @@ class TypecastClient {
     );
   }
 
-  Map<String, String> _headers() => {'X-API-KEY': apiKey};
+  Map<String, String> _headers() => apiKey.isEmpty ? {} : {'X-API-KEY': apiKey};
 
   Map<String, String> _jsonHeaders() => {
         ..._headers(),
@@ -162,6 +164,15 @@ class TypecastClient {
       };
 
   void close() => _httpClient.close();
+
+  static String _resolveApiKey(String? apiKey) =>
+      (apiKey ?? Platform.environment['TYPECAST_API_KEY'] ?? '').trim();
+
+  static String _normalizeBaseUrl(String baseUrl) =>
+      baseUrl.trim().replaceFirst(RegExp(r'/+$'), '');
+
+  static bool _isDefaultBaseUrl(String baseUrl) =>
+      _normalizeBaseUrl(baseUrl).toLowerCase() == defaultBaseUrl;
 }
 
 void _raiseForStatus(http.Response response) {

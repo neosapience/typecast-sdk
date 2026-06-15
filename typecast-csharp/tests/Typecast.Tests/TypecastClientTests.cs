@@ -54,6 +54,24 @@ public class TypecastClientTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_WithProxyApiHostAndNoApiKey_ShouldOmitAuthHeader()
+    {
+        // Arrange
+        using var httpClient = new HttpClient(new Mock<HttpMessageHandler>().Object);
+        var config = new TypecastClientConfig
+        {
+            ApiHost = "https://proxy.example.com",
+            HttpClient = httpClient
+        };
+
+        // Act
+        using var client = new TypecastClient(config);
+
+        // Assert
+        httpClient.DefaultRequestHeaders.Should().NotContain(h => h.Key == "X-API-KEY");
+    }
+
+    [Fact]
     public async Task TextToSpeechAsync_WithNullRequest_ShouldThrow()
     {
         // Act & Assert

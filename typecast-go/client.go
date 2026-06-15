@@ -25,7 +25,7 @@ const (
 
 // ClientConfig holds configuration options for the TypecastClient
 type ClientConfig struct {
-	// APIKey is the Typecast API key (required)
+	// APIKey is the Typecast API key. It may be omitted when using a proxy BaseURL.
 	APIKey string
 	// BaseURL is the API base URL (optional, defaults to https://api.typecast.ai)
 	BaseURL string
@@ -45,8 +45,8 @@ type Client struct {
 // NewClient creates a new Typecast API client
 func NewClient(config *ClientConfig) *Client {
 	// Use environment variables as defaults
-	apiKey := os.Getenv("TYPECAST_API_KEY")
-	baseURL := os.Getenv("TYPECAST_API_HOST")
+	apiKey := strings.TrimSpace(os.Getenv("TYPECAST_API_KEY"))
+	baseURL := strings.TrimSpace(os.Getenv("TYPECAST_API_HOST"))
 
 	if baseURL == "" {
 		baseURL = DefaultBaseURL
@@ -57,10 +57,10 @@ func NewClient(config *ClientConfig) *Client {
 	// Override with provided config
 	if config != nil {
 		if config.APIKey != "" {
-			apiKey = config.APIKey
+			apiKey = strings.TrimSpace(config.APIKey)
 		}
 		if config.BaseURL != "" {
-			baseURL = config.BaseURL
+			baseURL = strings.TrimRight(strings.TrimSpace(config.BaseURL), "/")
 		}
 		if config.Timeout > 0 {
 			timeout = config.Timeout
@@ -77,6 +77,23 @@ func NewClient(config *ClientConfig) *Client {
 		baseURL:    baseURL,
 		httpClient: httpClient,
 	}
+}
+
+func (c *Client) setAuthHeader(headers http.Header) error {
+	apiKey := strings.TrimSpace(c.apiKey)
+	if apiKey == "" {
+		if isDefaultBaseURL(c.baseURL) {
+			return fmt.Errorf("API key is required for the default Typecast API host")
+		}
+		return nil
+	}
+	headers.Set("X-API-KEY", apiKey)
+	return nil
+}
+
+func isDefaultBaseURL(baseURL string) bool {
+	normalized := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	return strings.EqualFold(normalized, DefaultBaseURL)
 }
 
 // doRequest performs an HTTP request with the appropriate headers
@@ -97,8 +114,10 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("X-API-KEY", c.apiKey)
 	req.Header.Set("Content-Type", "application/json")
+	if err := c.setAuthHeader(req.Header); err != nil {
+		return nil, err
+	}
 
 	return c.httpClient.Do(req)
 }
@@ -381,7 +400,9 @@ func (c *Client) CloneVoice(ctx context.Context, audio []byte, filename, name, m
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("X-API-KEY", c.apiKey)
+	if err := c.setAuthHeader(req.Header); err != nil {
+		return nil, err
+	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := c.httpClient.Do(req)
@@ -408,7 +429,9 @@ func (c *Client) DeleteVoice(ctx context.Context, voiceID string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("X-API-KEY", c.apiKey)
+	if err := c.setAuthHeader(req.Header); err != nil {
+		return err
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

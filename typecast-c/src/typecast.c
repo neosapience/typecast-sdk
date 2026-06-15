@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #if defined(_WIN32) || defined(_WIN64)
     #define strncasecmp _strnicmp
 #else
@@ -125,6 +126,46 @@ static char* strdup_safe(const char* str) {
         memcpy(dup, str, len + 1);
     }
     return dup;
+}
+
+static int is_blank_string(const char* str) {
+    if (!str) return 1;
+    while (*str) {
+        if (!isspace((unsigned char)*str)) return 0;
+        str++;
+    }
+    return 1;
+}
+
+static int is_default_host(const char* host) {
+    if (!host) return 1;
+
+    while (isspace((unsigned char)*host)) host++;
+    size_t len = strlen(host);
+    while (len > 0 && isspace((unsigned char)host[len - 1])) len--;
+    while (len > 0 && host[len - 1] == '/') len--;
+
+    return len == strlen(DEFAULT_HOST) && strncasecmp(host, DEFAULT_HOST, len) == 0;
+}
+
+static struct curl_slist* append_api_key_header(struct curl_slist* headers, const char* api_key) {
+    if (is_blank_string(api_key)) {
+        return headers;
+    }
+
+    const char* prefix = "X-API-KEY: ";
+    size_t header_len = strlen(prefix) + strlen(api_key) + 1;
+    char* api_key_header = (char*)malloc(header_len);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="malloc OOM; cannot be simulated without a malloc shim" */
+    if (!api_key_header) {
+        return headers;
+    }
+    /* LCOV_EXCL_STOP */
+    snprintf(api_key_header, header_len, "%s%s", prefix, api_key);
+    struct curl_slist* result = curl_slist_append(headers, api_key_header);
+    free(api_key_header);
+    return result;
 }
 
 static void set_error(TypecastClient* client, TypecastErrorCode code, const char* message) {
@@ -434,14 +475,14 @@ TYPECAST_API TypecastClient* typecast_client_create_with_host(
     const char* api_key,
     const char* host
 ) {
-    if (!api_key || strlen(api_key) == 0) {
+    if (is_blank_string(api_key) && (is_blank_string(host) || is_default_host(host))) {
         return NULL;
     }
     
     TypecastClient* client = (TypecastClient*)calloc(1, sizeof(TypecastClient));
     if (!client) return NULL;
     
-    client->api_key = strdup_safe(api_key);
+    client->api_key = strdup_safe(api_key ? api_key : "");
     client->host = strdup_safe(host ? host : DEFAULT_HOST);
     
     /* LCOV_EXCL_START */
@@ -538,10 +579,7 @@ TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
     
     struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json");
-    
-    char api_key_header[256];
-    snprintf(api_key_header, sizeof(api_key_header), "X-API-KEY: %s", client->api_key);
-    headers = curl_slist_append(headers, api_key_header);
+    headers = append_api_key_header(headers, client->api_key);
     
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -776,10 +814,7 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_stream(
 
     struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json");
-
-    char api_key_header[256];
-    snprintf(api_key_header, sizeof(api_key_header), "X-API-KEY: %s", client->api_key);
-    headers = curl_slist_append(headers, api_key_header);
+    headers = append_api_key_header(headers, client->api_key);
 
     StreamCallbackCtx ctx;
     ctx.cb = on_chunk;
@@ -880,9 +915,7 @@ TYPECAST_API TypecastVoicesResponse* typecast_get_voices(
     curl_easy_reset(curl);
     
     struct curl_slist* headers = NULL;
-    char api_key_header[256];
-    snprintf(api_key_header, sizeof(api_key_header), "X-API-KEY: %s", client->api_key);
-    headers = curl_slist_append(headers, api_key_header);
+    headers = append_api_key_header(headers, client->api_key);
     
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -987,9 +1020,7 @@ TYPECAST_API TypecastVoice* typecast_get_voice(
     curl_easy_reset(curl);
     
     struct curl_slist* headers = NULL;
-    char api_key_header[256];
-    snprintf(api_key_header, sizeof(api_key_header), "X-API-KEY: %s", client->api_key);
-    headers = curl_slist_append(headers, api_key_header);
+    headers = append_api_key_header(headers, client->api_key);
     
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -1109,9 +1140,7 @@ TYPECAST_API TypecastSubscription* typecast_get_my_subscription(
     curl_easy_reset(curl);
 
     struct curl_slist* headers = NULL;
-    char api_key_header[256];
-    snprintf(api_key_header, sizeof(api_key_header), "X-API-KEY: %s", client->api_key);
-    headers = curl_slist_append(headers, api_key_header);
+    headers = append_api_key_header(headers, client->api_key);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -1943,10 +1972,7 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps(
 
     struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json");
-
-    char api_key_header[256];
-    snprintf(api_key_header, sizeof(api_key_header), "X-API-KEY: %s", client->api_key);
-    headers = curl_slist_append(headers, api_key_header);
+    headers = append_api_key_header(headers, client->api_key);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -2335,9 +2361,7 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
 
     /* ---- Auth header ---- */
     struct curl_slist* headers = NULL;
-    char api_key_header[256];
-    snprintf(api_key_header, sizeof(api_key_header), "X-API-KEY: %s", client->api_key);
-    headers = curl_slist_append(headers, api_key_header);
+    headers = append_api_key_header(headers, client->api_key);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -2440,9 +2464,7 @@ TYPECAST_API TypecastErrorCode typecast_delete_voice(
     curl_easy_reset(curl);
 
     struct curl_slist* headers = NULL;
-    char api_key_header[256];
-    snprintf(api_key_header, sizeof(api_key_header), "X-API-KEY: %s", client->api_key);
-    headers = curl_slist_append(headers, api_key_header);
+    headers = append_api_key_header(headers, client->api_key);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);

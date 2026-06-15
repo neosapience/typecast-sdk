@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+- Allowed proxy base URLs to be used without a Typecast API key.
+
 ## 0.1.1
 
 - Added a Flutter playback example to the README.

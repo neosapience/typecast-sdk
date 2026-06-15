@@ -150,6 +150,12 @@ TEST(client_create_empty_key) {
     TEST_PASS();
 }
 
+TEST(client_create_blank_key) {
+    TypecastClient* client = typecast_client_create("   ");
+    ASSERT_NULL(client);
+    TEST_PASS();
+}
+
 TEST(client_create_valid) {
     TypecastClient* client = typecast_client_create("test_api_key");
     ASSERT_NOT_NULL(client);
@@ -306,6 +312,7 @@ int main(void) {
     /* Client tests */
     RUN_TEST(client_create_null_key);
     RUN_TEST(client_create_empty_key);
+    RUN_TEST(client_create_blank_key);
     RUN_TEST(client_create_valid);
     RUN_TEST(client_create_with_host);
     RUN_TEST(client_destroy_null);

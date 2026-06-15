@@ -48,12 +48,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|n| n.to_str())
         .unwrap_or(audio_path.as_str());
 
-    println!("Cloning voice from '{audio_path}' ({} bytes) ...", audio.len());
+    println!(
+        "Cloning voice from '{audio_path}' ({} bytes) ...",
+        audio.len()
+    );
 
-    let voice = match client
-        .clone_voice(audio, filename, voice_name, model)
-        .await
-    {
+    let voice = match client.clone_voice(audio, filename, voice_name, model).await {
         Ok(v) => v,
         Err(TypecastError::ValidationError { detail }) => {
             eprintln!("Validation error: {detail}");

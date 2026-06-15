@@ -62,6 +62,28 @@ public class TypecastClientConfigTests
     }
 
     [Fact]
+    public void GetEffectiveApiKey_WithProxyApiHostAndNoApiKey_ShouldReturnNull()
+    {
+        // Arrange
+        var originalValue = Environment.GetEnvironmentVariable(TypecastClientConfig.ApiKeyEnvVar);
+        try
+        {
+            Environment.SetEnvironmentVariable(TypecastClientConfig.ApiKeyEnvVar, null);
+            var config = new TypecastClientConfig();
+
+            // Act
+            var apiKey = config.GetEffectiveApiKey("https://proxy.example.com");
+
+            // Assert
+            apiKey.Should().BeNull();
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(TypecastClientConfig.ApiKeyEnvVar, originalValue);
+        }
+    }
+
+    [Fact]
     public void GetEffectiveApiHost_WithApiHostSet_ShouldReturnApiHost()
     {
         // Arrange

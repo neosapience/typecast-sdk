@@ -2,14 +2,29 @@ import Foundation
 
 /// Configuration for the Typecast client
 public struct TypecastConfiguration: Sendable {
-    /// API key for authentication
-    public let apiKey: String
+    public static let defaultBaseURL = "https://api.typecast.ai"
+
+    /// API key for authentication. Optional when using a proxy base URL.
+    public let apiKey: String?
     /// Base URL for the API (default: https://api.typecast.ai)
     public let baseURL: String
     
-    public init(apiKey: String, baseURL: String = "https://api.typecast.ai") {
-        self.apiKey = apiKey
+    public init(apiKey: String? = nil, baseURL: String = TypecastConfiguration.defaultBaseURL) {
+        let trimmedApiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.apiKey = trimmedApiKey?.isEmpty == true ? nil : trimmedApiKey
         self.baseURL = baseURL
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingTrailingSlashes()
+    }
+}
+
+private extension String {
+    func trimmingTrailingSlashes() -> String {
+        var result = self
+        while result.hasSuffix("/") {
+            result.removeLast()
+        }
+        return result
     }
 }
 
@@ -33,15 +48,16 @@ public final class TypecastClient: Sendable {
 
     /// Initialize the client with API key
     /// - Parameters:
-    ///   - apiKey: API key for authentication
+    ///   - apiKey: API key for authentication. Optional when using a proxy base URL.
     ///   - baseURL: Base URL for the API (default: https://api.typecast.ai)
-    public convenience init(apiKey: String, baseURL: String = "https://api.typecast.ai") {
+    public convenience init(apiKey: String? = nil, baseURL: String = TypecastConfiguration.defaultBaseURL) {
         self.init(configuration: TypecastConfiguration(apiKey: apiKey, baseURL: baseURL))
     }
     
     // MARK: - Private Helpers
     
     private func buildURL(path: String, queryParams: [String: String]? = nil) throws -> URL {
+        try validateAuthentication()
         guard var components = URLComponents(string: configuration.baseURL + path),
               let url = applyingQueryItems(components: &components, params: queryParams) else {
             throw TypecastError.invalidResponse("Invalid base URL")
@@ -59,10 +75,23 @@ public final class TypecastClient: Sendable {
     private func createRequest(url: URL, method: String = "GET", body: Data? = nil) -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.setValue(configuration.apiKey, forHTTPHeaderField: "X-API-KEY")
+        setAuthHeader(&request)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
         return request
+    }
+
+    private func setAuthHeader(_ request: inout URLRequest) {
+        if let apiKey = configuration.apiKey, !apiKey.isEmpty {
+            request.setValue(apiKey, forHTTPHeaderField: "X-API-KEY")
+        }
+    }
+
+    private func validateAuthentication() throws {
+        let isDefaultHost = configuration.baseURL.caseInsensitiveCompare(TypecastConfiguration.defaultBaseURL) == .orderedSame
+        if isDefaultHost && configuration.apiKey == nil {
+            throw TypecastError.invalidResponse("API key is required for the default Typecast API host")
+        }
     }
     
     private func handleResponse<T: Decodable>(data: Data, response: URLResponse) throws -> T {
@@ -285,7 +314,7 @@ public final class TypecastClient: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.setValue(configuration.apiKey, forHTTPHeaderField: "X-API-KEY")
+        setAuthHeader(&request)
         request.httpBody = body
 
         let (data, response) = try await session.data(for: request)
@@ -327,7 +356,7 @@ public final class TypecastClient: Sendable {
         let url = try buildURL(path: "/v1/voices/\(voiceId)")
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
-        request.setValue(configuration.apiKey, forHTTPHeaderField: "X-API-KEY")
+        setAuthHeader(&request)
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
