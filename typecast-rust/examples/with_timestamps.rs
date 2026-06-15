@@ -1,8 +1,6 @@
 //! Example: text-to-speech with word/character timestamps, SRT and VTT export.
 
-use typecast_rust::{
-    TTSModel, TTSRequestWithTimestamps, TypecastClient,
-};
+use typecast_rust::{TTSModel, TTSRequestWithTimestamps, TypecastClient};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,7 +16,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         seed: None,
     };
 
-    let resp = client.text_to_speech_with_timestamps(&request, None).await?;
+    let resp = client
+        .text_to_speech_with_timestamps(&request, None)
+        .await?;
 
     resp.save_audio("/tmp/with_timestamps_rust.wav")?;
 

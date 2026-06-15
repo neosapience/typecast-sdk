@@ -21,6 +21,15 @@ fn make_client(server: &Server) -> TypecastClient {
     TypecastClient::new(config).expect("client builds")
 }
 
+fn make_proxy_client_without_api_key(server: &Server) -> TypecastClient {
+    let config = ClientConfig {
+        api_key: String::new(),
+        base_url: server.url(),
+        timeout: Duration::from_secs(5),
+    };
+    TypecastClient::new(config).expect("client builds")
+}
+
 fn small_wav() -> Vec<u8> {
     // Minimal 44-byte WAV header so the bytes look plausible.
     let mut buf = Vec::new();
@@ -181,7 +190,10 @@ async fn clone_voice_returns_err_on_malformed_success_json() {
         .clone_voice(small_wav(), "sample.wav", "My Voice", "ssfm-v30")
         .await
         .expect_err("should fail on malformed JSON");
-    assert!(matches!(err, TypecastError::HttpError(_)), "expected HttpError, got {err:?}");
+    assert!(
+        matches!(err, TypecastError::HttpError(_)),
+        "expected HttpError, got {err:?}"
+    );
 }
 
 #[tokio::test]
@@ -195,7 +207,10 @@ async fn clone_voice_returns_err_on_transport_failure() {
         .clone_voice(small_wav(), "sample.wav", "My Voice", "ssfm-v30")
         .await
         .expect_err("should fail when transport cannot connect");
-    assert!(matches!(err, TypecastError::HttpError(_)), "expected HttpError, got {err:?}");
+    assert!(
+        matches!(err, TypecastError::HttpError(_)),
+        "expected HttpError, got {err:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -247,7 +262,9 @@ async fn clone_voice_rejects_bad_name_length() {
         "expected ValidationError for empty name, got {err_empty:?}"
     );
     assert!(
-        err_empty.to_string().contains(&format!("{}-{}", NAME_MIN_LENGTH, NAME_MAX_LENGTH)),
+        err_empty
+            .to_string()
+            .contains(&format!("{}-{}", NAME_MIN_LENGTH, NAME_MAX_LENGTH)),
         "error should mention valid range, got: {err_empty}"
     );
 
@@ -262,7 +279,9 @@ async fn clone_voice_rejects_bad_name_length() {
         "expected ValidationError for long name, got {err_long:?}"
     );
     assert!(
-        err_long.to_string().contains(&format!("{}-{}", NAME_MIN_LENGTH, NAME_MAX_LENGTH)),
+        err_long
+            .to_string()
+            .contains(&format!("{}-{}", NAME_MIN_LENGTH, NAME_MAX_LENGTH)),
         "error should mention valid range, got: {err_long}"
     );
 }
@@ -283,6 +302,20 @@ async fn delete_voice_returns_ok_on_204() {
     let client = make_client(&server);
     let result = client.delete_voice("cv_abc123").await;
     assert!(result.is_ok(), "expected Ok(()), got {result:?}");
+}
+
+#[tokio::test]
+async fn delete_voice_with_proxy_base_url_omits_auth_header_without_api_key() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("DELETE", "/v1/voices/cv_abc123")
+        .match_header("x-api-key", mockito::Matcher::Missing)
+        .with_status(204)
+        .create_async()
+        .await;
+
+    let client = make_proxy_client_without_api_key(&server);
+    client.delete_voice("cv_abc123").await.unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -319,5 +352,8 @@ async fn delete_voice_returns_err_on_transport_failure() {
         .delete_voice("uc_xxx")
         .await
         .expect_err("should fail when transport cannot connect");
-    assert!(matches!(err, TypecastError::HttpError(_)), "expected HttpError, got {err:?}");
+    assert!(
+        matches!(err, TypecastError::HttpError(_)),
+        "expected HttpError, got {err:?}"
+    );
 }

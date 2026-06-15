@@ -81,7 +81,10 @@ impl TypecastError {
             422 => TypecastError::ValidationError { detail },
             429 => TypecastError::RateLimited { detail },
             500..=599 => TypecastError::ServerError { detail },
-            _ => TypecastError::Unknown { status_code, detail },
+            _ => TypecastError::Unknown {
+                status_code,
+                detail,
+            },
         }
     }
 

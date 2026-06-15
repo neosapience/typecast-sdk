@@ -30,26 +30,26 @@ use Neosapience\Typecast\Models\VoicesV2Filter;
  */
 class TypecastClient
 {
+    private const DEFAULT_BASE_URL = 'https://api.typecast.ai';
+
     private ClientInterface $httpClient;
 
     public function __construct(
-        private readonly string $apiKey,
-        private readonly string $baseUrl = 'https://api.typecast.ai',
+        private readonly ?string $apiKey = null,
+        private readonly string $baseUrl = self::DEFAULT_BASE_URL,
         ?ClientInterface $httpClient = null,
     ) {
-        if (trim($this->apiKey) === '') {
+        $normalizedBaseUrl = rtrim(trim($this->baseUrl), '/');
+        if (trim((string) $this->apiKey) === '' && strcasecmp($normalizedBaseUrl, self::DEFAULT_BASE_URL) === 0) {
             throw new \InvalidArgumentException('API key must not be empty');
         }
-        if (!str_starts_with($this->baseUrl, 'https://') && !str_starts_with($this->baseUrl, 'http://localhost')) {
+        if (!str_starts_with($normalizedBaseUrl, 'https://') && !str_starts_with($normalizedBaseUrl, 'http://localhost')) {
             throw new \InvalidArgumentException('Base URL must use HTTPS');
         }
         $this->httpClient = $httpClient ?? new Client([
-            'base_uri' => $this->baseUrl,
+            'base_uri' => $normalizedBaseUrl,
             'http_errors' => false,
-            'headers' => [
-                'X-API-KEY' => $this->apiKey,
-                'Content-Type' => 'application/json',
-            ],
+            'headers' => $this->authHeaders() + ['Content-Type' => 'application/json'],
         ]);
     }
 
@@ -340,7 +340,7 @@ class TypecastClient
                         'headers'  => ['Content-Type' => self::guessAudioMime($filename)],
                     ],
                 ],
-                'headers' => ['X-API-KEY' => $this->apiKey],
+                'headers' => $this->authHeaders(),
             ]);
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
             throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
@@ -367,7 +367,7 @@ class TypecastClient
     {
         try {
             $response = $this->httpClient->request('DELETE', '/v1/voices/' . $voiceId, [
-                'headers' => ['X-API-KEY' => $this->apiKey],
+                'headers' => $this->authHeaders(),
             ]);
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
             throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
@@ -391,6 +391,15 @@ class TypecastClient
         if (str_ends_with($lower, '.flac')) return 'audio/flac';
         if (str_ends_with($lower, '.m4a'))  return 'audio/mp4';
         return 'application/octet-stream';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function authHeaders(): array
+    {
+        $apiKey = trim((string) $this->apiKey);
+        return $apiKey === '' ? [] : ['X-API-KEY' => $apiKey];
     }
 
     /**

@@ -15,8 +15,7 @@ from typecast.models import (
 
 @pytest.fixture
 def typecast_client():
-    # Get API key from environment variables
-    return Typecast()
+    return Typecast(api_key="test-key")
 
 
 class TestOutputValidation:
@@ -97,6 +96,16 @@ class TestSyncClient:
     @pytest.fixture
     def sample_request(self):
         return TTSRequest(text="Hello", voice_id="tc_test", model="ssfm-v21")
+
+    def test_default_host_without_api_key_raises(self, monkeypatch):
+        monkeypatch.delenv("TYPECAST_API_KEY", raising=False)
+        with pytest.raises(ValueError, match="API key is required"):
+            Typecast()
+
+    def test_proxy_host_without_api_key_omits_header(self, monkeypatch):
+        monkeypatch.delenv("TYPECAST_API_KEY", raising=False)
+        client = Typecast(host="https://proxy.example")
+        assert "X-API-KEY" not in client.session.headers
 
     def _mock_response(self, mocker, status_code=200, content=b"data", headers=None, json_data=None, text=""):
         m = mocker.Mock()

@@ -645,6 +645,26 @@ static void test_tts_basic_wav(void) {
     typecast_client_destroy(c);
 }
 
+static void test_tts_proxy_without_api_key_omits_header(void) {
+    snprintf(g_host, sizeof(g_host), "http://127.0.0.1:%d", g_server.port);
+    TypecastClient* c = typecast_client_create_with_host(NULL, g_host);
+    ASSERT_NOT_NULL(c);
+
+    mock_enqueue_text(200, "X-Audio-Duration: 1.0\r\n", "WAV");
+
+    TypecastTTSRequest req = {0};
+    req.text = "hello proxy";
+    req.voice_id = "tc_proxy";
+    req.model = TYPECAST_MODEL_SSFM_V30;
+
+    TypecastTTSResponse* r = typecast_text_to_speech(c, &req);
+    ASSERT_NOT_NULL(r);
+    ASSERT(strstr(g_server.last_headers, "X-API-KEY:") == NULL);
+
+    typecast_tts_response_free(r);
+    typecast_client_destroy(c);
+}
+
 static void test_tts_with_output_volume_mp3(void) {
     TypecastClient* c = new_client();
 
@@ -1659,6 +1679,7 @@ int main(void) {
 
     /* TTS happy paths */
     RUN(tts_basic_wav);
+    RUN(tts_proxy_without_api_key_omits_header);
     RUN(tts_with_output_volume_mp3);
     RUN(tts_with_output_lufs);
     RUN(tts_prompt_preset);

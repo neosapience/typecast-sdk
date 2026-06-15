@@ -28,7 +28,10 @@ fn fixture_dir() -> PathBuf {
         }
         dir.pop();
     }
-    panic!("test-fixtures/with-timestamps not found from {:?}", std::env::current_dir().unwrap());
+    panic!(
+        "test-fixtures/with-timestamps not found from {:?}",
+        std::env::current_dir().unwrap()
+    );
 }
 
 fn load_fixture(name: &str) -> String {
@@ -182,7 +185,10 @@ fn audio_bytes_error_on_invalid_base64() {
 fn save_audio_writes_non_empty_file() {
     let resp = parse_fixture("both.json");
     let dir = std::env::temp_dir();
-    let path = dir.join(format!("rust_tts_timestamps_test_{}.wav", std::process::id()));
+    let path = dir.join(format!(
+        "rust_tts_timestamps_test_{}.wav",
+        std::process::id()
+    ));
     resp.save_audio(&path).unwrap();
     let meta = fs::metadata(&path).unwrap();
     assert!(meta.len() > 0, "written file should be non-empty");
@@ -252,8 +258,7 @@ fn request_builder_sets_all_fields() {
 
 #[test]
 fn request_serializes_without_skip_fields_when_none() {
-    let req =
-        TTSRequestWithTimestamps::new("tc_x", "hello", TTSModel::SsfmV30);
+    let req = TTSRequestWithTimestamps::new("tc_x", "hello", TTSModel::SsfmV30);
     let json = serde_json::to_string(&req).unwrap();
     assert!(!json.contains("language"));
     assert!(!json.contains("prompt"));
@@ -309,7 +314,8 @@ fn mock_ts_response_json() -> String {
             {"text": "you?", "start": 1.9, "end": 2.4}
         ],
         "characters": null
-    }"#.to_string()
+    }"#
+    .to_string()
 }
 
 #[tokio::test]
@@ -463,7 +469,10 @@ async fn client_text_to_speech_with_timestamps_propagates_network_error() {
         .text_to_speech_with_timestamps(&req, None)
         .await
         .unwrap_err();
-    assert!(matches!(err, TypecastError::HttpError(_)), "expected HttpError on connection failure, got {err:?}");
+    assert!(
+        matches!(err, TypecastError::HttpError(_)),
+        "expected HttpError on connection failure, got {err:?}"
+    );
 }
 
 #[tokio::test]
@@ -484,7 +493,10 @@ async fn client_text_to_speech_with_timestamps_propagates_bad_json() {
         .text_to_speech_with_timestamps(&req, None)
         .await
         .unwrap_err();
-    assert!(matches!(err, TypecastError::DecodeError(_)), "expected DecodeError, got {err:?}");
+    assert!(
+        matches!(err, TypecastError::DecodeError(_)),
+        "expected DecodeError, got {err:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -525,7 +537,10 @@ fn to_vtt_single_word_fallback() {
         characters: None,
     };
     let vtt = resp.to_vtt().expect("single-word VTT should succeed");
-    assert!(vtt.starts_with("WEBVTT\n\n"), "VTT should start with WEBVTT header");
+    assert!(
+        vtt.starts_with("WEBVTT\n\n"),
+        "VTT should start with WEBVTT header"
+    );
     assert!(vtt.contains("Hi."), "VTT should contain the word text");
 }
 
@@ -542,17 +557,36 @@ fn to_srt_hard_cap_by_time_produces_multiple_cues() {
         audio_format: "wav".to_string(),
         audio_duration: 8.0,
         words: Some(vec![
-            AlignmentSegmentWord { text: "Word1".to_string(), start: 0.0, end: 2.0 },
-            AlignmentSegmentWord { text: "Word2".to_string(), start: 2.0, end: 4.0 },
-            AlignmentSegmentWord { text: "Word3".to_string(), start: 4.0, end: 6.0 },
+            AlignmentSegmentWord {
+                text: "Word1".to_string(),
+                start: 0.0,
+                end: 2.0,
+            },
+            AlignmentSegmentWord {
+                text: "Word2".to_string(),
+                start: 2.0,
+                end: 4.0,
+            },
+            AlignmentSegmentWord {
+                text: "Word3".to_string(),
+                start: 4.0,
+                end: 6.0,
+            },
             // Adding Word4 with end=8.0 makes span (8.0 - 0.0) = 8.0 > 7.0
-            AlignmentSegmentWord { text: "Word4".to_string(), start: 6.0, end: 8.0 },
+            AlignmentSegmentWord {
+                text: "Word4".to_string(),
+                start: 6.0,
+                end: 8.0,
+            },
         ]),
         characters: None,
     };
     let srt = resp.to_srt().expect("hard-cap SRT should succeed");
     // Should have at least cue index "2"
-    assert!(srt.contains("2\n"), "expected at least 2 cues after time hard-cap:\n{srt}");
+    assert!(
+        srt.contains("2\n"),
+        "expected at least 2 cues after time hard-cap:\n{srt}"
+    );
 }
 
 #[test]
@@ -564,15 +598,34 @@ fn to_srt_hard_cap_by_chars_produces_multiple_cues() {
         audio_format: "wav".to_string(),
         audio_duration: 2.0,
         words: Some(vec![
-            AlignmentSegmentWord { text: "AAAAAAAAAA".to_string(), start: 0.0, end: 0.5 },
-            AlignmentSegmentWord { text: "AAAAAAAAAA".to_string(), start: 0.5, end: 1.0 },
-            AlignmentSegmentWord { text: "AAAAAAAAAA".to_string(), start: 1.0, end: 1.5 },
-            AlignmentSegmentWord { text: "AAAAAAAAAA".to_string(), start: 1.5, end: 2.0 },
+            AlignmentSegmentWord {
+                text: "AAAAAAAAAA".to_string(),
+                start: 0.0,
+                end: 0.5,
+            },
+            AlignmentSegmentWord {
+                text: "AAAAAAAAAA".to_string(),
+                start: 0.5,
+                end: 1.0,
+            },
+            AlignmentSegmentWord {
+                text: "AAAAAAAAAA".to_string(),
+                start: 1.0,
+                end: 1.5,
+            },
+            AlignmentSegmentWord {
+                text: "AAAAAAAAAA".to_string(),
+                start: 1.5,
+                end: 2.0,
+            },
         ]),
         characters: None,
     };
     let srt = resp.to_srt().expect("char hard-cap SRT should succeed");
-    assert!(srt.contains("2\n"), "expected at least 2 cues after char hard-cap:\n{srt}");
+    assert!(
+        srt.contains("2\n"),
+        "expected at least 2 cues after char hard-cap:\n{srt}"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -588,13 +641,24 @@ fn to_srt_final_flush_without_sentence_terminator() {
         audio_format: "wav".to_string(),
         audio_duration: 1.0,
         words: Some(vec![
-            AlignmentSegmentWord { text: "Hello".to_string(), start: 0.0, end: 0.5 },
-            AlignmentSegmentWord { text: "World".to_string(), start: 0.5, end: 1.0 },
+            AlignmentSegmentWord {
+                text: "Hello".to_string(),
+                start: 0.0,
+                end: 0.5,
+            },
+            AlignmentSegmentWord {
+                text: "World".to_string(),
+                start: 0.5,
+                end: 1.0,
+            },
         ]),
         characters: None,
     };
     let srt = resp.to_srt().expect("final flush SRT should succeed");
-    assert!(srt.contains("Hello World"), "SRT should contain the joined text");
+    assert!(
+        srt.contains("Hello World"),
+        "SRT should contain the joined text"
+    );
     // Only one cue (no sentence split)
     assert!(!srt.contains("2\n"), "expected exactly 1 cue");
 }
@@ -611,8 +675,16 @@ fn to_srt_all_empty_text_segments_errors() {
         audio_format: "wav".to_string(),
         audio_duration: 1.0,
         words: Some(vec![
-            AlignmentSegmentWord { text: "".to_string(), start: 0.0, end: 0.5 },
-            AlignmentSegmentWord { text: "".to_string(), start: 0.5, end: 1.0 },
+            AlignmentSegmentWord {
+                text: "".to_string(),
+                start: 0.0,
+                end: 0.5,
+            },
+            AlignmentSegmentWord {
+                text: "".to_string(),
+                start: 0.5,
+                end: 1.0,
+            },
         ]),
         characters: None,
     };
@@ -632,8 +704,16 @@ fn to_vtt_all_empty_text_segments_errors() {
         audio_format: "wav".to_string(),
         audio_duration: 1.0,
         words: Some(vec![
-            AlignmentSegmentWord { text: "".to_string(), start: 0.0, end: 0.5 },
-            AlignmentSegmentWord { text: "".to_string(), start: 0.5, end: 1.0 },
+            AlignmentSegmentWord {
+                text: "".to_string(),
+                start: 0.0,
+                end: 0.5,
+            },
+            AlignmentSegmentWord {
+                text: "".to_string(),
+                start: 0.5,
+                end: 1.0,
+            },
         ]),
         characters: None,
     };

@@ -95,6 +95,42 @@ func TestNewClient_EmptyConfig(t *testing.T) {
 	}
 }
 
+func TestSetAuthHeader_DefaultHostRequiresAPIKey(t *testing.T) {
+	c := NewClient(&ClientConfig{APIKey: "   ", BaseURL: DefaultBaseURL + "/"})
+	headers := http.Header{}
+	err := c.setAuthHeader(headers)
+	if err == nil || !strings.Contains(err.Error(), "API key is required") {
+		t.Fatalf("expected missing api key error, got %v", err)
+	}
+}
+
+func TestSetAuthHeader_ProxyHostAllowsMissingAPIKey(t *testing.T) {
+	c := NewClient(&ClientConfig{BaseURL: "https://proxy.example"})
+	headers := http.Header{}
+	if err := c.setAuthHeader(headers); err != nil {
+		t.Fatalf("expected proxy host to allow missing api key, got %v", err)
+	}
+	if headers.Get("X-API-KEY") != "" {
+		t.Fatalf("expected no api key header, got %q", headers.Get("X-API-KEY"))
+	}
+}
+
+func TestCloneVoice_DefaultHostWithoutAPIKeyReturnsError(t *testing.T) {
+	c := NewClient(&ClientConfig{BaseURL: DefaultBaseURL})
+	_, err := c.CloneVoice(context.Background(), []byte("audio"), "sample.wav", "voice", string(ModelSSFMV30))
+	if err == nil || !strings.Contains(err.Error(), "API key is required") {
+		t.Fatalf("expected missing api key error, got %v", err)
+	}
+}
+
+func TestDeleteVoice_DefaultHostWithoutAPIKeyReturnsError(t *testing.T) {
+	c := NewClient(&ClientConfig{BaseURL: DefaultBaseURL})
+	err := c.DeleteVoice(context.Background(), "uc_test")
+	if err == nil || !strings.Contains(err.Error(), "API key is required") {
+		t.Fatalf("expected missing api key error, got %v", err)
+	}
+}
+
 // ---------- TextToSpeech ----------
 
 func TestTextToSpeech_NilRequest(t *testing.T) {
@@ -116,6 +152,19 @@ func TestTextToSpeech_ValidationError(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected validation error")
+	}
+}
+
+func TestTextToSpeech_DefaultHostWithoutAPIKeyReturnsError(t *testing.T) {
+	c := NewClient(&ClientConfig{BaseURL: DefaultBaseURL})
+	_, err := c.TextToSpeech(context.Background(), &TTSRequest{
+		VoiceID: "v",
+		Text:    "hi",
+		Model:   ModelSSFMV30,
+		Output:  &Output{},
+	})
+	if err == nil || !strings.Contains(err.Error(), "API key is required") {
+		t.Fatalf("expected missing api key error, got %v", err)
 	}
 }
 

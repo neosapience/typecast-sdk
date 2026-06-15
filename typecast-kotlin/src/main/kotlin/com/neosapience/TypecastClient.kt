@@ -49,6 +49,12 @@ class TypecastClient private constructor(
         explicitNulls = false
     }
 
+    private fun Request.Builder.addAuthHeader(): Request.Builder = apply {
+        if (apiKey.isNotBlank()) {
+            addHeader(API_KEY_HEADER, apiKey)
+        }
+    }
+
     companion object {
         private const val DEFAULT_BASE_URL = "https://api.typecast.ai"
         private const val API_KEY_HEADER = "X-API-KEY"
@@ -94,7 +100,7 @@ class TypecastClient private constructor(
         
         val httpRequest = Request.Builder()
             .url(url)
-            .addHeader(API_KEY_HEADER, apiKey)
+            .addAuthHeader()
             .addHeader("Content-Type", "application/json")
             .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
@@ -144,7 +150,7 @@ class TypecastClient private constructor(
 
         val httpRequest = Request.Builder()
             .url(url)
-            .addHeader(API_KEY_HEADER, apiKey)
+            .addAuthHeader()
             .addHeader("Content-Type", "application/json")
             .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
@@ -191,7 +197,7 @@ class TypecastClient private constructor(
 
         val httpRequest = Request.Builder()
             .url(urlBuilder.build())
-            .addHeader(API_KEY_HEADER, apiKey)
+            .addAuthHeader()
             .addHeader("Content-Type", "application/json")
             .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
@@ -214,7 +220,7 @@ class TypecastClient private constructor(
 
         val httpRequest = Request.Builder()
             .url(urlBuilder.build())
-            .addHeader(API_KEY_HEADER, apiKey)
+            .addAuthHeader()
             .addHeader("Content-Type", "application/json")
             .get()
             .build()
@@ -238,7 +244,7 @@ class TypecastClient private constructor(
 
         val httpRequest = Request.Builder()
             .url(urlBuilder.build())
-            .addHeader(API_KEY_HEADER, apiKey)
+            .addAuthHeader()
             .addHeader("Content-Type", "application/json")
             .get()
             .build()
@@ -269,7 +275,7 @@ class TypecastClient private constructor(
 
         val httpRequest = Request.Builder()
             .url(urlBuilder.build())
-            .addHeader(API_KEY_HEADER, apiKey)
+            .addAuthHeader()
             .addHeader("Content-Type", "application/json")
             .get()
             .build()
@@ -289,7 +295,7 @@ class TypecastClient private constructor(
 
         val httpRequest = Request.Builder()
             .url(url)
-            .addHeader(API_KEY_HEADER, apiKey)
+            .addAuthHeader()
             .addHeader("Content-Type", "application/json")
             .get()
             .build()
@@ -308,7 +314,7 @@ class TypecastClient private constructor(
 
         val httpRequest = Request.Builder()
             .url(url)
-            .addHeader(API_KEY_HEADER, apiKey)
+            .addAuthHeader()
             .addHeader("Content-Type", "application/json")
             .get()
             .build()
@@ -398,7 +404,7 @@ class TypecastClient private constructor(
 
         val httpRequest = Request.Builder()
             .url("$baseUrl/v1/voices/clone")
-            .addHeader(API_KEY_HEADER, apiKey)
+            .addAuthHeader()
             .post(body)
             .build()
 
@@ -432,7 +438,7 @@ class TypecastClient private constructor(
     fun deleteVoice(voiceId: String) {
         val httpRequest = Request.Builder()
             .url("$baseUrl/v1/voices/$voiceId")
-            .addHeader(API_KEY_HEADER, apiKey)
+            .addAuthHeader()
             .delete()
             .build()
 
@@ -498,8 +504,8 @@ class TypecastClient private constructor(
          * @throws IllegalArgumentException if no API key is found
          */
         fun build(): TypecastClient {
-            val resolvedApiKey = resolveApiKey()
             val resolvedBaseUrl = resolveBaseUrl()
+            val resolvedApiKey = resolveApiKey(resolvedBaseUrl)
             val resolvedHttpClient = httpClient ?: OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
@@ -509,7 +515,7 @@ class TypecastClient private constructor(
             return TypecastClient(resolvedApiKey, resolvedBaseUrl, resolvedHttpClient)
         }
 
-        private fun resolveApiKey(): String {
+        private fun resolveApiKey(resolvedBaseUrl: String): String {
             apiKey?.takeIf { it.isNotBlank() }?.let { return it }
 
             // Try .env file first
@@ -525,14 +531,21 @@ class TypecastClient private constructor(
             // Try system environment variable
             System.getenv("TYPECAST_API_KEY")?.takeIf { it.isNotBlank() }?.let { return it }
 
+            if (!isDefaultBaseUrl(resolvedBaseUrl)) {
+                return ""
+            }
+
             throw IllegalArgumentException(
                 "API key is required. Set TYPECAST_API_KEY environment variable or pass it to the builder."
             )
         }
 
+        private fun isDefaultBaseUrl(value: String): Boolean =
+            value.trim().trimEnd('/').equals(DEFAULT_BASE_URL, ignoreCase = true)
+
         private fun resolveBaseUrl(): String {
             baseUrl?.takeIf { it.isNotBlank() }?.let { 
-                return it.trimEnd('/') 
+                return it.trim().trimEnd('/')
             }
 
             // Try .env file first
@@ -541,7 +554,7 @@ class TypecastClient private constructor(
                     ignoreIfMissing = true
                 }
                 env["TYPECAST_API_HOST"]?.takeIf { it.isNotBlank() }?.let { 
-                    return it.trimEnd('/') 
+                    return it.trim().trimEnd('/')
                 }
             } catch (e: Exception) {
                 // Continue to system environment
@@ -549,7 +562,7 @@ class TypecastClient private constructor(
 
             // Try system environment variable
             System.getenv("TYPECAST_API_HOST")?.takeIf { it.isNotBlank() }?.let { 
-                return it.trimEnd('/') 
+                return it.trim().trimEnd('/')
             }
 
             return DEFAULT_BASE_URL

@@ -77,10 +77,13 @@ class Typecast:
         """
         self.host = conf.get_host(host)
         self.api_key = conf.get_api_key(api_key)
+        if not self.api_key and conf.is_default_host(self.host):
+            raise ValueError("API key is required for the default Typecast API host")
         self.session = requests.Session()
-        self.session.headers.update(
-            {"X-API-KEY": self.api_key, "Content-Type": "application/json"}
-        )
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["X-API-KEY"] = self.api_key
+        self.session.headers.update(headers)
 
     def _handle_error(self, status_code: int, response_text: str):
         """Handle HTTP error responses with specific exception types."""

@@ -144,10 +144,30 @@ final class TypecastClientTests: XCTestCase {
         
         XCTAssertNotNil(client)
     }
+
+    func testConfigurationTrimsBlankKeyAndTrailingSlash() {
+        let config = TypecastConfiguration(apiKey: "   ", baseURL: " https://custom.api.com/ ")
+        XCTAssertNil(config.apiKey)
+        XCTAssertEqual(config.baseURL, "https://custom.api.com")
+    }
     
     func testClientConvenienceInit() {
         let client = TypecastClient(apiKey: "test-key")
         XCTAssertNotNil(client)
+    }
+
+    func testDefaultHostWithoutAPIKeyThrowsBeforeRequest() async {
+        let client = TypecastClient(apiKey: nil)
+        let request = TTSRequest(voiceId: "tc_test", text: "Hello", model: .ssfmV30)
+
+        do {
+            _ = try await client.textToSpeech(request)
+            XCTFail("Expected missing API key error")
+        } catch TypecastError.invalidResponse(let message) {
+            XCTAssertTrue(message.contains("API key is required"))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
     
     // MARK: - Voice Response Decoding Tests

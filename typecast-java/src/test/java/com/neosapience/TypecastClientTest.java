@@ -40,6 +40,50 @@ class TypecastClientTest {
     // ==================== Text-to-Speech Tests ====================
 
     @Test
+    @DisplayName("proxy base URL can be used without API key")
+    void proxyBaseUrl_withoutApiKey_omitsAuthHeader() throws Exception {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(new okio.Buffer().write(new byte[]{0x00})));
+
+        TypecastClient proxyClient = new TypecastClient(null, mockServer.url("/").toString());
+        TTSRequest request = TTSRequest.builder()
+                .voiceId("tc_test")
+                .text("Hello, proxy!")
+                .model(TTSModel.SSFM_V30)
+                .build();
+
+        proxyClient.textToSpeech(request);
+
+        RecordedRequest recordedRequest = mockServer.takeRequest();
+        assertNull(recordedRequest.getHeader("X-API-KEY"));
+        proxyClient.close();
+    }
+
+    @Test
+    @DisplayName("proxy base URL treats blank API key as absent")
+    void proxyBaseUrl_withBlankApiKey_omitsAuthHeader() throws Exception {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(new okio.Buffer().write(new byte[]{0x00})));
+
+        TypecastClient proxyClient = new TypecastClient("", mockServer.url("/").toString());
+        TTSRequest request = TTSRequest.builder()
+                .voiceId("tc_test")
+                .text("Hello, proxy!")
+                .model(TTSModel.SSFM_V30)
+                .build();
+
+        proxyClient.textToSpeech(request);
+
+        RecordedRequest recordedRequest = mockServer.takeRequest();
+        assertNull(recordedRequest.getHeader("X-API-KEY"));
+        proxyClient.close();
+    }
+
+    @Test
     @DisplayName("textToSpeech should return audio data on success")
     void textToSpeech_success() throws Exception {
         // Prepare mock response

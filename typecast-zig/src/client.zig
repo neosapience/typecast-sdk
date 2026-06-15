@@ -10,7 +10,7 @@ pub const Client = struct {
     base_url: []const u8,
 
     pub const Config = struct {
-        api_key: []const u8,
+        api_key: []const u8 = "",
         base_url: []const u8 = "https://api.typecast.ai",
     };
 
@@ -46,14 +46,17 @@ pub const Client = struct {
         defer self.allocator.free(body);
 
         const path = "/v1/text-to-speech";
+        try self.validateApiKey();
         const uri = try buildUri(self.base_url, path, null);
 
-        var req = try self.http_client.request(.POST, uri, .{
-            .extra_headers = &.{
+        const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
+            &.{.{ .name = "Content-Type", .value = "application/json" }}
+        else
+            &.{
                 .{ .name = "X-API-KEY", .value = self.api_key },
                 .{ .name = "Content-Type", .value = "application/json" },
-            },
-        });
+            };
+        var req = try self.http_client.request(.POST, uri, .{ .extra_headers = headers });
         defer req.deinit();
 
         try req.sendBodyComplete(@constCast(body));
@@ -89,14 +92,17 @@ pub const Client = struct {
         defer self.allocator.free(body);
 
         const path = "/v1/text-to-speech/stream";
+        try self.validateApiKey();
         const uri = try buildUri(self.base_url, path, null);
 
-        var req = try self.http_client.request(.POST, uri, .{
-            .extra_headers = &.{
+        const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
+            &.{.{ .name = "Content-Type", .value = "application/json" }}
+        else
+            &.{
                 .{ .name = "X-API-KEY", .value = self.api_key },
                 .{ .name = "Content-Type", .value = "application/json" },
-            },
-        });
+            };
+        var req = try self.http_client.request(.POST, uri, .{ .extra_headers = headers });
         defer req.deinit();
 
         try req.sendBodyComplete(@constCast(body));
@@ -155,14 +161,17 @@ pub const Client = struct {
             const q = std.fmt.bufPrint(&query_buf, "granularity={s}", .{g}) catch break :blk null;
             break :blk q;
         } else null;
+        try self.validateApiKey();
         const uri = try buildUri(self.base_url, path, query);
 
-        var req = try self.http_client.request(.POST, uri, .{
-            .extra_headers = &.{
+        const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
+            &.{.{ .name = "Content-Type", .value = "application/json" }}
+        else
+            &.{
                 .{ .name = "X-API-KEY", .value = self.api_key },
                 .{ .name = "Content-Type", .value = "application/json" },
-            },
-        });
+            };
+        var req = try self.http_client.request(.POST, uri, .{ .extra_headers = headers });
         defer req.deinit();
 
         try req.sendBodyComplete(@constCast(body));
@@ -304,14 +313,17 @@ pub const Client = struct {
         defer allocator.free(ct);
 
         const path = "/v1/voices/clone";
+        try self.validateApiKey();
         const uri = try buildUri(self.base_url, path, null);
 
-        var req = try self.http_client.request(.POST, uri, .{
-            .extra_headers = &.{
+        const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
+            &.{.{ .name = "Content-Type", .value = ct }}
+        else
+            &.{
                 .{ .name = "X-API-KEY", .value = self.api_key },
                 .{ .name = "Content-Type", .value = ct },
-            },
-        });
+            };
+        var req = try self.http_client.request(.POST, uri, .{ .extra_headers = headers });
         defer req.deinit();
 
         try req.sendBodyComplete(@constCast(body_bytes));
@@ -334,13 +346,14 @@ pub const Client = struct {
         const path = try std.fmt.allocPrint(self.allocator, "/v1/voices/{s}", .{voice_id});
         defer self.allocator.free(path);
 
+        try self.validateApiKey();
         const uri = try buildUri(self.base_url, path, null);
 
-        var req = try self.http_client.request(.DELETE, uri, .{
-            .extra_headers = &.{
-                .{ .name = "X-API-KEY", .value = self.api_key },
-            },
-        });
+        const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
+            &.{}
+        else
+            &.{.{ .name = "X-API-KEY", .value = self.api_key }};
+        var req = try self.http_client.request(.DELETE, uri, .{ .extra_headers = headers });
         defer req.deinit();
 
         try req.sendBodiless();
@@ -360,13 +373,14 @@ pub const Client = struct {
     // ── Internal helpers ──────────────────────────────────────────────
 
     fn doGet(self: *Client, path: []const u8, query: ?[]const u8) ![]u8 {
+        try self.validateApiKey();
         const uri = try buildUri(self.base_url, path, query);
 
-        var req = try self.http_client.request(.GET, uri, .{
-            .extra_headers = &.{
-                .{ .name = "X-API-KEY", .value = self.api_key },
-            },
-        });
+        const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
+            &.{}
+        else
+            &.{.{ .name = "X-API-KEY", .value = self.api_key }};
+        var req = try self.http_client.request(.GET, uri, .{ .extra_headers = headers });
         defer req.deinit();
 
         try req.sendBodiless();
@@ -379,6 +393,12 @@ pub const Client = struct {
         var transfer_buf: [16384]u8 = undefined;
         const reader = response.reader(&transfer_buf);
         return reader.allocRemaining(self.allocator, .unlimited);
+    }
+
+    fn validateApiKey(self: *const Client) !void {
+        if (!hasApiKey(self.api_key) and isDefaultBaseUrl(self.base_url)) {
+            return error.MissingApiKey;
+        }
     }
 
     fn buildUri(base_url: []const u8, path: []const u8, query: ?[]const u8) !std.Uri {
@@ -512,3 +532,13 @@ pub const Client = struct {
         return true;
     }
 };
+
+fn hasApiKey(api_key: []const u8) bool {
+    return std.mem.trim(u8, api_key, " \t\r\n").len > 0;
+}
+
+fn isDefaultBaseUrl(base_url: []const u8) bool {
+    const trimmed_space = std.mem.trim(u8, base_url, " \t\r\n");
+    const normalized = std.mem.trimRight(u8, trimmed_space, "/");
+    return std.ascii.eqlIgnoreCase(normalized, "https://api.typecast.ai");
+}

@@ -24,11 +24,18 @@ export class TypecastClient {
       apiKey: process.env.TYPECAST_API_KEY || '',
       ...config,
     };
-    this.baseHost = finalConfig.baseHost;
+    const apiKey = (finalConfig.apiKey || '').trim();
+    this.baseHost = TypecastClient.normalizeBaseHost(finalConfig.baseHost);
     this.headers = {
-      'X-API-KEY': finalConfig.apiKey,
       'Content-Type': 'application/json',
     };
+    if (apiKey) {
+      this.headers['X-API-KEY'] = apiKey;
+    }
+  }
+
+  private static normalizeBaseHost(baseHost: string): string {
+    return baseHost.trim().replace(/\/+$/, '');
   }
 
   /**

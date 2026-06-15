@@ -184,9 +184,7 @@ struct Cue {
 /// (space-separated) mode applies.
 ///
 /// Priority: words (≥ 2) → characters (non-empty) → words (exactly 1) → error.
-fn pick_segments(
-    resp: &TTSWithTimestampsResponse,
-) -> Result<(Vec<Segment>, bool)> {
+fn pick_segments(resp: &TTSWithTimestampsResponse) -> Result<(Vec<Segment>, bool)> {
     let word_segs = |words: &[crate::timestamps::AlignmentSegmentWord]| -> Vec<Segment> {
         words
             .iter()
@@ -272,7 +270,12 @@ fn group_into_cues(segs: &[Segment], word_mode: bool) -> Vec<Cue> {
             let too_long_chars = would_be.chars().count() > MAX_CAPTION_CHARS;
             if too_long_secs || too_long_chars {
                 // Flush the current cue before starting a new one.
-                emit(&mut cues, join_parts(&parts, word_mode), cur_start, last_end);
+                emit(
+                    &mut cues,
+                    join_parts(&parts, word_mode),
+                    cur_start,
+                    last_end,
+                );
                 parts.clear();
             }
         }
@@ -293,7 +296,12 @@ fn group_into_cues(segs: &[Segment], word_mode: bool) -> Vec<Cue> {
 
     // Flush any remaining parts.
     if !parts.is_empty() {
-        emit(&mut cues, join_parts(&parts, word_mode), cur_start, last_end);
+        emit(
+            &mut cues,
+            join_parts(&parts, word_mode),
+            cur_start,
+            last_end,
+        );
     }
 
     cues

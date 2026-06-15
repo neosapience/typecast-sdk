@@ -47,8 +47,8 @@ public class TypecastClient : IDisposable
     {
         if (config == null) throw new ArgumentNullException(nameof(config));
 
-        var apiKey = config.GetEffectiveApiKey();
         _apiHost = config.GetEffectiveApiHost().TrimEnd('/');
+        var apiKey = config.GetEffectiveApiKey(_apiHost);
 
         if (config.HttpClient != null)
         {
@@ -65,7 +65,10 @@ public class TypecastClient : IDisposable
         }
 
         _httpClient.DefaultRequestHeaders.Clear();
-        _httpClient.DefaultRequestHeaders.Add("X-API-KEY", apiKey);
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            _httpClient.DefaultRequestHeaders.Add("X-API-KEY", apiKey);
+        }
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
 

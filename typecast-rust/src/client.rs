@@ -73,7 +73,7 @@ pub const DEFAULT_TIMEOUT_SECS: u64 = 60;
 /// Configuration for the Typecast client
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
-    /// API key for authentication
+    /// API key for authentication. Optional when using a proxy base URL.
     pub api_key: String,
     /// Base URL for the API (defaults to <https://api.typecast.ai>)
     pub base_url: String,
@@ -85,7 +85,8 @@ impl Default for ClientConfig {
     fn default() -> Self {
         Self {
             api_key: env::var("TYPECAST_API_KEY").unwrap_or_default(),
-            base_url: env::var("TYPECAST_API_HOST").unwrap_or_else(|_| DEFAULT_BASE_URL.to_string()),
+            base_url: env::var("TYPECAST_API_HOST")
+                .unwrap_or_else(|_| DEFAULT_BASE_URL.to_string()),
             timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECS),
         }
     }
@@ -124,15 +125,24 @@ pub struct TypecastClient {
 impl TypecastClient {
     /// Create a new TypecastClient with the given configuration
     pub fn new(config: ClientConfig) -> Result<Self> {
+        let api_key = config.api_key.trim().to_string();
+        let base_url = config.base_url.trim().trim_end_matches('/').to_string();
+        if api_key.is_empty() && is_default_base_url(&base_url) {
+            return Err(TypecastError::Unauthorized {
+                detail: "API key is required for the default Typecast API host".to_string(),
+            });
+        }
+
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-        headers.insert(
-            "X-API-KEY",
-            HeaderValue::from_str(&config.api_key)
-                .map_err(|_| TypecastError::BadRequest { 
-                    detail: "Invalid API key format".to_string() 
+        if !api_key.is_empty() {
+            headers.insert(
+                "X-API-KEY",
+                HeaderValue::from_str(&api_key).map_err(|_| TypecastError::BadRequest {
+                    detail: "Invalid API key format".to_string(),
                 })?,
-        );
+            );
+        }
 
         // `reqwest::Client::builder().build()` only fails if TLS init fails,
         // which is not something we can usefully recover from at this layer.
@@ -144,8 +154,8 @@ impl TypecastClient {
 
         Ok(Self {
             client,
-            base_url: config.base_url,
-            api_key: config.api_key,
+            base_url,
+            api_key,
         })
     }
 
@@ -169,9 +179,21 @@ impl TypecastClient {
     /// Get the API key (masked)
     pub fn api_key_masked(&self) -> String {
         if self.api_key.len() > 8 {
-            format!("{}...{}", &self.api_key[..4], &self.api_key[self.api_key.len()-4..])
+            format!(
+                "{}...{}",
+                &self.api_key[..4],
+                &self.api_key[self.api_key.len() - 4..]
+            )
         } else {
             "****".to_string()
+        }
+    }
+
+    fn with_auth_header(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        if self.api_key.is_empty() {
+            request
+        } else {
+            request.header("X-API-KEY", &self.api_key)
         }
     }
 
@@ -229,12 +251,8 @@ impl TypecastClient {
     /// ```
     pub async fn text_to_speech(&self, request: &TTSRequest) -> Result<TTSResponse> {
         let url = self.build_url("/v1/text-to-speech", None);
-        
-        let response = self.client
-            .post(&url)
-            .json(request)
-            .send()
-            .await?;
+
+        let response = self.client.post(&url).json(request).send().await?;
 
         if !response.status().is_success() {
             return Err(self.handle_error_response(response).await);
@@ -246,7 +264,7 @@ impl TypecastClient {
             .get(CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
             .unwrap_or("audio/wav");
-        
+
         let format = if content_type.contains("mp3") || content_type.contains("mpeg") {
             AudioFormat::Mp3
         } else {
@@ -341,10 +359,10 @@ impl TypecastClient {
     ///
     /// # async fn example() -> typecast_rust::Result<()> {
     /// let client = TypecastClient::from_env()?;
-    /// 
+    ///
     /// // Get all voices
     /// let voices = client.get_voices_v2(None).await?;
-    /// 
+    ///
     /// // Get filtered voices
     /// let filter = VoicesV2Filter::new()
     ///     .model(TTSModel::SsfmV30)
@@ -371,12 +389,16 @@ impl TypecastClient {
             }
         }
 
-        let url = self.build_url("/v2/voices", if params.is_empty() { None } else { Some(params) });
+        let url = self.build_url(
+            "/v2/voices",
+            if params.is_empty() {
+                None
+            } else {
+                Some(params)
+            },
+        );
 
-        let response = self.client
-            .get(&url)
-            .send()
-            .await?;
+        let response = self.client.get(&url).send().await?;
 
         if !response.status().is_success() {
             return Err(self.handle_error_response(response).await);
@@ -411,10 +433,7 @@ impl TypecastClient {
     pub async fn get_voice_v2(&self, voice_id: &str) -> Result<VoiceV2> {
         let url = self.build_url(&format!("/v2/voices/{}", voice_id), None);
 
-        let response = self.client
-            .get(&url)
-            .send()
-            .await?;
+        let response = self.client.get(&url).send().await?;
 
         if !response.status().is_success() {
             return Err(self.handle_error_response(response).await);
@@ -486,8 +505,10 @@ impl TypecastClient {
             return Err(self.handle_error_response(response).await);
         }
 
-        let parsed: crate::timestamps::TTSWithTimestampsResponse =
-            response.json().await.map_err(|e| TypecastError::DecodeError(e.to_string()))?;
+        let parsed: crate::timestamps::TTSWithTimestampsResponse = response
+            .json()
+            .await
+            .map_err(|e| TypecastError::DecodeError(e.to_string()))?;
         Ok(parsed)
     }
 
@@ -517,10 +538,7 @@ impl TypecastClient {
     pub async fn get_my_subscription(&self) -> Result<SubscriptionResponse> {
         let url = self.build_url("/v1/users/me/subscription", None);
 
-        let response = self.client
-            .get(&url)
-            .send()
-            .await?;
+        let response = self.client.get(&url).send().await?;
 
         if !response.status().is_success() {
             return Err(self.handle_error_response(response).await);
@@ -579,10 +597,7 @@ impl TypecastClient {
         }
         if audio.len() > CLONING_MAX_FILE_SIZE {
             return Err(TypecastError::ValidationError {
-                detail: format!(
-                    "audio file exceeds 25MB limit; got {} bytes",
-                    audio.len()
-                ),
+                detail: format!("audio file exceeds 25MB limit; got {} bytes", audio.len()),
             });
         }
 
@@ -598,9 +613,7 @@ impl TypecastClient {
 
         let url = self.build_url("/v1/voices/clone", None);
         let response = self
-            .client
-            .post(&url)
-            .header("X-API-KEY", &self.api_key)
+            .with_auth_header(self.client.post(&url))
             .multipart(form)
             .send()
             .await?;
@@ -638,9 +651,7 @@ impl TypecastClient {
     pub async fn delete_voice(&self, voice_id: &str) -> Result<()> {
         let url = self.build_url(&format!("/v1/voices/{}", voice_id), None);
         let response = self
-            .client
-            .delete(&url)
-            .header("X-API-KEY", &self.api_key)
+            .with_auth_header(self.client.delete(&url))
             .send()
             .await?;
 
@@ -670,6 +681,10 @@ fn guess_audio_mime(filename: &str) -> &'static str {
     } else {
         "application/octet-stream"
     }
+}
+
+fn is_default_base_url(base_url: &str) -> bool {
+    base_url.eq_ignore_ascii_case(DEFAULT_BASE_URL)
 }
 
 /// URL encoding helper
