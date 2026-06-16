@@ -517,6 +517,23 @@ describe('TypecastClient', () => {
       );
     });
 
+    it('normalizes trailing slashes in the base host', async () => {
+      const trailingSlashClient = new TypecastClient({
+        baseHost: 'https://dummy-api.ai///',
+        apiKey: 'test-api-key',
+      });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([]),
+      });
+
+      await trailingSlashClient.getVoices();
+
+      const [calledUrl] = mockFetch.mock.calls[0];
+      expect(calledUrl).toBe('https://dummy-api.ai/v1/voices');
+    });
+
     it('falls back to the production host when no env var is set', async () => {
       vi.stubEnv('TYPECAST_API_HOST', '');
       vi.stubEnv('TYPECAST_API_KEY', '');

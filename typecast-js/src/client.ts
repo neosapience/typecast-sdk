@@ -35,7 +35,11 @@ export class TypecastClient {
   }
 
   private static normalizeBaseHost(baseHost: string): string {
-    return baseHost.trim().replace(/\/+$/, '');
+    let normalized = baseHost.trim();
+    while (normalized.endsWith('/')) {
+      normalized = normalized.slice(0, -1);
+    }
+    return normalized;
   }
 
   /**

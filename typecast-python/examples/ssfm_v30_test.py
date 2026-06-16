@@ -34,9 +34,6 @@ def test_voices_v2(client: Typecast) -> None:
         sample = voices[0]
         print(f"   Sample: {sample.voice_name} ({sample.voice_id})")
         print(f"   Models: {', '.join(m.version.value for m in sample.models)}")
-        gender = sample.gender.value if sample.gender else "N/A"
-        age = sample.age.value if sample.age else "N/A"
-        print(f"   Gender: {gender}, Age: {age}")
 
 
 def test_voices_v2_with_filter(client: Typecast) -> list:
