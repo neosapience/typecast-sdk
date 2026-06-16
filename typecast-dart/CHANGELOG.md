@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3
+
+- Added `generateToFile` for writing generated speech directly to an audio file.
+
 ## 0.1.2
 
 - Allowed proxy base URLs to be used without a Typecast API key.
