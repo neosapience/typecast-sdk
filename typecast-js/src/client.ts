@@ -1,4 +1,4 @@
-import { ClientConfig, TTSRequest, TTSResponse, TTSRequestStream, ApiErrorResponse } from './types';
+import { ClientConfig, GenerateToFileRequest, TTSRequest, TTSResponse, TTSRequestStream, ApiErrorResponse } from './types';
 import { SubscriptionResponse } from './types/Subscription';
 import { VoicesResponse, VoiceV2Response, VoicesV2Filter } from './types/Voices';
 import { TypecastAPIError } from './errors';
@@ -117,6 +117,41 @@ export class TypecastClient {
       duration,
       format,
     };
+  }
+
+  /**
+   * Convert text to speech and write the audio bytes to a local file.
+   *
+   * `model` defaults to `ssfm-v30`. If `request.output.audio_format` is omitted,
+   * the format is inferred from a `.mp3` or `.wav` file extension.
+   *
+   * @param path - Destination file path
+   * @param request - TTS request with required text and voice_id
+   * @returns TTSResponse containing audio data, duration, and format
+   */
+  async generateToFile(path: string, request: GenerateToFileRequest): Promise<TTSResponse> {
+    if (!path.trim()) {
+      throw new Error('path cannot be empty');
+    }
+    const { writeFile } = await import('node:fs/promises');
+    const audioFormat = TypecastClient.inferAudioFormatFromPath(path);
+    const output = audioFormat && !request.output?.audio_format
+      ? { ...request.output, audio_format: audioFormat }
+      : request.output;
+    const response = await this.textToSpeech({
+      ...request,
+      model: request.model ?? 'ssfm-v30',
+      output,
+    });
+    await writeFile(path, Buffer.from(response.audioData));
+    return response;
+  }
+
+  private static inferAudioFormatFromPath(path: string): 'wav' | 'mp3' | undefined {
+    const lower = path.toLowerCase();
+    if (lower.endsWith('.mp3')) return 'mp3';
+    if (lower.endsWith('.wav')) return 'wav';
+    return undefined;
   }
 
   /**

@@ -7,12 +7,14 @@
 
 use futures_util::StreamExt;
 use mockito::Server;
+use std::fs;
 use std::time::Duration;
 use typecast_rust::{
     Age, AudioFormat, ClientConfig, Credits, EmotionPreset, ErrorResponse, Gender, Limits,
-    ModelInfo, Output, OutputStream, PlanTier, PresetPrompt, Prompt, SmartPrompt,
-    SubscriptionResponse, TTSModel, TTSPrompt, TTSRequest, TTSRequestStream, TypecastClient,
-    TypecastError, UseCase, VoiceV2, VoicesV2Filter, DEFAULT_BASE_URL, DEFAULT_TIMEOUT_SECS,
+    GenerateToFileRequest, ModelInfo, Output, OutputStream, PlanTier, PresetPrompt, Prompt,
+    SmartPrompt, SubscriptionResponse, TTSModel, TTSPrompt, TTSRequest, TTSRequestStream,
+    TypecastClient, TypecastError, UseCase, VoiceV2, VoicesV2Filter, DEFAULT_BASE_URL,
+    DEFAULT_TIMEOUT_SECS,
 };
 
 // ---------------------------------------------------------------------------
@@ -629,6 +631,206 @@ async fn text_to_speech_handles_error_with_unparseable_body() {
     let req = TTSRequest::new("tc_x", "hi", TTSModel::SsfmV30);
     let err = client.text_to_speech(&req).await.unwrap_err();
     assert!(err.is_server_error());
+}
+
+#[tokio::test]
+async fn generate_to_file_infers_mp3_default_model_and_writes_file() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech")
+        .match_body(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::Regex(r#""model":"ssfm-v30""#.into()),
+            mockito::Matcher::Regex(r#""audio_format":"mp3""#.into()),
+            mockito::Matcher::Regex(r#""language":"eng""#.into()),
+            mockito::Matcher::Regex(r#""seed":7"#.into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "audio/mp3")
+        .with_body(b"MP3DATA")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let path = std::env::temp_dir().join(format!("typecast-rust-{}.mp3", std::process::id()));
+    let _ = fs::remove_file(&path);
+    let resp = client
+        .generate_to_file(
+            &path,
+            GenerateToFileRequest::new("tc_x", "hello")
+                .language("eng")
+                .prompt(PresetPrompt::new().emotion_preset(EmotionPreset::Happy))
+                .seed(7),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.format, AudioFormat::Mp3);
+    assert_eq!(fs::read(&path).unwrap(), b"MP3DATA");
+    let _ = fs::remove_file(path);
+}
+
+#[test]
+fn generate_to_file_request_new_validates_required_fields() {
+    assert!(std::panic::catch_unwind(|| GenerateToFileRequest::new("", "hello")).is_err());
+    assert!(std::panic::catch_unwind(|| GenerateToFileRequest::new("   ", "hello")).is_err());
+    assert!(std::panic::catch_unwind(|| GenerateToFileRequest::new("tc_x", "")).is_err());
+    assert!(std::panic::catch_unwind(|| GenerateToFileRequest::new("tc_x", "   ")).is_err());
+    let long_text = "가".repeat(2001);
+    assert!(std::panic::catch_unwind(|| GenerateToFileRequest::new("tc_x", long_text)).is_err());
+}
+
+#[tokio::test]
+async fn generate_to_file_keeps_explicit_output_and_covers_extensions() {
+    let mut server = Server::new_async().await;
+    let _m1 = server
+        .mock("POST", "/v1/text-to-speech")
+        .match_body(mockito::Matcher::Regex(r#""audio_format":"mp3""#.into()))
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(b"WAV")
+        .create_async()
+        .await;
+    let _m2 = server
+        .mock("POST", "/v1/text-to-speech")
+        .match_body(mockito::Matcher::Regex(r#""model":"ssfm-v21""#.into()))
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(b"WAV")
+        .create_async()
+        .await;
+    let _m3 = server
+        .mock("POST", "/v1/text-to-speech")
+        .match_body(mockito::Matcher::Regex(r#""audio_format":"wav""#.into()))
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(b"WAV")
+        .create_async()
+        .await;
+    let _m4 = server
+        .mock("POST", "/v1/text-to-speech")
+        .match_body(mockito::Matcher::Regex(r#""model":"ssfm-v30""#.into()))
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(b"WAV")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let wav_path = std::env::temp_dir().join(format!("typecast-rust-{}.wav", std::process::id()));
+    let bin_path = std::env::temp_dir().join(format!("typecast-rust-{}.bin", std::process::id()));
+    let no_extension_path =
+        std::env::temp_dir().join(format!("typecast-rust-noext-{}", std::process::id()));
+    let _ = fs::remove_file(&wav_path);
+    let _ = fs::remove_file(&bin_path);
+    let _ = fs::remove_file(&no_extension_path);
+
+    client
+        .generate_to_file(
+            &wav_path,
+            GenerateToFileRequest::new("tc_x", "hello")
+                .model(TTSModel::SsfmV21)
+                .output(Output::new().audio_format(AudioFormat::Mp3)),
+        )
+        .await
+        .unwrap();
+    client
+        .generate_to_file(
+            &bin_path,
+            GenerateToFileRequest::new("tc_x", "hello").model(TTSModel::SsfmV21),
+        )
+        .await
+        .unwrap();
+    client
+        .generate_to_file(
+            &wav_path,
+            GenerateToFileRequest::new("tc_x", "hello").output(Output::new()),
+        )
+        .await
+        .unwrap();
+    client
+        .generate_to_file(
+            &no_extension_path,
+            GenerateToFileRequest::new("tc_x", "hello"),
+        )
+        .await
+        .unwrap();
+
+    let _ = fs::remove_file(wav_path);
+    let _ = fs::remove_file(bin_path);
+    let _ = fs::remove_file(no_extension_path);
+
+    let request = GenerateToFileRequest::new("tc_x", "hello")
+        .model(TTSModel::SsfmV21)
+        .output(Output::new());
+    let tts = request.into_tts_request();
+    assert_eq!(tts.model, TTSModel::SsfmV21);
+    assert!(tts.output.unwrap().audio_format.is_none());
+}
+
+#[tokio::test]
+async fn generate_to_file_with_explicit_format_hits_no_inference_branch() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech")
+        .match_body(mockito::Matcher::Regex(r#""audio_format":"mp3""#.into()))
+        .with_status(200)
+        .with_header("content-type", "audio/mp3")
+        .with_body(b"MP3")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let path = std::env::temp_dir().join(format!("typecast-rust-explicit-{}.wav", std::process::id()));
+    let _ = fs::remove_file(&path);
+    client
+        .generate_to_file(
+            &path,
+            GenerateToFileRequest::new("tc_x", "hello")
+                .output(Output::new().audio_format(AudioFormat::Mp3)),
+        )
+        .await
+        .unwrap();
+    let _ = fs::remove_file(path);
+}
+
+#[tokio::test]
+async fn generate_to_file_propagates_api_and_write_errors() {
+    let mut server = Server::new_async().await;
+    let _m1 = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(401)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"detail":"bad key"}"#)
+        .create_async()
+        .await;
+    let _m2 = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(b"WAV")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let path = std::env::temp_dir().join(format!("typecast-rust-error-{}.wav", std::process::id()));
+    let err = client
+        .generate_to_file(
+            &path,
+            GenerateToFileRequest::new("tc_x", "hello"),
+        )
+        .await
+        .unwrap_err();
+    assert!(err.is_unauthorized());
+
+    let dir = std::env::temp_dir();
+    let err = client
+        .generate_to_file(
+            &dir,
+            GenerateToFileRequest::new("tc_x", "hello"),
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(err, TypecastError::IoError(_)));
 }
 
 // ---------------------------------------------------------------------------

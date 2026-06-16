@@ -221,6 +221,30 @@ public class TypecastClient {
     }
 
     /**
+     * Converts text to speech and saves the audio bytes to a file.
+     *
+     * @param filePath destination file path
+     * @param request  generate-to-file request with required voiceId and text
+     * @return the TTS response containing audio data
+     * @throws TypecastException if the API call or file write fails
+     */
+    public TTSResponse generateToFile(String filePath, GenerateToFileRequest request) {
+        if (filePath == null || filePath.isBlank()) {
+            throw new IllegalArgumentException("filePath is required");
+        }
+        if (request == null) {
+            throw new IllegalArgumentException("request cannot be null");
+        }
+        TTSResponse response = textToSpeech(request.toTTSRequest(filePath));
+        try {
+            Files.write(new File(filePath).toPath(), response.getAudioData());
+        } catch (IOException e) {
+            throw new TypecastException("Failed to write audio file", e);
+        }
+        return response;
+    }
+
+    /**
      * Converts text to speech and returns audio with word/character-level timestamps.
      *
      * <p>Calls {@code POST /v1/text-to-speech/with-timestamps}. An optional

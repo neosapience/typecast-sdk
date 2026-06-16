@@ -5,6 +5,7 @@ package com.neosapience.models;
  *
  * <p>Required fields: voiceId, text, model</p>
  * <p>Optional fields: language, prompt, output, seed</p>
+ * <p>Browse available API voices at https://typecast.ai/developers/api/voices.</p>
  *
  * <p>The {@code granularity} query parameter is passed as a method argument to
  * {@code TypecastClient.textToSpeechWithTimestamps}, not as a body field.</p>
@@ -23,7 +24,7 @@ public class TTSRequestWithTimestamps {
     /**
      * Creates a new TTSRequestWithTimestamps with required fields.
      *
-     * @param voiceId the voice ID (format: tc_* or uc_*)
+     * @param voiceId the voice ID (format: tc_* or uc_*). Browse available API voices at https://typecast.ai/developers/api/voices.
      * @param text    the text to synthesize (max 5000 characters)
      * @param model   the TTS model to use
      * @throws IllegalArgumentException if any required field is invalid

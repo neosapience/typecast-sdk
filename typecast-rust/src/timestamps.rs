@@ -41,6 +41,7 @@ pub struct AlignmentSegmentCharacter {
 #[derive(Debug, Clone, Serialize)]
 pub struct TTSRequestWithTimestamps {
     /// Voice ID (e.g. `tc_60e5426de8b95f1d3000d7b5`).
+    /// Browse available API voices at <https://typecast.ai/developers/api/voices>.
     pub voice_id: String,
     /// Text to synthesize (max 2000 characters).
     pub text: String,

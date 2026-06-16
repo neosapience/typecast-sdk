@@ -13,6 +13,8 @@ const MockServer = struct {
     response_content_type: []const u8 = "application/octet-stream",
     extra_headers: []const u8 = "",
     use_chunked: bool = false,
+    captured: [8192]u8 = undefined,
+    captured_len: usize = 0,
 
     fn init() !MockServer {
         const address = std.net.Address.initIp4(.{ 127, 0, 0, 1 }, 0);
@@ -49,6 +51,8 @@ const MockServer = struct {
             }
             if (header_end != null) break;
         }
+        self.captured_len = @min(total, self.captured.len);
+        @memcpy(self.captured[0..self.captured_len], buf[0..self.captured_len]);
 
         // Drain request body based on Content-Length header.
         if (header_end) |hend| {
@@ -121,6 +125,10 @@ const MockServer = struct {
         if (self.thread) |t| t.join();
     }
 
+    fn capturedRequest(self: *const MockServer) []const u8 {
+        return self.captured[0..self.captured_len];
+    }
+
     fn statusText(code: u16) []const u8 {
         return switch (code) {
             200 => "OK",
@@ -183,6 +191,51 @@ test "textToSpeech returns audio data" {
     try std.testing.expectEqualStrings(audio_bytes, response.audio_data);
     try std.testing.expectApproxEqAbs(2.5, response.duration, 0.01);
     try std.testing.expectEqual(models.AudioFormat.wav, response.format);
+}
+
+test "generateToFile validates path and infers uppercase mp3 extension" {
+    var url_buf: [64]u8 = undefined;
+    var client = Client.init(std.testing.allocator, .{
+        .api_key = "test-key",
+        .base_url = try baseUrlSlice(&url_buf, 1),
+    });
+    defer client.deinit();
+
+    try std.testing.expectError(error.InvalidPath, client.generateToFile("   ", .{
+        .text = "Hello",
+        .voice_id = "v1",
+    }));
+
+    var mock = try MockServer.init();
+    mock.response_status = 200;
+    mock.response_body = "MP3";
+    mock.response_content_type = "audio/mp3";
+    try mock.start();
+    defer mock.deinit();
+
+    const base_url = try baseUrlSlice(&url_buf, mock.getPort());
+    client.base_url = base_url;
+
+    var path_buf: [128]u8 = undefined;
+    const path = try std.fmt.bufPrint(
+        &path_buf,
+        "/tmp/typecast-zig-{d}.MP3",
+        .{std.process.getpid()},
+    );
+    std.fs.cwd().deleteFile(path) catch {};
+    defer std.fs.cwd().deleteFile(path) catch {};
+
+    const response = try client.generateToFile(path, .{
+        .text = "Hello",
+        .voice_id = "v1",
+    });
+    defer std.testing.allocator.free(response.audio_data);
+
+    const written = try std.fs.cwd().readFileAlloc(std.testing.allocator, path, 16);
+    defer std.testing.allocator.free(written);
+    try std.testing.expectEqualStrings("MP3", written);
+    const captured = mock.capturedRequest();
+    try std.testing.expect(std.mem.indexOf(u8, captured, "\"audio_format\":\"mp3\"") != null);
 }
 
 test "textToSpeechStream calls callback with chunks" {

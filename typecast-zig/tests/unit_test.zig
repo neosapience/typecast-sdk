@@ -100,7 +100,7 @@ test "Output default values" {
     try testing.expectEqual(@as(?f64, null), output.target_lufs);
     try testing.expectEqual(@as(?i32, 0), output.audio_pitch);
     try testing.expectEqual(@as(?f64, 1.0), output.audio_tempo);
-    try testing.expectEqual(models.AudioFormat.wav, output.audio_format);
+    try testing.expectEqual(@as(?models.AudioFormat, null), output.audio_format);
 }
 
 // ── OutputStream defaults and field checks ─────────────────────────────

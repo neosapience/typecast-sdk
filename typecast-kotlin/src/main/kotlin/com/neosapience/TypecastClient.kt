@@ -130,6 +130,20 @@ class TypecastClient private constructor(
     }
 
     /**
+     * Converts text to speech and saves the audio bytes to a file.
+     *
+     * @param filePath destination file path
+     * @param request request with required voiceId and text
+     * @return the TTS response containing audio data
+     */
+    fun generateToFile(filePath: String, request: GenerateToFileRequest): TTSResponse {
+        require(filePath.isNotBlank()) { "filePath is required" }
+        val response = textToSpeech(request.toTTSRequest(filePath))
+        Files.write(File(filePath).toPath(), response.audioData)
+        return response
+    }
+
+    /**
      * Streams synthesized audio from `POST /v1/text-to-speech/stream`.
      *
      * Returns an [InputStream] that yields the chunked binary audio body

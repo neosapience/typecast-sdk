@@ -18,7 +18,9 @@ class TypecastClient {
     this.requestTimeout = const Duration(seconds: 30),
   })  : apiKey = _resolveApiKey(apiKey),
         baseUrl = _normalizeBaseUrl(
-          baseUrl ?? Platform.environment['TYPECAST_API_HOST'] ?? defaultBaseUrl,
+          baseUrl ??
+              Platform.environment['TYPECAST_API_HOST'] ??
+              defaultBaseUrl,
         ),
         _httpClient = httpClient ?? http.Client() {
     if (this.apiKey.isEmpty && _isDefaultBaseUrl(this.baseUrl)) {
@@ -49,6 +51,18 @@ class TypecastClient {
           ? AudioFormat.mp3
           : AudioFormat.wav,
     );
+  }
+
+  Future<TtsResponse> generateToFile(
+    String path,
+    GenerateToFileRequest request,
+  ) async {
+    if (path.trim().isEmpty) {
+      throw ArgumentError('path must not be empty');
+    }
+    final response = await textToSpeech(request.toTtsRequest(path));
+    await File(path).writeAsBytes(response.audioData);
+    return response;
   }
 
   Future<Stream<List<int>>> textToSpeechStream(TtsRequestStream request) async {

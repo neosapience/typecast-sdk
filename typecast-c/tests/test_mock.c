@@ -713,6 +713,105 @@ static void test_tts_with_output_lufs(void) {
     typecast_client_destroy(c);
 }
 
+static void test_generate_to_file_infers_mp3_and_writes_file(void) {
+    TypecastClient* c = new_client();
+    const char* audio = "MP3DATA";
+    mock_enqueue_text(200, NULL, audio);
+
+    char path[256];
+    snprintf(path, sizeof(path), "/tmp/typecast-generate-%d.mp3", (int)getpid());
+    unlink(path);
+
+    TypecastGenerateToFileRequest req = {0};
+    req.text = "hello file";
+    req.voice_id = "tc_file";
+
+    TypecastErrorCode rc = typecast_generate_to_file(c, path, &req);
+    ASSERT_EQ(rc, TYPECAST_OK);
+    ASSERT(strstr(g_server.last_body, "\"model\":\"ssfm-v30\"") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"audio_format\":\"mp3\"") != NULL);
+
+    FILE* f = fopen(path, "rb");
+    ASSERT_NOT_NULL(f);
+    char buf[16] = {0};
+    size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    unlink(path);
+    ASSERT_EQ(n, strlen(audio));
+    ASSERT_STREQ(buf, audio);
+
+    typecast_client_destroy(c);
+}
+
+static void test_generate_to_file_validation_and_explicit_output(void) {
+    ASSERT_EQ(typecast_generate_to_file(NULL, "x.wav", NULL), TYPECAST_ERROR_INVALID_PARAM);
+
+    TypecastClient* c = new_client();
+    TypecastGenerateToFileRequest req = {0};
+    ASSERT_EQ(typecast_generate_to_file(c, "x.wav", NULL), TYPECAST_ERROR_INVALID_PARAM);
+    req.text = "hello";
+    ASSERT_EQ(typecast_generate_to_file(c, NULL, &req), TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT_EQ(typecast_generate_to_file(c, "x.wav", &req), TYPECAST_ERROR_INVALID_PARAM);
+    req.text = NULL;
+    req.voice_id = "tc_file";
+    ASSERT_EQ(typecast_generate_to_file(c, "x.wav", &req), TYPECAST_ERROR_INVALID_PARAM);
+    req.text = "   ";
+    ASSERT_EQ(typecast_generate_to_file(c, "x.wav", &req), TYPECAST_ERROR_INVALID_PARAM);
+    req.text = "hello";
+    req.voice_id = "   ";
+    ASSERT_EQ(typecast_generate_to_file(c, "x.wav", &req), TYPECAST_ERROR_INVALID_PARAM);
+
+    TypecastOutput out = TYPECAST_OUTPUT_DEFAULT();
+    out.audio_format = TYPECAST_AUDIO_FORMAT_WAV;
+    req.text = "hello";
+    req.voice_id = "tc_file";
+    req.output = &out;
+    req.use_model = 1;
+    req.model = TYPECAST_MODEL_SSFM_V21;
+
+    mock_enqueue_text(200, NULL, "WAV");
+    char path[256];
+    snprintf(path, sizeof(path), "/tmp/typecast-generate-%d.wav", (int)getpid());
+    unlink(path);
+    TypecastErrorCode rc = typecast_generate_to_file(c, path, &req);
+    unlink(path);
+    ASSERT_EQ(rc, TYPECAST_OK);
+    ASSERT(strstr(g_server.last_body, "\"model\":\"ssfm-v21\"") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"audio_format\":\"wav\"") != NULL);
+
+    typecast_client_destroy(c);
+}
+
+static void test_generate_to_file_infers_wav_and_handles_errors(void) {
+    TypecastClient* c = new_client();
+    TypecastGenerateToFileRequest req = {0};
+    req.text = "hello";
+    req.voice_id = "tc_file";
+
+    ASSERT_EQ(typecast_generate_to_file(c, "/tmp", &req), TYPECAST_ERROR_INVALID_PARAM);
+
+    mock_enqueue_text(200, NULL, "WAV");
+    char wav_path[256];
+    snprintf(wav_path, sizeof(wav_path), "/tmp/typecast-generate-%d-infer.wav", (int)getpid());
+    unlink(wav_path);
+    ASSERT_EQ(typecast_generate_to_file(c, wav_path, &req), TYPECAST_OK);
+    unlink(wav_path);
+    ASSERT(strstr(g_server.last_body, "\"audio_format\":\"wav\"") != NULL);
+
+    mock_enqueue_text(200, NULL, "RAW");
+    char raw_path[256];
+    snprintf(raw_path, sizeof(raw_path), "/tmp/typecast-generate-%d-noext", (int)getpid());
+    unlink(raw_path);
+    ASSERT_EQ(typecast_generate_to_file(c, raw_path, &req), TYPECAST_OK);
+    unlink(raw_path);
+    ASSERT(strstr(g_server.last_body, "\"audio_format\"") == NULL);
+
+    mock_enqueue_text(401, NULL, "{\"detail\":\"bad\"}");
+    ASSERT_EQ(typecast_generate_to_file(c, raw_path, &req), TYPECAST_ERROR_UNAUTHORIZED);
+
+    typecast_client_destroy(c);
+}
+
 static void test_tts_prompt_preset(void) {
     TypecastClient* c = new_client();
     mock_enqueue_text(200, NULL, "AUDIO");
@@ -1682,6 +1781,9 @@ int main(void) {
     RUN(tts_proxy_without_api_key_omits_header);
     RUN(tts_with_output_volume_mp3);
     RUN(tts_with_output_lufs);
+    RUN(generate_to_file_infers_mp3_and_writes_file);
+    RUN(generate_to_file_validation_and_explicit_output);
+    RUN(generate_to_file_infers_wav_and_handles_errors);
     RUN(tts_prompt_preset);
     RUN(tts_prompt_smart);
     RUN(tts_prompt_smart_no_context);

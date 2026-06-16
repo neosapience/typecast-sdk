@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from typing import AsyncIterator, BinaryIO, Optional, Union
 from urllib.parse import quote
@@ -11,6 +12,8 @@ from ._voice_clone import (
     validate_custom_voice_id,
 )
 from .client import _guess_audio_mime
+from .client import _output_with_inferred_format
+from .client import _validate_output_path
 from .exceptions import (
     BadRequestError,
     InternalServerError,
@@ -23,8 +26,11 @@ from .exceptions import (
 )
 from .models import (
     CustomVoice,
+    LanguageCode,
+    Output,
     SubscriptionResponse,
     TTSModel,
+    TTSPrompt,
     TTSRequest,
     TTSRequestStream,
     TTSRequestWithTimestamps,
@@ -140,6 +146,38 @@ class AsyncTypecast:
                 duration=float(response.headers.get("X-Audio-Duration", 0)),
                 format=response.headers.get("Content-Type", "audio/wav").split("/")[-1],
             )
+
+    async def generate_to_file(
+        self,
+        path: Union[str, Path],
+        *,
+        text: str,
+        voice_id: str,
+        model: TTSModel = TTSModel.SSFM_V30,
+        language: Optional[Union[LanguageCode, str]] = None,
+        prompt: Optional[TTSPrompt] = None,
+        output: Optional[Output] = None,
+        seed: Optional[int] = None,
+    ) -> TTSResponse:
+        """Convert text to speech and write the audio bytes to a file.
+
+        Browse available API voices at
+        ``https://typecast.ai/developers/api/voices``.
+        """
+        output_path = _validate_output_path(path)
+        response = await self.text_to_speech(
+            TTSRequest(
+                text=text,
+                voice_id=voice_id,
+                model=model,
+                language=language,
+                prompt=prompt,
+                output=_output_with_inferred_format(output, path),
+                seed=seed,
+            )
+        )
+        await asyncio.to_thread(output_path.write_bytes, response.audio_data)
+        return response
 
     async def text_to_speech_stream(
         self, request: TTSRequestStream, chunk_size: int = 8192

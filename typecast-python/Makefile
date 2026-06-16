@@ -28,7 +28,7 @@ test-watch: ## Run tests in watch mode
 	uv run pytest-watch tests/
 
 coverage: ## Run unit tests with 100% coverage gate
-	uv run pytest tests/unit --cov=src/typecast --cov-report=term-missing --cov-report=html --cov-report=xml
+	uv run python -m pytest tests/unit --cov=src/typecast --cov-report=term-missing --cov-report=html --cov-report=xml
 
 e2e: ## Run e2e tests (requires TYPECAST_API_KEY)
 	uv run pytest tests/e2e -v
@@ -117,7 +117,7 @@ ci-lint: ## Run linters in CI
 	uv run mypy src/ --junit-xml=test-reports/mypy.xml
 
 ci-test: ## Run tests in CI with coverage
-	uv run pytest tests/ -v --junitxml=test-reports/pytest.xml --cov=src/typecast --cov-report=xml --cov-report=html
+	uv run python -m pytest tests/ -v --junitxml=test-reports/pytest.xml --cov=src/typecast --cov-report=xml --cov-report=html
 
 ci-build: ## Build package in CI
 	uv build

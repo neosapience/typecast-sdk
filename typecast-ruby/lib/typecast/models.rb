@@ -90,6 +90,7 @@ module Typecast
     class TTSRequest
       attr_reader :voice_id, :text, :model, :language, :prompt, :output, :seed
 
+      # Browse available API voices at https://typecast.ai/developers/api/voices.
       def initialize(voice_id:, text:, model:, language: nil, prompt: nil, output: nil, seed: nil)
         @voice_id = voice_id
         @text = text

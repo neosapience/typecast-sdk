@@ -444,15 +444,3 @@ func (c *Client) DeleteVoice(ctx context.Context, voiceID string) error {
 	}
 	return nil
 }
-
-// guessAudioMime returns a MIME type based on the audio filename extension.
-func guessAudioMime(filename string) string {
-	lower := strings.ToLower(filename)
-	if strings.HasSuffix(lower, ".wav") {
-		return "audio/wav"
-	}
-	if strings.HasSuffix(lower, ".mp3") {
-		return "audio/mpeg"
-	}
-	return "application/octet-stream"
-}

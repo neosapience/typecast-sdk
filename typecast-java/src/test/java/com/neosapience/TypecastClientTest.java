@@ -8,6 +8,8 @@ import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.*;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -203,6 +205,148 @@ class TypecastClientTest {
         assertTrue(body.contains("\"audio_pitch\":2"));
         assertTrue(body.contains("\"audio_tempo\":1.2"));
         assertTrue(body.contains("\"audio_format\":\"mp3\""));
+    }
+
+    @Test
+    @DisplayName("generateToFile should infer mp3, default model, and write file")
+    void generateToFile_infersMp3AndWritesFile() throws Exception {
+        byte[] audioBytes = new byte[]{0x01, 0x02, 0x03};
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/mp3")
+                .setHeader("X-Audio-Duration", "1.25")
+                .setBody(new okio.Buffer().write(audioBytes)));
+        Path output = Files.createTempFile("typecast-java-", ".mp3");
+        Files.deleteIfExists(output);
+
+        try {
+            TTSResponse response = client.generateToFile(
+                    output.toString(),
+                    new GenerateToFileRequest("tc_test", "Hello")
+                            .setLanguage(LanguageCode.ENG)
+                            .setPrompt(Prompt.builder().emotionPreset(EmotionPreset.NORMAL).build())
+                            .setSeed(7)
+            );
+
+            assertEquals("mp3", response.getFormat());
+            assertArrayEquals(audioBytes, Files.readAllBytes(output));
+            String body = mockServer.takeRequest().getBody().readUtf8();
+            assertTrue(body.contains("\"model\":\"ssfm-v30\""));
+            assertTrue(body.contains("\"audio_format\":\"mp3\""));
+            assertTrue(body.contains("\"language\":\"eng\""));
+            assertTrue(body.contains("\"seed\":7"));
+        } finally {
+            Files.deleteIfExists(output);
+        }
+    }
+
+    @Test
+    @DisplayName("generateToFile should keep explicit output and validate arguments")
+    void generateToFile_keepsExplicitOutputAndValidates() throws Exception {
+        assertThrows(IllegalArgumentException.class,
+                () -> client.generateToFile("", new GenerateToFileRequest("tc_test", "Hello")));
+        assertThrows(IllegalArgumentException.class,
+                () -> client.generateToFile(null, new GenerateToFileRequest("tc_test", "Hello")));
+        assertThrows(IllegalArgumentException.class,
+                () -> client.generateToFile("out.wav", null));
+
+        byte[] audioBytes = new byte[]{0x04};
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(new okio.Buffer().write(audioBytes)));
+        Path output = Files.createTempFile("typecast-java-", ".wav");
+        Files.deleteIfExists(output);
+
+        try {
+            client.generateToFile(
+                    output.toString(),
+                    GenerateToFileRequest.builder()
+                            .voiceId("tc_test")
+                            .text("Hello")
+                            .model(TTSModel.SSFM_V21)
+                            .prompt(PresetPrompt.builder().emotionPreset(EmotionPreset.HAPPY).build())
+                            .output(Output.builder().audioFormat(AudioFormat.MP3).build())
+                            .build()
+            );
+            String body = mockServer.takeRequest().getBody().readUtf8();
+            assertTrue(body.contains("\"model\":\"ssfm-v21\""));
+            assertTrue(body.contains("\"audio_format\":\"mp3\""));
+            assertTrue(body.contains("\"emotion_type\":\"preset\""));
+        } finally {
+            Files.deleteIfExists(output);
+        }
+
+        TTSRequest wav = new GenerateToFileRequest("tc_test", "Hello").toTTSRequest("x.WAV");
+        assertEquals(AudioFormat.WAV, wav.getOutput().getAudioFormat());
+        TTSRequest nullPath = new GenerateToFileRequest("tc_test", "Hello", TTSModel.SSFM_V21)
+                .toTTSRequest(null);
+        assertEquals(TTSModel.SSFM_V21, nullPath.getModel());
+        assertNull(nullPath.getOutput());
+        TTSRequest nullModel = new GenerateToFileRequest("tc_test", "Hello", null)
+                .toTTSRequest("x.bin");
+        assertEquals(TTSModel.SSFM_V30, nullModel.getModel());
+        TTSRequest unknown = new GenerateToFileRequest("tc_test", "Hello").toTTSRequest("x.bin");
+        assertNull(unknown.getOutput());
+        TTSRequest basic = new GenerateToFileRequest("tc_test", "Hello")
+                .setPrompt(Prompt.builder().emotionPreset(EmotionPreset.NORMAL).build())
+                .setOutput(Output.builder().audioFormat(AudioFormat.WAV).build())
+                .toTTSRequest("x.bin");
+        assertNotNull(basic.getPrompt());
+        Output partialOutput = Output.builder().audioTempo(1.2).build().setAudioFormat(null);
+        TTSRequest partial = new GenerateToFileRequest("tc_test", "Hello")
+                .setOutput(partialOutput)
+                .toTTSRequest("x.mp3");
+        assertSame(partialOutput, partial.getOutput());
+        assertEquals(AudioFormat.MP3, partial.getOutput().getAudioFormat());
+        Output partialUnknownOutput = Output.builder().audioTempo(1.1).build().setAudioFormat(null);
+        TTSRequest partialUnknown = new GenerateToFileRequest("tc_test", "Hello")
+                .setOutput(partialUnknownOutput)
+                .toTTSRequest("x.bin");
+        assertSame(partialUnknownOutput, partialUnknown.getOutput());
+        assertNull(partialUnknown.getOutput().getAudioFormat());
+        TTSRequest presetSetter = new GenerateToFileRequest("tc_test", "Hello")
+                .setPrompt(PresetPrompt.builder().emotionPreset(EmotionPreset.HAPPY).build())
+                .toTTSRequest("x.bin");
+        assertNotNull(presetSetter.getPrompt());
+        TTSRequest smartSetter = new GenerateToFileRequest("tc_test", "Hello")
+                .setPrompt(SmartPrompt.builder().previousText("before").build())
+                .toTTSRequest("x.bin");
+        assertNotNull(smartSetter.getPrompt());
+        TTSRequest smart = GenerateToFileRequest.builder()
+                .voiceId("tc_test")
+                .text("Hello")
+                .language(LanguageCode.ENG)
+                .prompt(SmartPrompt.builder().previousText("before").build())
+                .seed(3)
+                .build()
+                .toTTSRequest("x.bin");
+        assertNotNull(smart.getPrompt());
+        TTSRequest builderBasic = GenerateToFileRequest.builder()
+                .voiceId("tc_test")
+                .text("Hello")
+                .prompt(Prompt.builder().emotionPreset(EmotionPreset.NORMAL).build())
+                .build()
+                .toTTSRequest("x.bin");
+        assertNotNull(builderBasic.getPrompt());
+
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(new okio.Buffer().write(audioBytes)));
+        Path directory = Files.createTempDirectory("typecast-java-dir-");
+        try {
+            TypecastException exception = assertThrows(
+                    TypecastException.class,
+                    () -> client.generateToFile(
+                            directory.toString(),
+                            new GenerateToFileRequest("tc_test", "Hello")
+                    )
+            );
+            assertTrue(exception.getMessage().contains("Failed to write audio file"));
+        } finally {
+            Files.deleteIfExists(directory);
+        }
     }
 
     @Test

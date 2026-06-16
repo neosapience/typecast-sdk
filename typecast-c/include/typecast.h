@@ -219,13 +219,28 @@ typedef struct {
  */
 typedef struct {
     const char* text;        /* Required: Text to convert (max 2000 chars) */
-    const char* voice_id;    /* Required: Voice ID (e.g., "tc_xxx") */
+    const char* voice_id;    /* Required: Voice ID. Browse at https://typecast.ai/developers/api/voices */
     TypecastModel model;     /* Required: ssfm-v21 or ssfm-v30 */
     const char* language;    /* Optional: ISO 639-3 code (e.g., "eng", "kor") */
     TypecastPrompt* prompt;  /* Optional: Emotion settings */
     TypecastOutput* output;  /* Optional: Audio output settings */
     int seed;                /* Optional: Random seed (0 = not set) */
 } TypecastTTSRequest;
+
+/**
+ * Convenience request for generating speech directly to a file.
+ * Set use_model to 0 to default to ssfm-v30.
+ */
+typedef struct {
+    const char* text;        /* Required: Text to convert */
+    const char* voice_id;    /* Required: Voice ID. Browse at https://typecast.ai/developers/api/voices */
+    TypecastModel model;     /* Optional when use_model = 0 */
+    int use_model;           /* 0 = default ssfm-v30, 1 = use model */
+    const char* language;    /* Optional: ISO 639-3 code */
+    TypecastPrompt* prompt;  /* Optional: Emotion settings */
+    TypecastOutput* output;  /* Optional: Audio output settings */
+    int seed;                /* Optional: Random seed (0 = not set) */
+} TypecastGenerateToFileRequest;
 
 /* ============================================
  * Timestamp TTS Structures
@@ -247,7 +262,7 @@ typedef struct {
  */
 typedef struct {
     const char* text;        /* Required: Text to convert (max 2000 chars) */
-    const char* voice_id;    /* Required: Voice ID */
+    const char* voice_id;    /* Required: Voice ID. Browse at https://typecast.ai/developers/api/voices */
     TypecastModel model;     /* Required: ssfm-v21 or ssfm-v30 */
     const char* language;    /* Optional: ISO 639-3 code */
     TypecastPrompt* prompt;  /* Optional: Emotion settings */
@@ -290,7 +305,7 @@ typedef struct {
  */
 typedef struct {
     const char* text;                /* Required: Text to convert (max 2000 chars) */
-    const char* voice_id;            /* Required: Voice ID (e.g., "tc_xxx") */
+    const char* voice_id;            /* Required: Voice ID. Browse at https://typecast.ai/developers/api/voices */
     TypecastModel model;             /* Required: ssfm-v21 or ssfm-v30 */
     const char* language;            /* Optional: ISO 639-3 code */
     TypecastPrompt* prompt;          /* Optional: Emotion settings */
@@ -447,6 +462,20 @@ TYPECAST_API const TypecastError* typecast_client_get_error(
 TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
     TypecastClient* client,
     const TypecastTTSRequest* request
+);
+
+/**
+ * Convert text to speech and write the audio bytes to a file.
+ *
+ * @param client Pointer to TypecastClient
+ * @param file_path Destination file path
+ * @param request Pointer to GenerateToFileRequest
+ * @return TYPECAST_OK on success, otherwise an error code
+ */
+TYPECAST_API TypecastErrorCode typecast_generate_to_file(
+    TypecastClient* client,
+    const char* file_path,
+    const TypecastGenerateToFileRequest* request
 );
 
 /**
@@ -818,6 +847,9 @@ TYPECAST_API const char* typecast_error_message(TypecastErrorCode code);
 #include <vector>
 #include <memory>
 #include <stdexcept>
+#include <fstream>
+#include <algorithm>
+#include <cctype>
 
 namespace typecast {
 
@@ -858,8 +890,21 @@ struct Prompt {
 
 struct TTSRequest {
     std::string text;
+    /* Browse available API voices at https://typecast.ai/developers/api/voices. */
     std::string voiceId;
     Model model = Model::SSFM_V30;
+    std::string language;
+    Prompt prompt;
+    Output output;
+    int seed = 0;
+};
+
+struct GenerateToFileRequest {
+    std::string text;
+    /* Browse available API voices at https://typecast.ai/developers/api/voices. */
+    std::string voiceId;
+    Model model = Model::SSFM_V30;
+    bool useModel = false;
     std::string language;
     Prompt prompt;
     Output output;
@@ -922,7 +967,7 @@ public:
     }
 
     TTSResponse textToSpeech(const TTSRequest& request) {
-        TypecastTTSRequest req = {0};
+        TypecastTTSRequest req = {};
         req.text = request.text.c_str();
         req.voice_id = request.voiceId.c_str();
         req.model = static_cast<TypecastModel>(request.model);
@@ -931,7 +976,7 @@ public:
             req.language = request.language.c_str();
         }
 
-        TypecastPrompt prompt = {0};
+        TypecastPrompt prompt = {};
         prompt.emotion_preset = static_cast<TypecastEmotionPreset>(
             request.prompt.emotionPreset);
         prompt.emotion_intensity = request.prompt.emotionIntensity;
@@ -948,7 +993,7 @@ public:
         }
         req.prompt = &prompt;
 
-        TypecastOutput output = {0};
+        TypecastOutput output = {};
         output.volume = request.output.volume;
         output.audio_pitch = request.output.audioPitch;
         output.audio_tempo = request.output.audioTempo;
@@ -971,6 +1016,39 @@ public:
 
         typecast_tts_response_free(resp);
         return result;
+    }
+
+    TTSResponse generateToFile(const std::string& filePath, const GenerateToFileRequest& request) {
+        TTSRequest ttsRequest;
+        ttsRequest.text = request.text;
+        ttsRequest.voiceId = request.voiceId;
+        ttsRequest.model = request.useModel ? request.model : Model::SSFM_V30;
+        ttsRequest.language = request.language;
+        ttsRequest.prompt = request.prompt;
+        ttsRequest.output = request.output;
+        ttsRequest.seed = request.seed;
+
+        if (filePath.size() >= 4) {
+            std::string ext = filePath.substr(filePath.size() - 4);
+            std::transform(ext.begin(), ext.end(), ext.begin(),
+                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            if (ext == ".mp3") {
+                ttsRequest.output.audioFormat = AudioFormat::MP3;
+            } else if (ext == ".wav") {
+                ttsRequest.output.audioFormat = AudioFormat::WAV;
+            }
+        }
+
+        TTSResponse response = textToSpeech(ttsRequest);
+        std::ofstream out(filePath, std::ios::binary);
+        if (!out) {
+            throw TypecastException(TYPECAST_ERROR_INVALID_PARAM, "Failed to open output file");
+        }
+        out.write(reinterpret_cast<const char*>(response.audioData.data()), response.audioData.size());
+        if (!out) {
+            throw TypecastException(TYPECAST_ERROR_NETWORK, "Failed to write output file");
+        }
+        return response;
     }
 
     std::vector<Voice> getVoices() {

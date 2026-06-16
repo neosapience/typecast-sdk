@@ -130,6 +130,59 @@ class TestSyncClient:
         response = client.text_to_speech(sample_request)
         assert response.format == "mp3"
 
+    def test_generate_to_file_defaults_model_and_infers_mp3(self, client, tmp_path, mocker):
+        mock_resp = self._mock_response(
+            mocker,
+            content=b"mp3-data",
+            headers={"X-Audio-Duration": "2.0", "Content-Type": "audio/mp3"},
+        )
+        post_mock = mocker.patch.object(client.session, "post", return_value=mock_resp)
+        output_path = tmp_path / "speech.mp3"
+
+        response = client.generate_to_file(output_path, text="Hello", voice_id="tc_test")
+
+        assert output_path.read_bytes() == b"mp3-data"
+        assert response.format == "mp3"
+        body = post_mock.call_args.kwargs["json"]
+        assert body["model"] == "ssfm-v30"
+        assert body["output"]["audio_format"] == "mp3"
+
+    def test_generate_to_file_infers_wav_and_keeps_explicit_output(self, client, tmp_path, mocker):
+        mock_resp = self._mock_response(mocker)
+        post_mock = mocker.patch.object(client.session, "post", return_value=mock_resp)
+
+        client.generate_to_file(tmp_path / "speech.wav", text="Hello", voice_id="tc_test")
+        client.generate_to_file(
+            tmp_path / "speech.mp3",
+            text="Hello",
+            voice_id="tc_test",
+            output=Output(audio_format="wav"),
+        )
+        client.generate_to_file(
+            tmp_path / "speech.mp3",
+            text="Hello",
+            voice_id="tc_test",
+            output=Output(audio_format=None),
+        )
+        client.generate_to_file(tmp_path / "speech", text="Hello", voice_id="tc_test")
+
+        wav_body = post_mock.call_args_list[0].kwargs["json"]
+        explicit_body = post_mock.call_args_list[1].kwargs["json"]
+        inferred_existing_body = post_mock.call_args_list[2].kwargs["json"]
+        unknown_body = post_mock.call_args_list[3].kwargs["json"]
+        assert wav_body["output"]["audio_format"] == "wav"
+        assert explicit_body["output"]["audio_format"] == "wav"
+        assert inferred_existing_body["output"]["audio_format"] == "mp3"
+        assert "output" not in unknown_body
+
+    def test_generate_to_file_rejects_blank_path_before_request(self, client, mocker):
+        post_mock = mocker.patch.object(client.session, "post")
+
+        with pytest.raises(ValueError, match="path cannot be empty"):
+            client.generate_to_file("   ", text="Hello", voice_id="tc_test")
+
+        post_mock.assert_not_called()
+
     @pytest.mark.parametrize("status,exc_name", [
         (400, "BadRequestError"), (401, "UnauthorizedError"), (402, "PaymentRequiredError"),
         (404, "NotFoundError"), (422, "UnprocessableEntityError"), (429, "RateLimitError"),

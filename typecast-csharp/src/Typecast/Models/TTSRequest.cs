@@ -17,6 +17,7 @@ public class TTSRequest
 
     /// <summary>
     /// The voice ID to use for synthesis.
+    /// Browse available API voices at https://typecast.ai/developers/api/voices.
     /// </summary>
     [JsonPropertyName("voice_id")]
     public string VoiceId { get; set; } = string.Empty;
@@ -65,7 +66,7 @@ public class TTSRequest
     /// Creates a new TTSRequest with required parameters.
     /// </summary>
     /// <param name="text">The text to synthesize</param>
-    /// <param name="voiceId">The voice ID to use</param>
+    /// <param name="voiceId">The voice ID to use. Browse available API voices at https://typecast.ai/developers/api/voices.</param>
     /// <param name="model">The TTS model to use</param>
     public TTSRequest(string text, string voiceId, TTSModel model)
     {

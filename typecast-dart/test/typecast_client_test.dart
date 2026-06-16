@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -62,6 +63,75 @@ void main() {
         ),
         throwsA(isA<BadRequestException>()),
       );
+    });
+
+    test('generateToFile infers format, defaults model, and writes file', () async {
+      final tempDir = await Directory.systemTemp.createTemp('typecast-dart-');
+      final outputFile = File('${tempDir.path}/speech.mp3');
+      final client = TypecastClient(
+        apiKey: 'key',
+        baseUrl: 'https://api.test',
+        httpClient: MockClient((request) async {
+          expect(request.method, 'POST');
+          expect(request.url.path, '/v1/text-to-speech');
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['model'], 'ssfm-v30');
+          expect(body['output']['audio_format'], 'mp3');
+          return http.Response.bytes(
+            [4, 5, 6],
+            200,
+            headers: {'content-type': 'audio/mp3'},
+          );
+        }),
+      );
+
+      try {
+        final response = await client.generateToFile(
+          outputFile.path,
+          const GenerateToFileRequest(
+            text: 'Hello',
+            voiceId: 'tc_123',
+          ),
+        );
+
+        expect(response.format, AudioFormat.mp3);
+        expect(await outputFile.readAsBytes(), [4, 5, 6]);
+      } finally {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    test('generateToFile keeps explicit output and handles unknown extension', () async {
+      final tempDir = await Directory.systemTemp.createTemp('typecast-dart-');
+      final bodies = <Map<String, dynamic>>[];
+      final client = TypecastClient(
+        apiKey: 'key',
+        baseUrl: 'https://api.test',
+        httpClient: MockClient((request) async {
+          bodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+          return http.Response.bytes([1], 200);
+        }),
+      );
+
+      try {
+        await client.generateToFile(
+          '${tempDir.path}/speech.wav',
+          const GenerateToFileRequest(
+            text: 'Hello',
+            voiceId: 'tc_123',
+            output: Output(audioFormat: AudioFormat.mp3),
+          ),
+        );
+        await client.generateToFile(
+          '${tempDir.path}/speech',
+          const GenerateToFileRequest(text: 'Hello', voiceId: 'tc_123'),
+        );
+
+        expect(bodies[0]['output']['audio_format'], 'mp3');
+        expect(bodies[1].containsKey('output'), isFalse);
+      } finally {
+        await tempDir.delete(recursive: true);
+      }
     });
 
     test('getMySubscription parses subscription response', () async {

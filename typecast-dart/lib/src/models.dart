@@ -160,6 +160,9 @@ class TtsRequest {
     this.seed,
   });
 
+  /// Voice ID for synthesis.
+  ///
+  /// Browse available API voices at https://typecast.ai/developers/api/voices.
   final String voiceId;
   final String text;
   final TtsModel model;
@@ -179,6 +182,50 @@ class TtsRequest {
       });
 }
 
+class GenerateToFileRequest {
+  const GenerateToFileRequest({
+    required this.voiceId,
+    required this.text,
+    this.model = TtsModel.ssfmV30,
+    this.language,
+    this.prompt,
+    this.output,
+    this.seed,
+  });
+
+  /// Voice ID for synthesis.
+  ///
+  /// Browse available API voices at https://typecast.ai/developers/api/voices.
+  final String voiceId;
+  final String text;
+  final TtsModel model;
+  final LanguageCode? language;
+  final Object? prompt;
+  final Output? output;
+  final int? seed;
+
+  TtsRequest toTtsRequest(String path) => TtsRequest(
+        voiceId: voiceId,
+        text: text,
+        model: model,
+        language: language,
+        prompt: prompt,
+        output: output ?? _inferOutput(path),
+        seed: seed,
+      );
+
+  Output? _inferOutput(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.mp3')) {
+      return const Output(audioFormat: AudioFormat.mp3);
+    }
+    if (lower.endsWith('.wav')) {
+      return const Output(audioFormat: AudioFormat.wav);
+    }
+    return null;
+  }
+}
+
 class TtsRequestStream {
   const TtsRequestStream({
     required this.voiceId,
@@ -190,6 +237,9 @@ class TtsRequestStream {
     this.seed,
   });
 
+  /// Voice ID for synthesis.
+  ///
+  /// Browse available API voices at https://typecast.ai/developers/api/voices.
   final String voiceId;
   final String text;
   final TtsModel model;

@@ -9,6 +9,7 @@ package com.neosapience.models;
  *
  * <p>Required fields: voiceId, text, model</p>
  * <p>Optional fields: language, prompt, output, seed</p>
+ * <p>Browse available API voices at https://typecast.ai/developers/api/voices.</p>
  */
 public class TTSRequestStream {
     private static final int MAX_TEXT_LENGTH = 5000;
@@ -24,7 +25,7 @@ public class TTSRequestStream {
     /**
      * Creates a new TTSRequestStream with required fields.
      *
-     * @param voiceId the voice ID (format: tc_* or uc_*)
+     * @param voiceId the voice ID (format: tc_* or uc_*). Browse available API voices at https://typecast.ai/developers/api/voices.
      * @param text    the text to synthesize (max 5000 characters)
      * @param model   the TTS model to use
      * @throws IllegalArgumentException if any required field is invalid

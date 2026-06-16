@@ -2,6 +2,7 @@ package typecast
 
 import (
 	"fmt"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -146,7 +147,8 @@ type SmartPrompt struct {
 
 // TTSRequest represents a text-to-speech request
 type TTSRequest struct {
-	// VoiceID is the voice identifier (required)
+	// VoiceID is the voice identifier (required).
+	// Browse available API voices at https://typecast.ai/developers/api/voices.
 	VoiceID string `json:"voice_id"`
 	// Text is the text to convert to speech (required, max 2000 chars)
 	Text string `json:"text"`
@@ -160,6 +162,59 @@ type TTSRequest struct {
 	Output *Output `json:"output,omitempty"`
 	// Seed is the random seed for reproducible results (optional)
 	Seed *int `json:"seed,omitempty"`
+}
+
+// GenerateToFileRequest represents a convenience request for generating audio
+// directly to a file. Model defaults to ModelSSFMV30 when omitted.
+type GenerateToFileRequest struct {
+	// VoiceID is the voice identifier (required).
+	// Browse available API voices at https://typecast.ai/developers/api/voices.
+	VoiceID string
+	// Text is the text to convert to speech (required, max 2000 chars)
+	Text string
+	// Model is the TTS model to use (optional, defaults to ssfm-v30)
+	Model TTSModel
+	// Language is the ISO 639-3 language code (optional, auto-detected if not provided)
+	Language string
+	// Prompt contains emotion and style settings (optional)
+	Prompt interface{}
+	// Output contains audio output settings (optional)
+	Output *Output
+	// Seed is the random seed for reproducible results (optional)
+	Seed *int
+}
+
+// Validate checks the GenerateToFileRequest fields for invalid values.
+func (r *GenerateToFileRequest) Validate() error {
+	if r == nil {
+		return fmt.Errorf("request cannot be nil")
+	}
+	if strings.TrimSpace(r.VoiceID) == "" {
+		return fmt.Errorf("voice_id is required")
+	}
+	if strings.TrimSpace(r.Text) == "" {
+		return fmt.Errorf("text is required")
+	}
+	if utf8.RuneCountInString(r.Text) > 2000 {
+		return fmt.Errorf("text must not exceed 2000 characters")
+	}
+	return r.Output.Validate()
+}
+
+func (r GenerateToFileRequest) toTTSRequest() *TTSRequest {
+	model := r.Model
+	if model == "" {
+		model = ModelSSFMV30
+	}
+	return &TTSRequest{
+		VoiceID:  r.VoiceID,
+		Text:     r.Text,
+		Model:    model,
+		Language: r.Language,
+		Prompt:   r.Prompt,
+		Output:   r.Output,
+		Seed:     r.Seed,
+	}
 }
 
 // OutputStream represents audio output settings for the streaming endpoint.
