@@ -227,6 +227,19 @@ final class QuickCloningTests: XCTestCase {
         XCTAssertEqual(req.value(forHTTPHeaderField: "X-API-KEY"), "test-key")
     }
 
+    func testDeleteVoiceEncodesVoiceIdPathComponent() async throws {
+        var capturedRequest: URLRequest?
+        MockURLProtocol.requestHandler = { req in
+            capturedRequest = req
+            return (self.httpResponse(url: req.url!, status: 204), nil)
+        }
+
+        try await client.deleteVoice("uc/xxx #1")
+
+        let req = try XCTUnwrap(capturedRequest)
+        XCTAssertTrue(req.url?.absoluteString.contains("/v1/voices/uc%2Fxxx%20%231") ?? false)
+    }
+
     // MARK: - Test 6: deleteVoice throws on 404
 
     func testDeleteVoiceThrowsOn404() async {
@@ -349,6 +362,30 @@ final class QuickCloningTests: XCTestCase {
             model: "ssfm-v30"
         )
         XCTAssertEqual(result.voiceId, "uc_3")
+    }
+
+    func testCloneVoiceRejectsNonFileAudioURLBeforeRequest() async {
+        MockURLProtocol.requestHandler = { _ in
+            XCTFail("cloneVoice should reject non-file URLs before requesting")
+            return (self.httpResponse(url: URL(string: self.baseURL)!, status: 200), nil)
+        }
+
+        do {
+            _ = try await client.cloneVoice(
+                audioFileURL: URL(string: "https://example.com/sample.wav")!,
+                name: "Remote",
+                model: "ssfm-v30"
+            )
+            XCTFail("expected file URL validation error")
+        } catch let error as TypecastError {
+            guard case .badRequest(let message) = error else {
+                XCTFail("wrong error: \(error)")
+                return
+            }
+            XCTAssertEqual(message, "audioFileURL must be a file URL")
+        } catch {
+            XCTFail("unexpected error type: \(error)")
+        }
     }
 
     // MARK: - CustomVoice Codable round-trip

@@ -190,6 +190,33 @@ public class TypecastClient : IDisposable
     }
 
     /// <summary>
+    /// Synthesizes text to speech and saves the audio to a file.
+    /// </summary>
+    public async Task<TTSResponse> GenerateToFileAsync(
+        string filePath,
+        GenerateToFileRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            throw new ArgumentException("File path is required.", nameof(filePath));
+        }
+        if (request == null) throw new ArgumentNullException(nameof(request));
+
+        var response = await TextToSpeechAsync(request.ToTTSRequest(filePath), cancellationToken).ConfigureAwait(false);
+        await response.SaveToFileAsync(filePath, cancellationToken).ConfigureAwait(false);
+        return response;
+    }
+
+    /// <summary>
+    /// Synthesizes text to speech and saves the audio to a file synchronously.
+    /// </summary>
+    public TTSResponse GenerateToFile(string filePath, GenerateToFileRequest request)
+    {
+        return GenerateToFileAsync(filePath, request).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
     /// Synthesizes text to speech and returns the response body as a readable
     /// stream from <c>POST /v1/text-to-speech/stream</c>.
     /// </summary>

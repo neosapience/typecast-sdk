@@ -18,6 +18,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#if !defined(_WIN32) && !defined(_WIN64)
+    #include <sys/stat.h>
+#endif
 #if defined(_WIN32) || defined(_WIN64)
     #define strncasecmp _strnicmp
 #else
@@ -146,6 +149,58 @@ static int is_default_host(const char* host) {
     while (len > 0 && host[len - 1] == '/') len--;
 
     return len == strlen(DEFAULT_HOST) && strncasecmp(host, DEFAULT_HOST, len) == 0;
+}
+
+static int infer_audio_format_from_path(const char* path, TypecastAudioFormat* format) {
+    if (!path || !format) return 0;
+    size_t len = strlen(path);
+    if (len >= 4 && strncasecmp(path + len - 4, ".mp3", 4) == 0) {
+        *format = TYPECAST_AUDIO_FORMAT_MP3;
+        return 1;
+    }
+    if (len >= 4 && strncasecmp(path + len - 4, ".wav", 4) == 0) {
+        *format = TYPECAST_AUDIO_FORMAT_WAV;
+        return 1;
+    }
+    return 0;
+}
+
+static int path_is_directory(const char* path) {
+#if defined(_WIN32) || defined(_WIN64)
+    (void)path;
+    return 0;
+#else
+    struct stat st;
+    return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+#endif
+}
+
+static int build_temp_output_path(const char* file_path, char* temp_path, size_t temp_path_size) {
+    static const char* suffix = ".typecast-tmp";
+    size_t path_len = strlen(file_path);
+    size_t suffix_len = strlen(suffix);
+    if (path_len + suffix_len + 1 > temp_path_size) return 0;
+    memcpy(temp_path, file_path, path_len);
+    memcpy(temp_path + path_len, suffix, suffix_len + 1);
+    return 1;
+}
+
+static int preflight_output_path(const char* file_path, char* temp_path, size_t temp_path_size) {
+    if (is_blank_string(file_path)) return 0;
+    if (path_is_directory(file_path)) return 0;
+    if (!build_temp_output_path(file_path, temp_path, temp_path_size)) return 0;
+
+    FILE* file = fopen(temp_path, "wb");
+    if (!file) return 0;
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="fclose failure after writable preflight is not reliably portable to simulate" */
+    if (fclose(file) != 0) {
+        remove(temp_path);
+        return 0;
+    }
+    /* LCOV_EXCL_STOP */
+    remove(temp_path);
+    return 1;
 }
 
 static struct curl_slist* append_api_key_header(struct curl_slist* headers, const char* api_key) {
@@ -667,6 +722,89 @@ TYPECAST_API void typecast_tts_response_free(TypecastTTSResponse* response) {
     if (!response) return;
     if (response->audio_data) free(response->audio_data);
     free(response);
+}
+
+TYPECAST_API TypecastErrorCode typecast_generate_to_file(
+    TypecastClient* client,
+    const char* file_path,
+    const TypecastGenerateToFileRequest* request
+) {
+    if (!client || !file_path || !request) {
+        if (client) set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Invalid parameters");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+    if (is_blank_string(request->text) || is_blank_string(request->voice_id)) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "text and voice_id are required");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+
+    char temp_path[4096];
+    if (!preflight_output_path(file_path, temp_path, sizeof(temp_path))) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Invalid or unwritable output file");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+
+    TypecastTTSRequest tts_request = {0};
+    tts_request.text = request->text;
+    tts_request.voice_id = request->voice_id;
+    tts_request.model = request->use_model ? request->model : TYPECAST_MODEL_SSFM_V30;
+    tts_request.language = request->language;
+    tts_request.prompt = request->prompt;
+    tts_request.output = request->output;
+    tts_request.seed = request->seed;
+
+    TypecastOutput inferred_output = {0};
+    if (!tts_request.output && infer_audio_format_from_path(file_path, &inferred_output.audio_format)) {
+        inferred_output.volume = 100;
+        inferred_output.audio_pitch = 0;
+        inferred_output.audio_tempo = 1.0f;
+        tts_request.output = &inferred_output;
+    }
+
+    TypecastTTSResponse* response = typecast_text_to_speech(client, &tts_request);
+    if (!response) {
+        const TypecastError* error = typecast_client_get_error(client);
+        return error ? error->code : TYPECAST_ERROR_NETWORK;
+    }
+
+    FILE* file = fopen(temp_path, "wb");
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="preflight already verified temp output writability" */
+    if (!file) {
+        typecast_tts_response_free(response);
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Failed to open output file");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+    /* LCOV_EXCL_STOP */
+
+    size_t written = fwrite(response->audio_data, 1, response->audio_size, file);
+    int close_result = fclose(file);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="disk-full/write-failure path; cannot be simulated reliably in portable tests" */
+    if (written != response->audio_size || close_result != 0) {
+        remove(temp_path);
+        typecast_tts_response_free(response);
+        set_error(client, TYPECAST_ERROR_NETWORK, "Failed to write output file");
+        return TYPECAST_ERROR_NETWORK;
+    }
+    /* LCOV_EXCL_STOP */
+
+    typecast_tts_response_free(response);
+
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="rename failure after same-directory temp write is not reliably portable to simulate" */
+    if (rename(temp_path, file_path) != 0) {
+        remove(file_path);
+        if (rename(temp_path, file_path) != 0) {
+            remove(temp_path);
+            set_error(client, TYPECAST_ERROR_NETWORK, "Failed to move output file into place");
+            return TYPECAST_ERROR_NETWORK;
+        }
+    }
+    /* LCOV_EXCL_STOP */
+
+    clear_error(client);
+    return TYPECAST_OK;
 }
 
 /* ============================================

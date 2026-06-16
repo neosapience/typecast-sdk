@@ -4,14 +4,16 @@
 
 use crate::errors::{Result, TypecastError};
 use crate::models::{
-    Age, AudioFormat, CustomVoice, ErrorResponse, Gender, SubscriptionResponse, TTSModel,
-    TTSRequest, TTSRequestStream, TTSResponse, UseCase, VoiceV2, VoicesV2Filter,
-    CLONING_MAX_FILE_SIZE, NAME_MAX_LENGTH, NAME_MIN_LENGTH,
+    Age, AudioFormat, CustomVoice, ErrorResponse, Gender, GenerateToFileRequest,
+    SubscriptionResponse, TTSModel, TTSRequest, TTSRequestStream, TTSResponse, UseCase, VoiceV2,
+    VoicesV2Filter, CLONING_MAX_FILE_SIZE, NAME_MAX_LENGTH, NAME_MIN_LENGTH,
 };
 use bytes::Bytes;
 use futures_util::stream::{Stream, StreamExt};
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use std::env;
+use std::fs;
+use std::path::Path;
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -61,6 +63,14 @@ fn use_case_query_value(use_case: UseCase) -> &'static str {
         UseCase::Podcast => "Podcast",
         UseCase::Voicemail => "Voicemail",
         UseCase::Ads => "Ads",
+    }
+}
+
+fn infer_audio_format_from_path(path: &Path) -> Option<AudioFormat> {
+    match path.extension().and_then(|extension| extension.to_str()) {
+        Some(extension) if extension.eq_ignore_ascii_case("mp3") => Some(AudioFormat::Mp3),
+        Some(extension) if extension.eq_ignore_ascii_case("wav") => Some(AudioFormat::Wav),
+        _ => None,
     }
 }
 
@@ -286,6 +296,37 @@ impl TypecastClient {
             duration,
             format,
         })
+    }
+
+    /// Convert text to speech and write the audio bytes to a file.
+    ///
+    /// If `request.output.audio_format` is omitted, the format is inferred from
+    /// a `.mp3` or `.wav` file extension.
+    pub async fn generate_to_file(
+        &self,
+        path: impl AsRef<Path>,
+        request: GenerateToFileRequest,
+    ) -> Result<TTSResponse> {
+        let path_ref = path.as_ref();
+        let mut tts_request = request.into_tts_request();
+        let inferred = infer_audio_format_from_path(path_ref);
+        match tts_request.output.as_mut() {
+            Some(output) => {
+                if output.audio_format.is_none() {
+                    output.audio_format = inferred;
+                }
+            }
+            None => {
+                if let Some(format) = inferred {
+                    tts_request.output = Some(crate::models::Output::new().audio_format(format));
+                }
+            }
+        }
+
+        let response = self.text_to_speech(&tts_request).await?;
+        fs::write(path_ref, &response.audio_data)
+            .map_err(|e| TypecastError::IoError(e.to_string()))?;
+        Ok(response)
     }
 
     /// Convert text to speech as a streaming response

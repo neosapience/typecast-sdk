@@ -358,7 +358,8 @@ impl From<SmartPrompt> for TTSPrompt {
 /// Text-to-Speech request parameters
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TTSRequest {
-    /// Voice ID in format 'tc_' followed by a unique identifier
+    /// Voice ID in format `tc_` followed by a unique identifier.
+    /// Browse available API voices at <https://typecast.ai/developers/api/voices>.
     pub voice_id: String,
     /// Text to convert to speech (max 2000 chars)
     pub text: String,
@@ -376,6 +377,92 @@ pub struct TTSRequest {
     /// Random seed for reproducible results
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seed: Option<i32>,
+}
+
+/// Convenience request for generating audio directly to a file.
+///
+/// `model` defaults to [`TTSModel::SsfmV30`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerateToFileRequest {
+    /// Voice ID in format `tc_` followed by a unique identifier.
+    /// Browse available API voices at <https://typecast.ai/developers/api/voices>.
+    pub voice_id: String,
+    /// Text to convert to speech
+    pub text: String,
+    /// TTS model to use
+    pub model: TTSModel,
+    /// Language code (ISO 639-3). Auto-detected if not provided
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+    /// Emotion and style settings
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<TTSPrompt>,
+    /// Audio output settings
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<Output>,
+    /// Random seed for reproducible results
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seed: Option<i32>,
+}
+
+impl GenerateToFileRequest {
+    /// Create a new generate-to-file request with required fields.
+    pub fn new(voice_id: impl Into<String>, text: impl Into<String>) -> Self {
+        let voice_id = voice_id.into();
+        let text = text.into();
+        assert!(!voice_id.trim().is_empty(), "voice_id is required");
+        assert!(!text.trim().is_empty(), "text is required");
+        assert!(
+            text.chars().count() <= 2000,
+            "text must not exceed 2000 characters"
+        );
+        Self {
+            voice_id,
+            text,
+            model: TTSModel::SsfmV30,
+            language: None,
+            prompt: None,
+            output: None,
+            seed: None,
+        }
+    }
+
+    pub fn model(mut self, model: TTSModel) -> Self {
+        self.model = model;
+        self
+    }
+
+    pub fn language(mut self, language: impl Into<String>) -> Self {
+        self.language = Some(language.into());
+        self
+    }
+
+    pub fn prompt(mut self, prompt: impl Into<TTSPrompt>) -> Self {
+        self.prompt = Some(prompt.into());
+        self
+    }
+
+    pub fn output(mut self, output: Output) -> Self {
+        self.output = Some(output);
+        self
+    }
+
+    pub fn seed(mut self, seed: i32) -> Self {
+        self.seed = Some(seed);
+        self
+    }
+
+    pub fn into_tts_request(self) -> TTSRequest {
+        TTSRequest {
+            voice_id: self.voice_id,
+            text: self.text,
+            model: self.model,
+            language: self.language,
+            prompt: self.prompt,
+            output: self.output,
+            seed: self.seed,
+        }
+    }
 }
 
 impl TTSRequest {
@@ -423,7 +510,8 @@ impl TTSRequest {
 /// excludes `volume` and `target_lufs` (not supported by the streaming endpoint).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TTSRequestStream {
-    /// Voice ID in format 'tc_' followed by a unique identifier
+    /// Voice ID in format `tc_` followed by a unique identifier.
+    /// Browse available API voices at <https://typecast.ai/developers/api/voices>.
     pub voice_id: String,
     /// Text to convert to speech (max 2000 chars)
     pub text: String,

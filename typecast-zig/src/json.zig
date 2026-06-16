@@ -152,8 +152,10 @@ fn writeOutput(ws: *std.json.Stringify, output: models.Output) !void {
         }
     }
 
-    try ws.objectField("audio_format");
-    try ws.write(output.audio_format.toString());
+    if (output.audio_format) |audio_format| {
+        try ws.objectField("audio_format");
+        try ws.write(audio_format.toString());
+    }
 
     try ws.endObject();
 }

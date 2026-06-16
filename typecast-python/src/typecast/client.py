@@ -22,8 +22,11 @@ from .exceptions import (
 )
 from .models import (
     CustomVoice,
+    LanguageCode,
+    Output,
     SubscriptionResponse,
     TTSModel,
+    TTSPrompt,
     TTSRequest,
     TTSRequestStream,
     TTSRequestWithTimestamps,
@@ -33,6 +36,33 @@ from .models import (
     VoicesV2Filter,
     VoiceV2Response,
 )
+
+
+def _infer_audio_format_from_path(path: Union[str, Path]) -> Optional[str]:
+    suffix = Path(path).suffix.lower()
+    if suffix == ".mp3":
+        return "mp3"
+    if suffix == ".wav":
+        return "wav"
+    return None
+
+
+def _output_with_inferred_format(
+    output: Optional[Output],
+    path: Union[str, Path],
+) -> Optional[Output]:
+    audio_format = _infer_audio_format_from_path(path)
+    if audio_format is None or (output is not None and output.audio_format is not None):
+        return output
+    if output is None:
+        return Output(audio_format=audio_format)
+    return output.model_copy(update={"audio_format": audio_format})
+
+
+def _validate_output_path(path: Union[str, Path]) -> Path:
+    if isinstance(path, str) and not path.strip():
+        raise ValueError("path cannot be empty")
+    return Path(path)
 
 
 def _guess_audio_mime(filename: str) -> str:
@@ -135,6 +165,40 @@ class Typecast:
             duration=response.headers.get("X-Audio-Duration", 0),
             format=response.headers.get("Content-Type", "audio/wav").split("/")[-1],
         )
+
+    def generate_to_file(
+        self,
+        path: Union[str, Path],
+        *,
+        text: str,
+        voice_id: str,
+        model: TTSModel = TTSModel.SSFM_V30,
+        language: Optional[Union[LanguageCode, str]] = None,
+        prompt: Optional[TTSPrompt] = None,
+        output: Optional[Output] = None,
+        seed: Optional[int] = None,
+    ) -> TTSResponse:
+        """Convert text to speech and write the audio bytes to a file.
+
+        ``model`` defaults to ``ssfm-v30``. If ``output.audio_format`` is not
+        set, the format is inferred from a ``.mp3`` or ``.wav`` extension.
+        Browse available API voices at
+        ``https://typecast.ai/developers/api/voices``.
+        """
+        output_path = _validate_output_path(path)
+        response = self.text_to_speech(
+            TTSRequest(
+                text=text,
+                voice_id=voice_id,
+                model=model,
+                language=language,
+                prompt=prompt,
+                output=_output_with_inferred_format(output, path),
+                seed=seed,
+            )
+        )
+        output_path.write_bytes(response.audio_data)
+        return response
 
     def text_to_speech_stream(
         self, request: TTSRequestStream, chunk_size: int = 8192

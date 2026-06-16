@@ -157,7 +157,10 @@ export interface TTSRequest {
    * @maxLength 5000
    */
   text: string;
-  /** Voice ID in format 'tc_' (Typecast voice) or 'uc_' (User-created voice) followed by a unique identifier */
+  /**
+   * Voice ID in format 'tc_' (Typecast voice) or 'uc_' (User-created voice).
+   * Browse available API voices at https://typecast.ai/developers/api/voices.
+   */
   voice_id: string;
   /** Voice model to use */
   model: TTSModel;
@@ -169,6 +172,15 @@ export interface TTSRequest {
   output?: Output;
   /** Random seed for reproducible results (same seed + same parameters = same output) */
   seed?: number;
+}
+
+/**
+ * Convenience request for generating audio directly to a file.
+ * Defaults to ssfm-v30 and infers audio_format from the file extension when omitted.
+ */
+export interface GenerateToFileRequest extends Omit<TTSRequest, 'model'> {
+  /** Voice model to use (default: 'ssfm-v30') */
+  model?: TTSModel;
 }
 
 /**

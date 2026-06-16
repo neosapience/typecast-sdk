@@ -14,6 +14,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
 
 /**
  * Unit tests for TypecastClient using MockWebServer.
@@ -213,6 +214,107 @@ class TypecastClientTest {
         val body = recordedRequest.body.readUtf8()
         assertTrue(body.contains("\"emotion_type\":\"smart\""))
         assertTrue(body.contains("\"previous_text\""))
+    }
+
+    @Test
+    @DisplayName("generateToFile should infer mp3, default model, and write file")
+    fun generateToFile_infersMp3AndWritesFile() {
+        val audio = byteArrayOf(1, 2, 3)
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/mp3")
+                .setHeader("X-Audio-Duration", "1.25")
+                .setBody(okio.Buffer().write(audio))
+        )
+        val output = Files.createTempFile("typecast-kotlin-", ".mp3")
+        Files.deleteIfExists(output)
+
+        try {
+            val response = client.generateToFile(
+                output.toString(),
+                GenerateToFileRequest(
+                    voiceId = "tc_test",
+                    text = "Hello",
+                    language = LanguageCode.ENG,
+                    prompt = Prompt(emotionPreset = EmotionPreset.NORMAL),
+                    seed = 7,
+                )
+            )
+
+            assertEquals("mp3", response.format)
+            assertArrayEquals(audio, Files.readAllBytes(output))
+            val body = mockServer.takeRequest().body.readUtf8()
+            assertTrue(body.contains("\"model\":\"ssfm-v30\""))
+            assertTrue(body.contains("\"audio_format\":\"mp3\""))
+            assertTrue(body.contains("\"language\":\"eng\""))
+            assertTrue(body.contains("\"seed\":7"))
+        } finally {
+            Files.deleteIfExists(output)
+        }
+    }
+
+    @Test
+    @DisplayName("generateToFile should keep explicit output and validate arguments")
+    fun generateToFile_keepsExplicitOutputAndValidates() {
+        assertThrows<IllegalArgumentException> {
+            client.generateToFile("", GenerateToFileRequest("tc_test", "Hello"))
+        }
+        assertThrows<IllegalArgumentException> { GenerateToFileRequest("", "Hello") }
+        assertThrows<IllegalArgumentException> { GenerateToFileRequest("tc_test", "") }
+        assertThrows<IllegalArgumentException> {
+            GenerateToFileRequest("tc_test", "가".repeat(2001))
+        }
+        val inspected = GenerateToFileRequest(
+            voiceId = "tc_test",
+            text = "Hello",
+            model = TTSModel.SSFM_V21,
+            language = LanguageCode.ENG,
+            prompt = SmartPrompt(previousText = "before"),
+            output = Output(audioFormat = AudioFormat.WAV),
+            seed = 9,
+        )
+        assertEquals("tc_test", inspected.voiceId)
+        assertEquals("Hello", inspected.text)
+        assertEquals(TTSModel.SSFM_V21, inspected.model)
+        assertEquals(LanguageCode.ENG, inspected.language)
+        assertNotNull(inspected.prompt)
+        assertEquals(AudioFormat.WAV, inspected.output?.audioFormat)
+        assertEquals(9, inspected.seed)
+
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(okio.Buffer().write(byteArrayOf(4)))
+        )
+        val output = Files.createTempFile("typecast-kotlin-", ".wav")
+        Files.deleteIfExists(output)
+
+        try {
+            client.generateToFile(
+                output.toString(),
+                GenerateToFileRequest(
+                    voiceId = "tc_test",
+                    text = "Hello",
+                    model = TTSModel.SSFM_V21,
+                    prompt = PresetPrompt(emotionPreset = EmotionPreset.HAPPY),
+                    output = Output(audioFormat = AudioFormat.MP3),
+                )
+            )
+            val body = mockServer.takeRequest().body.readUtf8()
+            assertTrue(body.contains("\"model\":\"ssfm-v21\""))
+            assertTrue(body.contains("\"audio_format\":\"mp3\""))
+            assertTrue(body.contains("\"emotion_type\":\"preset\""))
+        } finally {
+            Files.deleteIfExists(output)
+        }
+
+        assertEquals(
+            AudioFormat.WAV,
+            GenerateToFileRequest("tc_test", "Hello").toTTSRequest("x.WAV").output?.audioFormat,
+        )
+        assertNull(GenerateToFileRequest("tc_test", "Hello").toTTSRequest("x.bin").output)
     }
 
     // ==================== TTS Stream Tests ====================

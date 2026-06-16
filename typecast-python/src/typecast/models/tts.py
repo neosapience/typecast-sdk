@@ -158,7 +158,11 @@ class TTSRequest(BaseModel):
     model_config = ConfigDict(json_schema_extra={"exclude_none": True})
 
     voice_id: str = Field(
-        description="Voice ID", examples=["tc_62a8975e695ad26f7fb514d1"]
+        description=(
+            "Voice ID. Browse available API voices at "
+            "https://typecast.ai/developers/api/voices."
+        ),
+        examples=["tc_62a8975e695ad26f7fb514d1"],
     )
     text: str = Field(description="Text", examples=["Hello. How are you?"])
     model: TTSModel = Field(description="Voice model name", examples=["ssfm-v21"])
@@ -202,7 +206,11 @@ class TTSRequestStream(BaseModel):
     model_config = ConfigDict(json_schema_extra={"exclude_none": True})
 
     voice_id: str = Field(
-        description="Voice ID", examples=["tc_62a8975e695ad26f7fb514d1"]
+        description=(
+            "Voice ID. Browse available API voices at "
+            "https://typecast.ai/developers/api/voices."
+        ),
+        examples=["tc_62a8975e695ad26f7fb514d1"],
     )
     text: str = Field(description="Text", examples=["Hello. How are you?"])
     model: TTSModel = Field(description="Voice model name", examples=["ssfm-v21"])
@@ -253,7 +261,11 @@ class TTSRequestWithTimestamps(BaseModel):
     model_config = ConfigDict(json_schema_extra={"exclude_none": True})
 
     voice_id: str = Field(
-        description="Voice ID", examples=["tc_62a8975e695ad26f7fb514d1"]
+        description=(
+            "Voice ID. Browse available API voices at "
+            "https://typecast.ai/developers/api/voices."
+        ),
+        examples=["tc_62a8975e695ad26f7fb514d1"],
     )
     text: str = Field(description="Text", examples=["Hello. How are you?"])
     model: TTSModel = Field(description="Voice model name", examples=["ssfm-v30"])

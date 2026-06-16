@@ -5,6 +5,7 @@ pub const timestamps = @import("timestamps.zig");
 
 // Re-export quick-cloning types at the top level for convenience.
 pub const CustomVoice = models.CustomVoice;
+pub const GenerateToFileRequest = models.GenerateToFileRequest;
 pub const CLONING_MAX_FILE_SIZE = models.CLONING_MAX_FILE_SIZE;
 pub const NAME_MIN_LENGTH = models.NAME_MIN_LENGTH;
 pub const NAME_MAX_LENGTH = models.NAME_MAX_LENGTH;

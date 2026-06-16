@@ -64,7 +64,8 @@ data class OutputStream(
  *
  * Mirrors [TTSRequest] but uses [OutputStream] in place of [Output].
  *
- * @property voiceId Voice ID in format 'tc_' followed by a unique identifier
+ * @property voiceId Voice ID in format 'tc_' followed by a unique identifier.
+ * Browse available API voices at https://typecast.ai/developers/api/voices.
  * @property text Text to convert to speech (max 2000 characters)
  * @property model TTS model to use for speech synthesis
  * @property language Language code (ISO 639-3). If not provided, will be auto-detected

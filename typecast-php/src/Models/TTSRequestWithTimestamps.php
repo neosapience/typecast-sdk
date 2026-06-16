@@ -6,6 +6,8 @@ namespace Neosapience\Typecast\Models;
 
 /**
  * Request body for POST /v1/text-to-speech/with-timestamps.
+ *
+ * Browse available API voices at https://typecast.ai/developers/api/voices.
  */
 class TTSRequestWithTimestamps
 {

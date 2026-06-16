@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -392,6 +393,162 @@ func TestTextToSpeech_RequestError(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected request error")
+	}
+}
+
+// ---------- GenerateToFile ----------
+
+func TestGenerateToFile_DefaultsModelInfersMP3AndWritesFile(t *testing.T) {
+	var received TTSRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/text-to-speech" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "audio/mp3")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("MP3DATA"))
+	}))
+	defer srv.Close()
+
+	path := t.TempDir() + "/speech.mp3"
+	c := newTestClient(srv, "k")
+	resp, err := c.GenerateToFile(context.Background(), path, GenerateToFileRequest{
+		VoiceID: "v",
+		Text:    "hello",
+	})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if resp.Format != AudioFormatMP3 {
+		t.Fatalf("expected mp3 response, got %s", resp.Format)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	if string(data) != "MP3DATA" {
+		t.Fatalf("unexpected file data %q", data)
+	}
+	if received.Model != ModelSSFMV30 {
+		t.Fatalf("expected default ssfm-v30, got %s", received.Model)
+	}
+	if received.Output == nil || received.Output.AudioFormat != AudioFormatMP3 {
+		t.Fatalf("expected inferred mp3 output, got %+v", received.Output)
+	}
+}
+
+func TestGenerateToFile_KeepsExplicitOutputAndCoversValidation(t *testing.T) {
+	c := NewClient(&ClientConfig{APIKey: "k", BaseURL: "http://x"})
+	if _, err := c.GenerateToFile(context.Background(), "", GenerateToFileRequest{VoiceID: "v", Text: "t"}); err == nil {
+		t.Fatal("expected empty path error")
+	}
+	if err := (*GenerateToFileRequest)(nil).Validate(); err == nil {
+		t.Fatal("expected nil request validation error")
+	}
+	if _, err := c.GenerateToFile(context.Background(), "out.wav", GenerateToFileRequest{Text: "t"}); err == nil {
+		t.Fatal("expected voice validation error")
+	}
+	if _, err := c.GenerateToFile(context.Background(), "out.wav", GenerateToFileRequest{VoiceID: "v"}); err == nil {
+		t.Fatal("expected text validation error")
+	}
+	if _, err := c.GenerateToFile(context.Background(), "out.wav", GenerateToFileRequest{VoiceID: "   ", Text: "t"}); err == nil {
+		t.Fatal("expected blank voice validation error")
+	}
+	if _, err := c.GenerateToFile(context.Background(), "out.wav", GenerateToFileRequest{VoiceID: "v", Text: "   "}); err == nil {
+		t.Fatal("expected blank text validation error")
+	}
+	long := strings.Repeat("가", 2001)
+	if _, err := c.GenerateToFile(context.Background(), "out.wav", GenerateToFileRequest{VoiceID: "v", Text: long}); err == nil {
+		t.Fatal("expected long text validation error")
+	}
+
+	out := &Output{AudioFormat: AudioFormatMP3}
+	req := GenerateToFileRequest{
+		VoiceID: "v",
+		Text:    "t",
+		Model:   ModelSSFMV21,
+		Output:  out,
+		Seed:    new(int),
+	}
+	tts := req.toTTSRequest()
+	if tts.Model != ModelSSFMV21 || tts.Output != out {
+		t.Fatalf("unexpected tts request %+v", tts)
+	}
+	if inferAudioFormatFromPath("x.WAV") != AudioFormatWAV {
+		t.Fatal("expected wav inference")
+	}
+	if inferAudioFormatFromPath("x.bin") != "" {
+		t.Fatal("expected no inference")
+	}
+}
+
+func TestGenerateToFile_OutputWithoutFormatAndErrorPaths(t *testing.T) {
+	requestCount := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount++
+		switch requestCount {
+		case 1:
+			var received TTSRequest
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			if received.Output == nil || received.Output.AudioFormat != AudioFormatWAV {
+				t.Fatalf("expected inferred wav output, got %+v", received.Output)
+			}
+			w.Header().Set("Content-Type", "audio/wav")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("WAVDATA"))
+		case 2:
+			var received TTSRequest
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			if received.Output != nil {
+				t.Fatalf("expected no output for unknown extension, got %+v", received.Output)
+			}
+			w.Header().Set("Content-Type", "audio/wav")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("WAVDATA"))
+		case 3:
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(ErrorResponse{Detail: "bad"})
+		default:
+			w.Header().Set("Content-Type", "audio/wav")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("WAVDATA"))
+		}
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv, "k")
+	dir := t.TempDir()
+	if _, err := c.GenerateToFile(context.Background(), dir+"/speech.wav", GenerateToFileRequest{
+		VoiceID: "v",
+		Text:    "hello",
+		Output:  &Output{},
+	}); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if _, err := c.GenerateToFile(context.Background(), dir+"/speech", GenerateToFileRequest{
+		VoiceID: "v",
+		Text:    "hello",
+	}); err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if _, err := c.GenerateToFile(context.Background(), dir+"/error.wav", GenerateToFileRequest{
+		VoiceID: "v",
+		Text:    "hello",
+	}); err == nil {
+		t.Fatal("expected API error")
+	}
+	if _, err := c.GenerateToFile(context.Background(), dir, GenerateToFileRequest{
+		VoiceID: "v",
+		Text:    "hello",
+	}); err == nil || !strings.Contains(err.Error(), "failed to write audio file") {
+		t.Fatalf("expected write error, got %v", err)
 	}
 }
 

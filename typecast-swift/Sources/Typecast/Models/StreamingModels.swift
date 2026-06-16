@@ -40,7 +40,8 @@ public struct OutputStream: Codable, Sendable {
 /// Mirrors `TTSRequest` but uses `OutputStream` for the `output` field
 /// because the streaming endpoint does not accept volume/LUFS settings.
 public struct TTSRequestStream: Codable, Sendable {
-    /// Voice ID in format 'tc_' followed by a unique identifier
+    /// Voice ID in format 'tc_' followed by a unique identifier.
+    /// Browse available API voices at https://typecast.ai/developers/api/voices.
     public var voiceId: String
     /// Text to convert to speech (max 2000 characters)
     public var text: String

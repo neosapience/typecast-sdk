@@ -56,6 +56,7 @@ public class Output
     /// <param name="audioPitch">Pitch adjustment in semitones (-12 to 12)</param>
     /// <param name="audioTempo">Tempo multiplier (0.5-2.0)</param>
     /// <param name="audioFormat">Audio format</param>
+    /// <param name="targetLufs">Target loudness in LUFS (-70 to 0)</param>
     public Output(int? volume = 100, int? audioPitch = 0, double? audioTempo = 1.0, AudioFormat? audioFormat = null, double? targetLufs = null)
     {
         Volume = (targetLufs.HasValue && volume == 100) ? null : volume;

@@ -83,7 +83,7 @@ public class TypecastClientTests : IDisposable
     {
         // Arrange
         var audioData = new byte[] { 1, 2, 3, 4, 5 };
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new ByteArrayContent(audioData)
         };
@@ -115,7 +115,7 @@ public class TypecastClientTests : IDisposable
     {
         // Arrange
         var audioData = new byte[] { 1, 2, 3 };
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new ByteArrayContent(audioData)
         };
@@ -137,6 +137,145 @@ public class TypecastClientTests : IDisposable
 
         // Assert
         result.Format.Should().Be(AudioFormat.Mp3);
+    }
+
+    [Fact]
+    public async Task GenerateToFileAsync_ShouldInferMp3DefaultModelAndWriteFile()
+    {
+        // Arrange
+        var audioData = new byte[] { 1, 2, 3 };
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(audioData)
+        };
+        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/mp3");
+
+        string? capturedBody = null;
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) =>
+                capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult())
+            .ReturnsAsync(response);
+
+        var filePath = Path.Join(Path.GetTempPath(), $"{Guid.NewGuid()}.mp3");
+
+        try
+        {
+            // Act
+            var result = await _client.GenerateToFileAsync(filePath, new GenerateToFileRequest
+            {
+                Text = "Hello",
+                VoiceId = "tc_test",
+                Language = LanguageCode.English,
+                Prompt = new PresetPrompt { EmotionPreset = EmotionPreset.Happy },
+                Seed = 7
+            });
+
+            // Assert
+            result.Format.Should().Be(AudioFormat.Mp3);
+            File.ReadAllBytes(filePath).Should().Equal(audioData);
+            capturedBody.Should().Contain("\"model\":\"ssfm-v30\"");
+            capturedBody.Should().Contain("\"audio_format\":\"mp3\"");
+            capturedBody.Should().Contain("\"language\":\"eng\"");
+            capturedBody.Should().Contain("\"seed\":7");
+        }
+        finally
+        {
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
+    }
+
+    [Fact]
+    public void GenerateToFile_ShouldKeepExplicitOutputAndValidateArguments()
+    {
+        Assert.Throws<ArgumentException>(() => _client.GenerateToFile("", new GenerateToFileRequest()));
+        Assert.Throws<ArgumentNullException>(() => _client.GenerateToFile("out.wav", null!));
+
+        var wav = new GenerateToFileRequest { Text = "Hello", VoiceId = "tc_test" }
+            .ToTTSRequest("x.WAV");
+        wav.Output!.AudioFormat.Should().Be(AudioFormat.Wav);
+
+        var unknown = new GenerateToFileRequest { Text = "Hello", VoiceId = "tc_test" }
+            .ToTTSRequest("x.bin");
+        unknown.Output.Should().BeNull();
+
+        var explicitOutput = new Output(audioFormat: AudioFormat.Mp3);
+        var explicitRequest = new GenerateToFileRequest
+        {
+            Text = "Hello",
+            VoiceId = "tc_test",
+            Model = TTSModel.SsfmV21,
+            Output = explicitOutput
+        }.ToTTSRequest("x.wav");
+
+        explicitRequest.Model.Should().Be(TTSModel.SsfmV21);
+        explicitRequest.Output.Should().BeSameAs(explicitOutput);
+
+        var partialOutput = new Output { AudioTempo = 1.2, AudioFormat = null };
+        var partialRequest = new GenerateToFileRequest
+        {
+            Text = "Hello",
+            VoiceId = "tc_test",
+            Output = partialOutput
+        }.ToTTSRequest("x.mp3");
+
+        partialRequest.Output.Should().BeSameAs(partialOutput);
+        partialRequest.Output!.AudioFormat.Should().Be(AudioFormat.Mp3);
+
+        var partialUnknownOutput = new Output { AudioTempo = 1.1, AudioFormat = null };
+        var partialUnknownRequest = new GenerateToFileRequest
+        {
+            Text = "Hello",
+            VoiceId = "tc_test",
+            Output = partialUnknownOutput
+        }.ToTTSRequest("x.bin");
+
+        partialUnknownRequest.Output.Should().BeSameAs(partialUnknownOutput);
+        partialUnknownRequest.Output!.AudioFormat.Should().BeNull();
+    }
+
+    [Fact]
+    public void GenerateToFile_ShouldCallAsyncImplementationSynchronously()
+    {
+        // Arrange
+        var audioData = new byte[] { 7, 8, 9 };
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(audioData)
+        };
+        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        var filePath = Path.Join(Path.GetTempPath(), $"{Guid.NewGuid()}.wav");
+
+        try
+        {
+            // Act
+            var result = _client.GenerateToFile(filePath, new GenerateToFileRequest
+            {
+                Text = "Hello",
+                VoiceId = "tc_test"
+            });
+
+            // Assert
+            result.Format.Should().Be(AudioFormat.Wav);
+            File.ReadAllBytes(filePath).Should().Equal(audioData);
+        }
+        finally
+        {
+            if (File.Exists(filePath)) File.Delete(filePath);
+        }
     }
 
     [Fact]

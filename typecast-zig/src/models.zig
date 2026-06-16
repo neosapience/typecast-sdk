@@ -182,7 +182,7 @@ pub const Output = struct {
     target_lufs: ?f64 = null,
     audio_pitch: ?i32 = 0,
     audio_tempo: ?f64 = 1.0,
-    audio_format: AudioFormat = .wav,
+    audio_format: ?AudioFormat = null,
 };
 
 pub const OutputStream = struct {
@@ -194,6 +194,7 @@ pub const OutputStream = struct {
 // ── Request types ──────────────────────────────────────────────────────
 
 pub const TtsRequest = struct {
+    /// Browse available API voices at https://typecast.ai/developers/api/voices.
     voice_id: []const u8,
     text: []const u8,
     model: TtsModel,
@@ -203,7 +204,19 @@ pub const TtsRequest = struct {
     seed: ?i64 = null,
 };
 
+pub const GenerateToFileRequest = struct {
+    /// Browse available API voices at https://typecast.ai/developers/api/voices.
+    voice_id: []const u8,
+    text: []const u8,
+    model: TtsModel = .ssfm_v30,
+    language: ?[]const u8 = null,
+    prompt: ?TtsPrompt = null,
+    output: ?Output = null,
+    seed: ?i64 = null,
+};
+
 pub const TtsRequestStream = struct {
+    /// Browse available API voices at https://typecast.ai/developers/api/voices.
     voice_id: []const u8,
     text: []const u8,
     model: TtsModel,

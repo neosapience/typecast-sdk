@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { TypecastClient } from '../../src/client';
 import { TypecastAPIError } from '../../src/errors';
 import { TTSModel } from '../../src/types/TextToSpeech';
@@ -135,6 +138,77 @@ describe('TypecastClient', () => {
       await expect(client.textToSpeech(baseRequest)).rejects.toBeInstanceOf(
         TypecastAPIError,
       );
+    });
+  });
+
+  describe('generateToFile', () => {
+    it('defaults model, infers mp3 from path, and writes audio bytes', async () => {
+      const tempDir = await mkdtemp(join(tmpdir(), 'typecast-js-'));
+      const outputPath = join(tempDir, 'speech.mp3');
+      const payload = new Uint8Array([1, 2, 3]);
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({
+          'content-type': 'audio/mp3',
+          'x-audio-duration': '1.25',
+        }),
+        arrayBuffer: () => Promise.resolve(payload.buffer.slice(0)),
+      });
+
+      try {
+        const response = await client.generateToFile(outputPath, {
+          text: 'Hello',
+          voice_id: 'tc_mock_001',
+        });
+
+        expect(response.format).toBe('mp3');
+        expect(Array.from(await readFile(outputPath))).toEqual([1, 2, 3]);
+        const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+        expect(body.model).toBe('ssfm-v30');
+        expect(body.output.audio_format).toBe('mp3');
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    it('keeps explicit output format and handles wav or unknown extensions', async () => {
+      const tempDir = await mkdtemp(join(tmpdir(), 'typecast-js-'));
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        arrayBuffer: () => Promise.resolve(new Uint8Array([4]).buffer),
+      });
+
+      try {
+        await client.generateToFile(join(tempDir, 'speech.wav'), {
+          text: 'Hello',
+          voice_id: 'tc_mock_001',
+          output: { audio_format: 'mp3' },
+        });
+        await client.generateToFile(join(tempDir, 'speech'), {
+          text: 'Hello',
+          voice_id: 'tc_mock_001',
+        });
+
+        const explicitBody = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+        const unknownBody = JSON.parse(mockFetch.mock.calls[1][1].body as string);
+        expect(explicitBody.output.audio_format).toBe('mp3');
+        expect(unknownBody.output).toBeUndefined();
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    });
+
+    it('rejects blank paths before requesting or writing', async () => {
+      await expect(
+        client.generateToFile('   ', {
+          text: 'Hello',
+          voice_id: 'tc_mock_001',
+        }),
+      ).rejects.toThrow('path cannot be empty');
+      expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 

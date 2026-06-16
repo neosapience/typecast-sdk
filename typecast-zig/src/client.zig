@@ -82,6 +82,46 @@ pub const Client = struct {
         };
     }
 
+    /// Generate audio and write it to a file.
+    ///
+    /// Browse available API voices at https://typecast.ai/developers/api/voices.
+    ///
+    /// The returned response owns `audio_data`; free it with the client's allocator.
+    pub fn generateToFile(
+        self: *Client,
+        path: []const u8,
+        request: models.GenerateToFileRequest,
+    ) !models.TtsResponse {
+        if (std.mem.trim(u8, path, " \t\r\n").len == 0) {
+            return error.InvalidPath;
+        }
+
+        var output = request.output;
+        if (inferAudioFormatFromPath(path)) |format| {
+            if (output) |*out| {
+                if (out.audio_format == null) out.audio_format = format;
+            } else {
+                output = .{ .audio_format = format };
+            }
+        }
+
+        const response = try self.textToSpeech(.{
+            .voice_id = request.voice_id,
+            .text = request.text,
+            .model = request.model,
+            .language = request.language,
+            .prompt = request.prompt,
+            .output = output,
+            .seed = request.seed,
+        });
+        errdefer self.allocator.free(response.audio_data);
+
+        const file = try std.fs.cwd().createFile(path, .{});
+        defer file.close();
+        try file.writeAll(response.audio_data);
+        return response;
+    }
+
     /// POST /v1/text-to-speech/stream — chunked audio streaming
     pub fn textToSpeechStream(
         self: *Client,
@@ -535,6 +575,12 @@ pub const Client = struct {
 
 fn hasApiKey(api_key: []const u8) bool {
     return std.mem.trim(u8, api_key, " \t\r\n").len > 0;
+}
+
+fn inferAudioFormatFromPath(path: []const u8) ?models.AudioFormat {
+    if (Client.endsWithIgnoreCase(path, ".mp3")) return .mp3;
+    if (Client.endsWithIgnoreCase(path, ".wav")) return .wav;
+    return null;
 }
 
 fn isDefaultBaseUrl(base_url: []const u8) bool {

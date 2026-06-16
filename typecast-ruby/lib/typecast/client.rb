@@ -30,6 +30,22 @@ module Typecast
       )
     end
 
+    # Browse available API voices at https://typecast.ai/developers/api/voices.
+    def generate_to_file(path, text:, voice_id:, model: Models::TTS_MODEL_V30, language: nil, prompt: nil, output: nil, seed: nil)
+      request = Models::TTSRequest.new(
+        voice_id: voice_id,
+        text: text,
+        model: model,
+        language: language,
+        prompt: prompt,
+        output: output || inferred_output(path),
+        seed: seed
+      )
+      response = text_to_speech(request)
+      File.binwrite(path, response.audio_data)
+      response
+    end
+
     def text_to_speech_stream(request)
       response = request_json(:post, "/v1/text-to-speech/stream", request.to_h)
       return enum_for(:text_to_speech_stream, request) unless block_given?
@@ -80,6 +96,13 @@ module Typecast
     end
 
     private
+
+    def inferred_output(path)
+      case File.extname(path.to_s).downcase
+      when ".mp3" then Models::Output.new(audio_format: Models::AUDIO_MP3)
+      when ".wav" then Models::Output.new(audio_format: Models::AUDIO_WAV)
+      end
+    end
 
     def request_json(method, path, body = nil, query = nil)
       headers = auth_headers.merge("Content-Type" => "application/json")

@@ -8,6 +8,7 @@ namespace Neosapience\Typecast\Models;
  * Request body for POST /v1/text-to-speech/stream.
  *
  * Uses OutputStream (no volume/target_lufs).
+ * Browse available API voices at https://typecast.ai/developers/api/voices.
  */
 class TTSRequestStream
 {

@@ -14,7 +14,7 @@ from typecast.exceptions import (
     UnauthorizedError,
     UnprocessableEntityError,
 )
-from typecast.models import OutputStream, TTSRequest, TTSRequestStream
+from typecast.models import Output, OutputStream, TTSRequest, TTSRequestStream
 
 
 HOST = "https://dummy.example"
@@ -52,6 +52,66 @@ class TestAsyncTextToSpeech:
                 resp = await client.text_to_speech(request_payload)
                 assert resp.format == "mp3"
                 assert resp.duration == 2.5
+
+    async def test_generate_to_file_defaults_model_and_infers_mp3(self, tmp_path):
+        with aioresponses() as m:
+            m.post(
+                f"{HOST}/v1/text-to-speech",
+                status=200,
+                body=b"audio",
+                headers={"X-Audio-Duration": "2.5", "Content-Type": "audio/mp3"},
+            )
+            output_path = tmp_path / "speech.mp3"
+            async with AsyncTypecast(host=HOST, api_key="key") as client:
+                resp = await client.generate_to_file(
+                    output_path,
+                    text="Hi",
+                    voice_id="tc_test",
+                )
+                assert resp.format == "mp3"
+                assert output_path.read_bytes() == b"audio"
+
+            sent = next(iter(m.requests.values()))[0].kwargs["json"]
+            assert sent["model"] == "ssfm-v30"
+            assert sent["output"]["audio_format"] == "mp3"
+
+    async def test_generate_to_file_keeps_explicit_output(self, tmp_path):
+        with aioresponses() as m:
+            m.post(f"{HOST}/v1/text-to-speech", status=200, body=b"audio", repeat=True)
+            async with AsyncTypecast(host=HOST, api_key="key") as client:
+                await client.generate_to_file(
+                    tmp_path / "speech.mp3",
+                    text="Hi",
+                    voice_id="tc_test",
+                    output=Output(audio_format="wav"),
+                )
+                await client.generate_to_file(
+                    tmp_path / "speech",
+                    text="Hi",
+                    voice_id="tc_test",
+                )
+                await client.generate_to_file(
+                    tmp_path / "speech.mp3",
+                    text="Hi",
+                    voice_id="tc_test",
+                    output=Output(audio_format=None),
+                )
+
+            requests = next(iter(m.requests.values()))
+            first = requests[0].kwargs["json"]
+            second = requests[1].kwargs["json"]
+            third = requests[2].kwargs["json"]
+            assert first["output"]["audio_format"] == "wav"
+            assert "output" not in second
+            assert third["output"]["audio_format"] == "mp3"
+
+    async def test_generate_to_file_rejects_blank_path_before_request(self):
+        with aioresponses() as m:
+            async with AsyncTypecast(host=HOST, api_key="key") as client:
+                with pytest.raises(ValueError, match="path cannot be empty"):
+                    await client.generate_to_file("   ", text="Hi", voice_id="tc_test")
+
+            assert not m.requests
 
     @pytest.mark.parametrize(
         "status,exc_class",

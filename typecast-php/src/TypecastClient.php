@@ -15,6 +15,10 @@ use Neosapience\Typecast\Exceptions\TypecastException;
 use Neosapience\Typecast\Exceptions\UnauthorizedException;
 use Neosapience\Typecast\Exceptions\UnprocessableEntityException;
 use Neosapience\Typecast\Models\CustomVoice;
+use Neosapience\Typecast\Models\Output;
+use Neosapience\Typecast\Models\PresetPrompt;
+use Neosapience\Typecast\Models\Prompt;
+use Neosapience\Typecast\Models\SmartPrompt;
 use Neosapience\Typecast\Models\SubscriptionResponse;
 use Neosapience\Typecast\Models\TTSRequest;
 use Neosapience\Typecast\Models\TTSRequestStream;
@@ -84,6 +88,41 @@ class TypecastClient
             duration: $duration,
             format: $format,
         );
+    }
+
+    /**
+     * Convert text to speech and save the audio bytes to a file.
+     *
+     * Browse available API voices at https://typecast.ai/developers/api/voices.
+     *
+     * @throws TypecastException
+     */
+    public function generateToFile(
+        string $path,
+        string $text,
+        string $voiceId,
+        string $model = 'ssfm-v30',
+        ?string $language = null,
+        Prompt|PresetPrompt|SmartPrompt|null $prompt = null,
+        ?Output $output = null,
+        ?int $seed = null,
+    ): TTSResponse {
+        if (trim($path) === '') {
+            throw new \InvalidArgumentException('path must be non-empty');
+        }
+        $response = $this->textToSpeech(new TTSRequest(
+            voiceId: $voiceId,
+            text: $text,
+            model: $model,
+            language: $language,
+            prompt: $prompt,
+            output: $output ?? $this->inferOutput($path),
+            seed: $seed,
+        ));
+        if (file_put_contents($path, $response->audioData) === false) {
+            throw new TypecastException('Failed to write audio file');
+        }
+        return $response;
     }
 
     /**
@@ -436,6 +475,15 @@ class TypecastClient
             429 => new RateLimitException("Rate limit exceeded: {$responseText}"),
             500 => new InternalServerException("Internal server error: {$responseText}"),
             default => new TypecastException("API request failed: {$statusCode}, {$responseText}", $statusCode),
+        };
+    }
+
+    private function inferOutput(string $path): ?Output
+    {
+        return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'mp3' => new Output(audioFormat: 'mp3'),
+            'wav' => new Output(audioFormat: 'wav'),
+            default => null,
         };
     }
 }
