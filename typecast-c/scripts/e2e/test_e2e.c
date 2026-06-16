@@ -92,6 +92,7 @@ const char* get_library_path(int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
     TestResult result = {0, 0, 0};
     const char* lib_path = get_library_path(argc, argv);
+    const char* dummy_key = "placeholder";
     
     printf("===========================================\n");
     printf("  Typecast C SDK E2E Test\n");
@@ -270,13 +271,13 @@ int main(int argc, char* argv[]) {
     printf("\n");
     
     /* ============================================
-     * 7. Test client creation (with dummy API key)
+     * 7. Test client creation (with dummy key)
      * ============================================ */
     printf("=== Testing Client Creation ===\n");
     
     if (typecast_client_create && typecast_client_destroy) {
-        /* Create client with test API key */
-        TypecastClient* client = typecast_client_create("test-api-key-for-e2e");
+        /* Create client with a non-secret placeholder key */
+        TypecastClient* client = typecast_client_create(dummy_key);
         TEST_ASSERT(&result, "typecast_client_create", client != NULL, "Failed to create client");
         
         if (client) {
@@ -293,7 +294,7 @@ int main(int argc, char* argv[]) {
     
     if (typecast_client_create_with_host && typecast_client_destroy) {
         /* Create client with custom host */
-        TypecastClient* client = typecast_client_create_with_host("test-api-key", "https://api.typecast.ai");
+        TypecastClient* client = typecast_client_create_with_host(dummy_key, "https://api.typecast.ai");
         TEST_ASSERT(&result, "typecast_client_create_with_host", client != NULL, "Failed to create client with host");
         
         if (client) {
