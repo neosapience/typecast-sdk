@@ -126,6 +126,19 @@ public class TypecastClient : IDisposable
     #region Text-to-Speech
 
     /// <summary>
+    /// Creates a composed speech builder for multi-speaker audio and explicit pauses.
+    /// Use <see cref="SpeechComposer.Defaults"/> for shared options, then chain
+    /// <see cref="SpeechComposer.Say"/> and <see cref="SpeechComposer.Pause"/>.
+    /// Each <c>Say</c> call may override voice, pitch, tempo, prompt, seed, and other
+    /// TTS options for that segment. Internal segment requests are generated as WAV
+    /// so the SDK can trim leading/trailing silence and concatenate PCM safely.
+    /// </summary>
+    public SpeechComposer ComposeSpeech()
+    {
+        return new SpeechComposer(this);
+    }
+
+    /// <summary>
     /// Synthesizes text to speech.
     /// </summary>
     /// <param name="request">The TTS request</param>

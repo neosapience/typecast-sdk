@@ -2,6 +2,7 @@
 //!
 //! This module contains the main client for interacting with the Typecast API.
 
+use crate::composer::SpeechComposer;
 use crate::errors::{Result, TypecastError};
 use crate::models::{
     Age, AudioFormat, CustomVoice, ErrorResponse, Gender, GenerateToFileRequest,
@@ -197,6 +198,11 @@ impl TypecastClient {
         } else {
             "****".to_string()
         }
+    }
+
+    /// Create a builder for composed speech with multiple speech segments and pauses.
+    pub fn compose_speech(&self) -> SpeechComposer<'_> {
+        SpeechComposer::new(self)
     }
 
     fn with_auth_header(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {

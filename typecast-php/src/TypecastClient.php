@@ -90,6 +90,11 @@ class TypecastClient
         );
     }
 
+    public function composeSpeech(): SpeechComposer
+    {
+        return new SpeechComposer($this);
+    }
+
     /**
      * Convert text to speech and save the audio bytes to a file.
      *

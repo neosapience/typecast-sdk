@@ -245,6 +245,21 @@ public class TypecastClient {
     }
 
     /**
+     * Creates a builder for composed speech with multiple speech segments and pauses.
+     *
+     * <p>Use {@link SpeechComposer#say(String, ComposerSettings)} to chain
+     * speech segments with per-segment voice, pitch, tempo, prompt, and seed
+     * overrides, and {@link SpeechComposer#pause(double)} to insert explicit
+     * silence in seconds. The composer requests WAV segments internally so it
+     * can trim leading/trailing silence and concatenate the final audio.</p>
+     *
+     * @return a composed speech builder bound to this client
+     */
+    public SpeechComposer composeSpeech() {
+        return new SpeechComposer(this);
+    }
+
+    /**
      * Converts text to speech and returns audio with word/character-level timestamps.
      *
      * <p>Calls {@code POST /v1/text-to-speech/with-timestamps}. An optional

@@ -35,6 +35,19 @@ pub fn build(b: *std.Build) void {
     const mock_test_step = b.step("test-mock", "Run mock tests");
     mock_test_step.dependOn(&run_mock_tests.step);
 
+    // Composer tests (pause markup, per-segment options, WAV composition)
+    const composer_test_mod = b.createModule(.{
+        .root_source_file = b.path("tests/composer_test.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "typecast", .module = typecast_mod }},
+    });
+    const composer_tests = b.addTest(.{ .root_module = composer_test_mod });
+    const run_composer_tests = b.addRunArtifact(composer_tests);
+    test_step.dependOn(&run_composer_tests.step);
+    const composer_test_step = b.step("test-composer", "Run composer tests");
+    composer_test_step.dependOn(&run_composer_tests.step);
+
     // Quick-cloning tests (mock HTTP, multipart body shape, validation)
     const quick_cloning_test_mod = b.createModule(.{
         .root_source_file = b.path("tests/quick_cloning_test.zig"),

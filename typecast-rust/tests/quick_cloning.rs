@@ -6,8 +6,8 @@
 use mockito::Server;
 use std::time::Duration;
 use typecast_rust::{
-    ClientConfig, TypecastClient, TypecastError, CLONING_MAX_FILE_SIZE, NAME_MAX_LENGTH,
-    NAME_MIN_LENGTH,
+    AudioFormat, ClientConfig, ComposerSettings, EmotionPreset, Output, PresetPrompt, TTSModel,
+    TypecastClient, TypecastError, CLONING_MAX_FILE_SIZE, NAME_MAX_LENGTH, NAME_MIN_LENGTH,
 };
 
 // ---------------------------------------------------------------------------
@@ -51,6 +51,64 @@ fn small_wav() -> Vec<u8> {
 
 fn clone_response_json() -> &'static str {
     r#"{"voice_id":"cv_abc123","name":"My Voice","model":"ssfm-v30"}"#
+}
+
+#[tokio::test]
+async fn compose_speech_smoke_for_quick_cloning_binary_coverage() {
+    let mut server = Server::new_async().await;
+    let _m1 = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(small_wav())
+        .create_async()
+        .await;
+    let _m2 = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(small_wav())
+        .create_async()
+        .await;
+    let _m3 = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(small_wav())
+        .create_async()
+        .await;
+    let _m4 = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(small_wav())
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let response = client
+        .compose_speech()
+        .defaults(
+            ComposerSettings::new()
+                .voice_id("voice-a")
+                .model(TTSModel::SsfmV30)
+                .language("eng")
+                .prompt(PresetPrompt::new().emotion_preset(EmotionPreset::Normal))
+                .output(Output::new().audio_format(AudioFormat::Wav))
+                .seed(1),
+        )
+        .say("Hello<|0.001s|>there")
+        .say_with(
+            "World<|0.001s|>again",
+            ComposerSettings::new()
+                .voice_id("voice-b")
+                .model(TTSModel::SsfmV30),
+        )
+        .generate()
+        .await
+        .unwrap();
+
+    assert_eq!(response.format, AudioFormat::Wav);
 }
 
 // ---------------------------------------------------------------------------

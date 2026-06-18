@@ -4,6 +4,7 @@ require "securerandom"
 require "uri"
 
 require "typecast/errors"
+require "typecast/composer"
 require "typecast/models"
 require "typecast/timestamps"
 
@@ -28,6 +29,10 @@ module Typecast
         duration: response["X-Audio-Duration"].to_f,
         format: response["Content-Type"].to_s.include?("mp3") || response["Content-Type"].to_s.include?("mpeg") ? Models::AUDIO_MP3 : Models::AUDIO_WAV
       )
+    end
+
+    def compose_speech
+      SpeechComposer.new(method(:text_to_speech))
     end
 
     # Browse available API voices at https://typecast.ai/developers/api/voices.

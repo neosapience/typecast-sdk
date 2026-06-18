@@ -13,6 +13,7 @@ import {
   guessAudioMime,
   validateCloneInputsAsync,
 } from './types/QuickCloning';
+import { SpeechComposer } from './composer';
 
 export class TypecastClient {
   private baseHost: string;
@@ -117,6 +118,16 @@ export class TypecastClient {
       duration,
       format,
     };
+  }
+
+  /**
+   * Build composed speech from multiple text and pause segments.
+   *
+   * Text passed to `.say()` may include pause markup such as `<|0.3s|>`.
+   * `.pause(seconds)` also uses seconds, e.g. `0.3` for 300 ms.
+   */
+  composeSpeech(): SpeechComposer {
+    return new SpeechComposer((request) => this.textToSpeech(request));
   }
 
   /**

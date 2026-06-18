@@ -2,6 +2,7 @@ const std = @import("std");
 const models = @import("models.zig");
 const json_helpers = @import("json.zig");
 const timestamps = @import("timestamps.zig");
+const composer = @import("composer.zig");
 
 pub const Client = struct {
     allocator: std.mem.Allocator,
@@ -28,7 +29,9 @@ pub const Client = struct {
     pub fn init(allocator: std.mem.Allocator, config: Config) Client {
         return .{
             .allocator = allocator,
-            .http_client = .{ .allocator = allocator },
+            .http_client = .{
+                .allocator = allocator,
+            },
             .api_key = config.api_key,
             .base_url = config.base_url,
         };
@@ -39,6 +42,14 @@ pub const Client = struct {
     }
 
     // ── Public API methods ────────────────────────────────────────────
+
+    /// Create a composed speech builder for multi-speaker audio and pauses.
+    ///
+    /// Segment requests are generated as WAV internally so the SDK can trim
+    /// leading/trailing silence, insert pause samples, and concatenate PCM.
+    pub fn composeSpeech(self: *Client) composer.SpeechComposer {
+        return composer.SpeechComposer.init(self);
+    }
 
     /// POST /v1/text-to-speech — full audio response
     pub fn textToSpeech(self: *Client, request: models.TtsRequest) !models.TtsResponse {

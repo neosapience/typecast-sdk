@@ -10,11 +10,11 @@ use mockito::Server;
 use std::fs;
 use std::time::Duration;
 use typecast_rust::{
-    Age, AudioFormat, ClientConfig, Credits, EmotionPreset, ErrorResponse, Gender, Limits,
-    GenerateToFileRequest, ModelInfo, Output, OutputStream, PlanTier, PresetPrompt, Prompt,
-    SmartPrompt, SubscriptionResponse, TTSModel, TTSPrompt, TTSRequest, TTSRequestStream,
-    TypecastClient, TypecastError, UseCase, VoiceV2, VoicesV2Filter, DEFAULT_BASE_URL,
-    DEFAULT_TIMEOUT_SECS,
+    parse_pause_markup, Age, AudioFormat, ClientConfig, ComposerSettings, Credits, EmotionPreset,
+    ErrorResponse, Gender, GenerateToFileRequest, Limits, ModelInfo, Output, OutputStream,
+    PlanTier, PresetPrompt, Prompt, SmartPrompt, SpeechPart, SubscriptionResponse, TTSModel,
+    TTSPrompt, TTSRequest, TTSRequestStream, TypecastClient, TypecastError, UseCase, VoiceV2,
+    VoicesV2Filter, DEFAULT_BASE_URL, DEFAULT_TIMEOUT_SECS,
 };
 
 // ---------------------------------------------------------------------------
@@ -26,6 +26,101 @@ fn make_client(server: &Server) -> TypecastClient {
         .base_url(server.url())
         .timeout(Duration::from_secs(5));
     TypecastClient::new(config).expect("client builds")
+}
+
+fn make_test_wav(samples: &[i16], sample_rate: u32) -> Vec<u8> {
+    make_test_wav_with_format(samples, sample_rate, 1, 1, 16)
+}
+
+fn make_test_wav_with_format(
+    samples: &[i16],
+    sample_rate: u32,
+    audio_format: u16,
+    channels: u16,
+    bits_per_sample: u16,
+) -> Vec<u8> {
+    let data_size = (samples.len() * 2) as u32;
+    let mut wav = Vec::with_capacity(44 + samples.len() * 2);
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + data_size).to_le_bytes());
+    wav.extend_from_slice(b"WAVE");
+    wav.extend_from_slice(b"fmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&audio_format.to_le_bytes());
+    wav.extend_from_slice(&channels.to_le_bytes());
+    wav.extend_from_slice(&sample_rate.to_le_bytes());
+    wav.extend_from_slice(&(sample_rate * 2).to_le_bytes());
+    wav.extend_from_slice(&2u16.to_le_bytes());
+    wav.extend_from_slice(&bits_per_sample.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&data_size.to_le_bytes());
+    for sample in samples {
+        wav.extend_from_slice(&sample.to_le_bytes());
+    }
+    wav
+}
+
+fn make_test_wav_without_data(extra_chunk: bool) -> Vec<u8> {
+    let payload_len = if extra_chunk { 12 } else { 8 };
+    let mut wav = Vec::with_capacity(36 + payload_len);
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(28u32 + payload_len as u32).to_le_bytes());
+    wav.extend_from_slice(b"WAVE");
+    wav.extend_from_slice(b"fmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&1u16.to_le_bytes());
+    wav.extend_from_slice(&1000u32.to_le_bytes());
+    wav.extend_from_slice(&2000u32.to_le_bytes());
+    wav.extend_from_slice(&2u16.to_le_bytes());
+    wav.extend_from_slice(&16u16.to_le_bytes());
+    if extra_chunk {
+        wav.extend_from_slice(b"JUNK");
+        wav.extend_from_slice(&4u32.to_le_bytes());
+        wav.extend_from_slice(&123u32.to_le_bytes());
+    }
+    wav
+}
+
+fn make_test_wav_with_invalid_chunk_size() -> Vec<u8> {
+    let mut wav = make_test_wav(&[], 1000);
+    wav[36..40].copy_from_slice(b"JUNK");
+    wav[40..44].copy_from_slice(&1000u32.to_le_bytes());
+    wav
+}
+
+fn make_test_wav_with_short_fmt_chunk() -> Vec<u8> {
+    let mut wav = Vec::new();
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&12u32.to_le_bytes());
+    wav.extend_from_slice(b"WAVE");
+    wav.extend_from_slice(b"fmt ");
+    wav.extend_from_slice(&4u32.to_le_bytes());
+    wav.extend_from_slice(&1u32.to_le_bytes());
+    wav
+}
+
+fn make_test_wav_with_data_only() -> Vec<u8> {
+    let mut wav = Vec::new();
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&40u32.to_le_bytes());
+    wav.extend_from_slice(b"WAVE");
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&2u32.to_le_bytes());
+    wav.extend_from_slice(&100i16.to_le_bytes());
+    wav
+}
+
+fn samples_from_wav(data: &[u8]) -> Vec<i16> {
+    let data_offset = data
+        .windows(4)
+        .position(|window| window == b"data")
+        .expect("data chunk")
+        + 8;
+    data[data_offset..]
+        .chunks_exact(2)
+        .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]))
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -780,7 +875,8 @@ async fn generate_to_file_with_explicit_format_hits_no_inference_branch() {
         .await;
 
     let client = make_client(&server);
-    let path = std::env::temp_dir().join(format!("typecast-rust-explicit-{}.wav", std::process::id()));
+    let path =
+        std::env::temp_dir().join(format!("typecast-rust-explicit-{}.wav", std::process::id()));
     let _ = fs::remove_file(&path);
     client
         .generate_to_file(
@@ -814,23 +910,330 @@ async fn generate_to_file_propagates_api_and_write_errors() {
     let client = make_client(&server);
     let path = std::env::temp_dir().join(format!("typecast-rust-error-{}.wav", std::process::id()));
     let err = client
-        .generate_to_file(
-            &path,
-            GenerateToFileRequest::new("tc_x", "hello"),
-        )
+        .generate_to_file(&path, GenerateToFileRequest::new("tc_x", "hello"))
         .await
         .unwrap_err();
     assert!(err.is_unauthorized());
 
     let dir = std::env::temp_dir();
     let err = client
-        .generate_to_file(
-            &dir,
-            GenerateToFileRequest::new("tc_x", "hello"),
-        )
+        .generate_to_file(&dir, GenerateToFileRequest::new("tc_x", "hello"))
         .await
         .unwrap_err();
     assert!(matches!(err, TypecastError::IoError(_)));
+}
+
+#[tokio::test]
+async fn compose_speech_composes_wav_and_merges_overrides() {
+    let mut server = Server::new_async().await;
+    let _m1 = server
+        .mock("POST", "/v1/text-to-speech")
+        .match_body(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::Regex(r#""text":"Hello""#.into()),
+            mockito::Matcher::Regex(r#""voice_id":"voice-b""#.into()),
+            mockito::Matcher::Regex(r#""audio_format":"wav""#.into()),
+            mockito::Matcher::Regex(r#""audio_pitch":1"#.into()),
+            mockito::Matcher::Regex(r#""audio_tempo":1.1"#.into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(make_test_wav(&[0, 1000, 2000, 0], 1000))
+        .create_async()
+        .await;
+    let _m2 = server
+        .mock("POST", "/v1/text-to-speech")
+        .match_body(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::Regex(r#""text":"world""#.into()),
+            mockito::Matcher::Regex(r#""voice_id":"voice-b""#.into()),
+            mockito::Matcher::Regex(r#""audio_format":"wav""#.into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(make_test_wav(&[0, -1000, -2000, 0], 1000))
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let response = client
+        .compose_speech()
+        .defaults(
+            ComposerSettings::new()
+                .voice_id("voice-a")
+                .model(TTSModel::SsfmV30)
+                .language("eng")
+                .prompt(
+                    Prompt::new()
+                        .emotion_preset(EmotionPreset::Happy)
+                        .emotion_intensity(1.0),
+                )
+                .output(Output::new().audio_format(AudioFormat::Wav).audio_pitch(1))
+                .seed(123),
+        )
+        .say_with(
+            "Hello<|0.001s|>world",
+            ComposerSettings::new()
+                .voice_id("voice-b")
+                .prompt(
+                    PresetPrompt::new()
+                        .emotion_preset(EmotionPreset::Sad)
+                        .emotion_intensity(0.5),
+                )
+                .output(Output::new().volume(80).audio_tempo(1.1)),
+        )
+        .generate()
+        .await
+        .unwrap();
+
+    assert_eq!(response.format, AudioFormat::Wav);
+    assert_eq!(
+        samples_from_wav(&response.audio_data),
+        vec![1000, 2000, 0, -1000, -2000]
+    );
+    assert!((response.duration - 0.005).abs() < 0.0001);
+}
+
+#[tokio::test]
+async fn compose_speech_validates_before_network() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech")
+        .expect(0)
+        .create_async()
+        .await;
+    let client = make_client(&server);
+
+    let err = client
+        .compose_speech()
+        .say("Hello")
+        .generate()
+        .await
+        .unwrap_err();
+    assert!(matches!(err, TypecastError::ValidationError { .. }));
+    assert!(err.to_string().contains("voice_id is required"));
+
+    let err = client
+        .compose_speech()
+        .pause(0.0)
+        .generate()
+        .await
+        .unwrap_err();
+    assert!(err
+        .to_string()
+        .contains("pause seconds must be greater than 0"));
+
+    let err = client.compose_speech().generate().await.unwrap_err();
+    assert!(err
+        .to_string()
+        .contains("at least one speech segment is required"));
+
+    let err = client
+        .compose_speech()
+        .defaults(ComposerSettings::new().voice_id("voice-a"))
+        .say("Hello")
+        .generate()
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("model is required"));
+
+    let err = client
+        .compose_speech()
+        .defaults(
+            ComposerSettings::new()
+                .voice_id("voice-a")
+                .model(TTSModel::SsfmV30),
+        )
+        .pause(0.1)
+        .say("Hello")
+        .generate()
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("pause cannot be the first"));
+
+    let err = client
+        .compose_speech()
+        .defaults(
+            ComposerSettings::new()
+                .voice_id("")
+                .model(TTSModel::SsfmV30),
+        )
+        .say("Hello")
+        .generate()
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("voice_id is required"));
+}
+
+#[test]
+fn parse_pause_markup_is_lenient_for_invalid_tokens() {
+    let parts =
+        parse_pause_markup("a<|0.3s|>b<|abc|>c<|s|>d<|.3s|>e<|3.s|>f<|3..1s|>g<|3xs|>h<|3s|>");
+
+    assert_eq!(
+        parts,
+        vec![
+            SpeechPart::Text("a".to_string()),
+            SpeechPart::Pause(0.3),
+            SpeechPart::Text("b<|abc|>c<|s|>d<|.3s|>e<|3.s|>f<|3..1s|>g<|3xs|>h".to_string()),
+            SpeechPart::Pause(3.0),
+        ]
+    );
+    assert_eq!(
+        parse_pause_markup("hello<|0.3s"),
+        vec![SpeechPart::Text("hello<|0.3s".to_string())]
+    );
+}
+
+#[tokio::test]
+async fn compose_speech_rejects_bad_wav_mismatched_specs_and_mp3() {
+    let malformed_cases = vec![
+        b"not wav".to_vec(),
+        {
+            let mut wav = make_test_wav(&[100], 1000);
+            wav[0..4].copy_from_slice(b"NOPE");
+            wav
+        },
+        {
+            let mut wav = make_test_wav(&[100], 1000);
+            wav[8..12].copy_from_slice(b"NOPE");
+            wav
+        },
+        make_test_wav_with_format(&[100], 1000, 2, 1, 16),
+        make_test_wav_with_format(&[100], 1000, 1, 2, 16),
+        make_test_wav_with_format(&[100], 1000, 1, 1, 8),
+        make_test_wav_with_short_fmt_chunk(),
+        make_test_wav_with_invalid_chunk_size(),
+        make_test_wav_with_data_only(),
+        make_test_wav_without_data(true),
+        make_test_wav_without_data(false),
+    ];
+    for wav in malformed_cases {
+        let mut bad_server = Server::new_async().await;
+        let _bad = bad_server
+            .mock("POST", "/v1/text-to-speech")
+            .with_status(200)
+            .with_header("content-type", "audio/wav")
+            .with_body(wav)
+            .create_async()
+            .await;
+        let client = make_client(&bad_server);
+        let err = client
+            .compose_speech()
+            .defaults(
+                ComposerSettings::new()
+                    .voice_id("voice-a")
+                    .model(TTSModel::SsfmV30),
+            )
+            .say("Hello")
+            .generate()
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("unsupported WAV data")
+                || err
+                    .to_string()
+                    .contains("only mono 16-bit PCM WAV is supported")
+        );
+    }
+
+    let mut mismatch_server = Server::new_async().await;
+    let _m1 = mismatch_server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(make_test_wav(&[1000], 1000))
+        .create_async()
+        .await;
+    let _m2 = mismatch_server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(make_test_wav(&[1000], 2000))
+        .create_async()
+        .await;
+    let client = make_client(&mismatch_server);
+    let err = client
+        .compose_speech()
+        .defaults(
+            ComposerSettings::new()
+                .voice_id("voice-a")
+                .model(TTSModel::SsfmV30),
+        )
+        .say("one<|0.001s|>two")
+        .generate()
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("same PCM format"));
+
+    let mut mp3_server = Server::new_async().await;
+    let _mp3 = mp3_server
+        .mock("POST", "/v1/text-to-speech")
+        .match_body(mockito::Matcher::Regex(r#""audio_format":"wav""#.into()))
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(make_test_wav(&[1000], 1000))
+        .create_async()
+        .await;
+    let client = make_client(&mp3_server);
+    let err = client
+        .compose_speech()
+        .defaults(
+            ComposerSettings::new()
+                .voice_id("voice-a")
+                .model(TTSModel::SsfmV30)
+                .output(Output::new().audio_format(AudioFormat::Mp3)),
+        )
+        .say("Hello")
+        .generate()
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("ffmpeg is required"));
+}
+
+#[tokio::test]
+async fn compose_speech_ignores_blank_text_left_by_pause_markup() {
+    let server = Server::new_async().await;
+    let client = make_client(&server);
+
+    let err = client
+        .compose_speech()
+        .defaults(
+            ComposerSettings::new()
+                .voice_id("voice-a")
+                .model(TTSModel::SsfmV30),
+        )
+        .say("   <|0.1s|>")
+        .generate()
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, TypecastError::ValidationError { .. }));
+}
+
+#[tokio::test]
+async fn compose_speech_trims_all_zero_segments_to_empty_audio() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(make_test_wav(&[0, 0], 1000))
+        .create_async()
+        .await;
+    let client = make_client(&server);
+    let response = client
+        .compose_speech()
+        .defaults(
+            ComposerSettings::new()
+                .voice_id("voice-a")
+                .model(TTSModel::SsfmV30),
+        )
+        .say("Silence")
+        .generate()
+        .await
+        .unwrap();
+
+    assert_eq!(samples_from_wav(&response.audio_data), Vec::<i16>::new());
+    assert_eq!(response.duration, 0.0);
 }
 
 // ---------------------------------------------------------------------------

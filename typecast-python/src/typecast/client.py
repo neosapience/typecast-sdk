@@ -10,6 +10,7 @@ from ._voice_clone import (
     validate_clone_inputs,
     validate_custom_voice_id,
 )
+from .composer import SpeechComposer
 from .exceptions import (
     BadRequestError,
     InternalServerError,
@@ -165,6 +166,14 @@ class Typecast:
             duration=response.headers.get("X-Audio-Duration", 0),
             format=response.headers.get("Content-Type", "audio/wav").split("/")[-1],
         )
+
+    def compose_speech(self) -> SpeechComposer:
+        """Build composed speech from multiple text and pause segments.
+
+        Text passed to ``say()`` may include pause markup such as ``<|0.3s|>``.
+        ``pause(seconds)`` also uses seconds, e.g. ``0.3`` for 300 ms.
+        """
+        return SpeechComposer(self.text_to_speech)
 
     def generate_to_file(
         self,

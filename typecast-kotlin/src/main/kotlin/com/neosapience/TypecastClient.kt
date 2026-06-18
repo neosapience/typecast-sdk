@@ -144,6 +144,17 @@ class TypecastClient private constructor(
     }
 
     /**
+     * Creates a composed speech builder for multi-speaker audio and explicit pauses.
+     *
+     * Use [SpeechComposer.defaults] for shared options, then chain
+     * [SpeechComposer.say] and [SpeechComposer.pause]. Each `say` call may
+     * override voice, pitch, tempo, prompt, seed, and other TTS options for that
+     * segment. Internal segment requests are generated as WAV so the SDK can trim
+     * leading/trailing silence and concatenate PCM.
+     */
+    fun composeSpeech(): SpeechComposer = SpeechComposer(this)
+
+    /**
      * Streams synthesized audio from `POST /v1/text-to-speech/stream`.
      *
      * Returns an [InputStream] that yields the chunked binary audio body
