@@ -266,6 +266,9 @@ private func parseWAV(_ data: Data) throws -> ParsedWAV {
       }
       spec = WAVSpec(sampleRate: sampleRate, channels: channels, bitsPerSample: bitsPerSample)
     } else if chunkId == "data" {
+      guard chunkSize % 2 == 0 else {
+        throw TypecastError.validationError("unsupported WAV data")
+      }
       samples = stride(from: chunkDataOffset, to: chunkEnd, by: 2).map {
         Int16(littleEndian: Int16(bitPattern: readUInt16(bytes, $0)))
       }

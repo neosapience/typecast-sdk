@@ -164,6 +164,7 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
       makeTestWav(samples: [100], sampleRate: 1000, audioFormat: 2),
       makeTestWavWithShortFmtChunk(),
       makeTestWavWithInvalidChunkSize(),
+      makeTestWavWithOddDataChunk(),
       makeTestWavWithDataOnly(),
       makeTestWavWithoutData(extraChunk: true),
       makeTestWavWithoutData(extraChunk: false)
@@ -305,6 +306,13 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
     var data = makeTestWav(samples: [], sampleRate: 1000)
     data.replaceSubrange(36..<40, with: Data("JUNK".utf8))
     data.replaceSubrange(40..<44, with: UInt32(1000).littleEndianData)
+    return data
+  }
+
+  private func makeTestWavWithOddDataChunk() -> Data {
+    var data = makeTestWav(samples: [100], sampleRate: 1000)
+    data.replaceSubrange(40..<44, with: UInt32(1).littleEndianData)
+    data.removeLast()
     return data
   }
 
