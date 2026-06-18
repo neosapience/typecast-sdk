@@ -132,12 +132,25 @@ static int tiny_server_start_with_statuses(TinyServer* server, const uint8_t** b
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = 0;
-    if (bind(server->listen_fd, (struct sockaddr*)&addr, sizeof(addr)) != 0) return 0;
-    if (listen(server->listen_fd, 8) != 0) return 0;
+    if (bind(server->listen_fd, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
+        close(server->listen_fd);
+        return 0;
+    }
+    if (listen(server->listen_fd, 8) != 0) {
+        close(server->listen_fd);
+        return 0;
+    }
     socklen_t len = sizeof(addr);
-    if (getsockname(server->listen_fd, (struct sockaddr*)&addr, &len) != 0) return 0;
+    if (getsockname(server->listen_fd, (struct sockaddr*)&addr, &len) != 0) {
+        close(server->listen_fd);
+        return 0;
+    }
     server->port = ntohs(addr.sin_port);
-    return pthread_create(&server->thread, NULL, tiny_server_thread, server) == 0;
+    if (pthread_create(&server->thread, NULL, tiny_server_thread, server) != 0) {
+        close(server->listen_fd);
+        return 0;
+    }
+    return 1;
 }
 
 static int tiny_server_start(TinyServer* server, const uint8_t** bodies, const size_t* sizes, size_t count) {
@@ -145,8 +158,9 @@ static int tiny_server_start(TinyServer* server, const uint8_t** bodies, const s
 }
 
 static void tiny_server_stop(TinyServer* server) {
-    pthread_join(server->thread, NULL);
+    shutdown(server->listen_fd, SHUT_RDWR);
     close(server->listen_fd);
+    pthread_join(server->thread, NULL);
 }
 
 static void test_parse_pause_markup_preserves_invalid_tokens(void) {
