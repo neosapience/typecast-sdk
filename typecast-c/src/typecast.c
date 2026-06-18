@@ -53,6 +53,26 @@ typedef struct {
     size_t size;
 } HeaderBuffer;
 
+typedef enum {
+    COMPOSER_PART_SPEECH,
+    COMPOSER_PART_PAUSE
+} ComposerPartKind;
+
+typedef struct {
+    ComposerPartKind kind;
+    char* text;
+    float pause_seconds;
+    TypecastComposerSettings settings;
+} ComposerPart;
+
+struct TypecastSpeechComposer {
+    TypecastClient* client;
+    TypecastComposerSettings defaults;
+    ComposerPart* parts;
+    size_t count;
+    size_t capacity;
+};
+
 /* ============================================
  * String Constants
  * ============================================ */
@@ -722,6 +742,510 @@ TYPECAST_API void typecast_tts_response_free(TypecastTTSResponse* response) {
     if (!response) return;
     if (response->audio_data) free(response->audio_data);
     free(response);
+}
+
+/* ============================================
+ * Composed Speech API
+ * ============================================ */
+
+static int parse_pause_token(const char* token, size_t len, float* seconds) {
+    if (!token || !seconds || len < 2 || token[len - 1] != 's') return 0;
+    for (size_t i = 0; i < len - 1; i++) {
+        if (!isdigit((unsigned char)token[i]) && token[i] != '.') return 0;
+    }
+    char buf[64];
+    if (len >= sizeof(buf)) return 0;
+    memcpy(buf, token, len - 1);
+    buf[len - 1] = '\0';
+    char* end = NULL;
+    float value = strtof(buf, &end);
+    if (!end || *end != '\0') return 0;
+    *seconds = value;
+    return 1;
+}
+
+static TypecastErrorCode append_speech_part(TypecastSpeechPart** parts, size_t* count, size_t* capacity, TypecastSpeechPart part) {
+    if (*count == *capacity) {
+        size_t next = (*capacity == 0) ? 4 : (*capacity * 2);
+        TypecastSpeechPart* resized = (TypecastSpeechPart*)realloc(*parts, next * sizeof(TypecastSpeechPart));
+        if (!resized) return TYPECAST_ERROR_OUT_OF_MEMORY;
+        *parts = resized;
+        *capacity = next;
+    }
+    (*parts)[(*count)++] = part;
+    return TYPECAST_OK;
+}
+
+TYPECAST_API TypecastErrorCode typecast_parse_pause_markup(
+    const char* text,
+    TypecastSpeechPart** out_parts,
+    size_t* out_count
+) {
+    if (!text || !out_parts || !out_count) return TYPECAST_ERROR_INVALID_PARAM;
+    *out_parts = NULL;
+    *out_count = 0;
+
+    TypecastSpeechPart* parts = NULL;
+    size_t count = 0;
+    size_t capacity = 0;
+    size_t text_start = 0;
+    size_t search_start = 0;
+    size_t len = strlen(text);
+
+    while (search_start < len) {
+        const char* start_ptr = strstr(text + search_start, "<|");
+        if (!start_ptr) break;
+        size_t start = (size_t)(start_ptr - text);
+        size_t value_start = start + 2;
+        const char* end_ptr = strstr(text + value_start, "|>");
+        if (!end_ptr) break;
+        size_t end = (size_t)(end_ptr - text);
+        float seconds = 0.0f;
+        if (parse_pause_token(text + value_start, end - value_start, &seconds)) {
+            size_t text_len = start - text_start;
+            char* chunk = (char*)malloc(text_len + 1);
+            if (!chunk) {
+                typecast_speech_parts_free(parts, count);
+                return TYPECAST_ERROR_OUT_OF_MEMORY;
+            }
+            memcpy(chunk, text + text_start, text_len);
+            chunk[text_len] = '\0';
+            TypecastErrorCode err = append_speech_part(&parts, &count, &capacity, (TypecastSpeechPart){ .text = chunk, .pause_seconds = 0.0f, .is_pause = 0 });
+            if (err != TYPECAST_OK) {
+                free(chunk);
+                typecast_speech_parts_free(parts, count);
+                return err;
+            }
+            err = append_speech_part(&parts, &count, &capacity, (TypecastSpeechPart){ .text = NULL, .pause_seconds = seconds, .is_pause = 1 });
+            if (err != TYPECAST_OK) {
+                typecast_speech_parts_free(parts, count);
+                return err;
+            }
+            text_start = end + 2;
+            search_start = text_start;
+        } else {
+            search_start = value_start;
+        }
+    }
+
+    char* tail = strdup_safe(text + text_start);
+    if (!tail) {
+        typecast_speech_parts_free(parts, count);
+        return TYPECAST_ERROR_OUT_OF_MEMORY;
+    }
+    TypecastErrorCode err = append_speech_part(&parts, &count, &capacity, (TypecastSpeechPart){ .text = tail, .pause_seconds = 0.0f, .is_pause = 0 });
+    if (err != TYPECAST_OK) {
+        free(tail);
+        typecast_speech_parts_free(parts, count);
+        return err;
+    }
+
+    *out_parts = parts;
+    *out_count = count;
+    return TYPECAST_OK;
+}
+
+TYPECAST_API void typecast_speech_parts_free(TypecastSpeechPart* parts, size_t count) {
+    if (!parts) return;
+    for (size_t i = 0; i < count; i++) {
+        free(parts[i].text);
+    }
+    free(parts);
+}
+
+static TypecastComposerOutput merge_composer_output(TypecastComposerOutput base, TypecastComposerOutput overrides) {
+    TypecastComposerOutput out = base;
+    if (overrides.use_volume) {
+        out.use_volume = 1;
+        out.volume = overrides.volume;
+    }
+    if (overrides.use_target_lufs) {
+        out.use_target_lufs = 1;
+        out.target_lufs = overrides.target_lufs;
+    }
+    if (overrides.use_audio_pitch) {
+        out.use_audio_pitch = 1;
+        out.audio_pitch = overrides.audio_pitch;
+    }
+    if (overrides.use_audio_tempo) {
+        out.use_audio_tempo = 1;
+        out.audio_tempo = overrides.audio_tempo;
+    }
+    if (overrides.use_audio_format) {
+        out.use_audio_format = 1;
+        out.audio_format = overrides.audio_format;
+    }
+    return out;
+}
+
+static TypecastComposerSettings merge_composer_settings(TypecastComposerSettings base, TypecastComposerSettings overrides) {
+    TypecastComposerSettings out = base;
+    if (overrides.voice_id) out.voice_id = overrides.voice_id;
+    if (overrides.use_model) {
+        out.use_model = 1;
+        out.model = overrides.model;
+    }
+    if (overrides.language) out.language = overrides.language;
+    if (overrides.prompt) out.prompt = overrides.prompt;
+    if (overrides.use_output) {
+        out.use_output = 1;
+        out.output = merge_composer_output(base.output, overrides.output);
+    }
+    if (overrides.use_seed) {
+        out.use_seed = 1;
+        out.seed = overrides.seed;
+    }
+    return out;
+}
+
+static TypecastOutput composer_output_to_tts(TypecastComposerOutput output) {
+    TypecastOutput out = {0};
+    out.volume = output.use_volume ? output.volume : 100;
+    out.use_target_lufs = output.use_target_lufs;
+    out.target_lufs = output.target_lufs;
+    out.audio_pitch = output.use_audio_pitch ? output.audio_pitch : 0;
+    out.audio_tempo = output.use_audio_tempo ? output.audio_tempo : 1.0f;
+    out.audio_format = TYPECAST_AUDIO_FORMAT_WAV;
+    return out;
+}
+
+TYPECAST_API TypecastSpeechComposer* typecast_speech_composer_create(TypecastClient* client) {
+    if (!client) return NULL;
+    TypecastSpeechComposer* composer = (TypecastSpeechComposer*)calloc(1, sizeof(TypecastSpeechComposer));
+    if (!composer) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate speech composer");
+        return NULL;
+    }
+    composer->client = client;
+    return composer;
+}
+
+TYPECAST_API void typecast_speech_composer_destroy(TypecastSpeechComposer* composer) {
+    if (!composer) return;
+    for (size_t i = 0; i < composer->count; i++) {
+        free(composer->parts[i].text);
+    }
+    free(composer->parts);
+    free(composer);
+}
+
+TYPECAST_API TypecastErrorCode typecast_speech_composer_defaults(TypecastSpeechComposer* composer, const TypecastComposerSettings* settings) {
+    if (!composer || !settings) return TYPECAST_ERROR_INVALID_PARAM;
+    composer->defaults = merge_composer_settings(composer->defaults, *settings);
+    return TYPECAST_OK;
+}
+
+static TypecastErrorCode append_composer_part(TypecastSpeechComposer* composer, ComposerPart part) {
+    if (composer->count == composer->capacity) {
+        size_t next = (composer->capacity == 0) ? 4 : composer->capacity * 2;
+        ComposerPart* resized = (ComposerPart*)realloc(composer->parts, next * sizeof(ComposerPart));
+        if (!resized) {
+            set_error(composer->client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate composer part");
+            return TYPECAST_ERROR_OUT_OF_MEMORY;
+        }
+        composer->parts = resized;
+        composer->capacity = next;
+    }
+    composer->parts[composer->count++] = part;
+    return TYPECAST_OK;
+}
+
+TYPECAST_API TypecastErrorCode typecast_speech_composer_say(
+    TypecastSpeechComposer* composer,
+    const char* text,
+    const TypecastComposerSettings* overrides
+) {
+    if (!composer || !text) return TYPECAST_ERROR_INVALID_PARAM;
+    char* copy = strdup_safe(text);
+    if (!copy) {
+        set_error(composer->client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate speech text");
+        return TYPECAST_ERROR_OUT_OF_MEMORY;
+    }
+    ComposerPart part = {0};
+    part.kind = COMPOSER_PART_SPEECH;
+    part.text = copy;
+    if (overrides) part.settings = *overrides;
+    TypecastErrorCode err = append_composer_part(composer, part);
+    if (err != TYPECAST_OK) free(copy);
+    return err;
+}
+
+TYPECAST_API TypecastErrorCode typecast_speech_composer_pause(TypecastSpeechComposer* composer, float seconds) {
+    if (!composer || seconds < 0.0f) return TYPECAST_ERROR_INVALID_PARAM;
+    ComposerPart part = {0};
+    part.kind = COMPOSER_PART_PAUSE;
+    part.pause_seconds = seconds;
+    return append_composer_part(composer, part);
+}
+
+TYPECAST_API TypecastErrorCode typecast_speech_composer_segment_requests(
+    TypecastSpeechComposer* composer,
+    TypecastTTSRequest** out_requests,
+    size_t* out_count
+) {
+    if (!composer || !out_requests || !out_count) return TYPECAST_ERROR_INVALID_PARAM;
+    *out_requests = NULL;
+    *out_count = 0;
+
+    size_t speech_count = 0;
+    for (size_t i = 0; i < composer->count; i++) {
+        if (composer->parts[i].kind == COMPOSER_PART_SPEECH) speech_count++;
+    }
+    TypecastTTSRequest* requests = (TypecastTTSRequest*)calloc(speech_count ? speech_count : 1, sizeof(TypecastTTSRequest));
+    TypecastOutput* outputs = (TypecastOutput*)calloc(speech_count ? speech_count : 1, sizeof(TypecastOutput));
+    if (!requests || !outputs) {
+        free(requests);
+        free(outputs);
+        set_error(composer->client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate segment requests");
+        return TYPECAST_ERROR_OUT_OF_MEMORY;
+    }
+
+    size_t index = 0;
+    for (size_t i = 0; i < composer->count; i++) {
+        if (composer->parts[i].kind != COMPOSER_PART_SPEECH) continue;
+        TypecastComposerSettings merged = merge_composer_settings(composer->defaults, composer->parts[i].settings);
+        if (!merged.voice_id) {
+            free(requests);
+            free(outputs);
+            set_error(composer->client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is required for composed speech");
+            return TYPECAST_ERROR_INVALID_PARAM;
+        }
+        outputs[index] = composer_output_to_tts(merged.output);
+        requests[index].text = composer->parts[i].text;
+        requests[index].voice_id = merged.voice_id;
+        requests[index].model = merged.use_model ? merged.model : TYPECAST_MODEL_SSFM_V30;
+        requests[index].language = merged.language;
+        requests[index].prompt = merged.prompt;
+        requests[index].output = &outputs[index];
+        requests[index].seed = merged.use_seed ? merged.seed : 0;
+        index++;
+    }
+
+    *out_requests = requests;
+    *out_count = speech_count;
+    return TYPECAST_OK;
+}
+
+TYPECAST_API void typecast_speech_composer_segment_requests_free(TypecastTTSRequest* requests, size_t count) {
+    (void)count;
+    if (!requests) return;
+    if (count > 0) free(requests[0].output);
+    free(requests);
+}
+
+static uint16_t read_u16_le(const uint8_t* p) {
+    return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
+}
+
+static uint32_t read_u32_le(const uint8_t* p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static void write_u16_le(uint8_t* p, uint16_t v) {
+    p[0] = (uint8_t)(v & 0xff);
+    p[1] = (uint8_t)((v >> 8) & 0xff);
+}
+
+static void write_u32_le(uint8_t* p, uint32_t v) {
+    p[0] = (uint8_t)(v & 0xff);
+    p[1] = (uint8_t)((v >> 8) & 0xff);
+    p[2] = (uint8_t)((v >> 16) & 0xff);
+    p[3] = (uint8_t)((v >> 24) & 0xff);
+}
+
+typedef struct {
+    uint32_t sample_rate;
+    size_t pcm_start;
+    size_t pcm_len;
+} WavInfo;
+
+static int parse_wav(const uint8_t* data, size_t size, WavInfo* info) {
+    if (!data || !info || size < 44) return 0;
+    if (memcmp(data, "RIFF", 4) != 0 || memcmp(data + 8, "WAVE", 4) != 0) return 0;
+    if (memcmp(data + 12, "fmt ", 4) != 0) return 0;
+    if (read_u16_le(data + 20) != 1 || read_u16_le(data + 22) != 1 || read_u16_le(data + 34) != 16) return 0;
+    size_t cursor = 36;
+    while (cursor + 8 <= size) {
+        uint32_t chunk_size = read_u32_le(data + cursor + 4);
+        size_t data_start = cursor + 8;
+        size_t data_end = data_start + chunk_size;
+        if (data_end > size) return 0;
+        if (memcmp(data + cursor, "data", 4) == 0) {
+            info->sample_rate = read_u32_le(data + 24);
+            info->pcm_start = data_start;
+            info->pcm_len = chunk_size;
+            return 1;
+        }
+        cursor = data_end;
+    }
+    return 0;
+}
+
+static int16_t read_sample(const uint8_t* bytes, size_t sample_index) {
+    return (int16_t)read_u16_le(bytes + sample_index * 2);
+}
+
+static void write_wav_header(uint8_t* out, uint32_t sample_rate, uint32_t data_len) {
+    memcpy(out, "RIFF", 4);
+    write_u32_le(out + 4, 36 + data_len);
+    memcpy(out + 8, "WAVE", 4);
+    memcpy(out + 12, "fmt ", 4);
+    write_u32_le(out + 16, 16);
+    write_u16_le(out + 20, 1);
+    write_u16_le(out + 22, 1);
+    write_u32_le(out + 24, sample_rate);
+    write_u32_le(out + 28, sample_rate * 2);
+    write_u16_le(out + 32, 2);
+    write_u16_le(out + 34, 16);
+    memcpy(out + 36, "data", 4);
+    write_u32_le(out + 40, data_len);
+}
+
+static TypecastTTSResponse* compose_wav_response(TypecastClient* client, TypecastTTSResponse** segments, size_t segment_count, const float* pauses, size_t pause_count) {
+    if (segment_count == 0 || pause_count + 1 != segment_count) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Invalid composed speech parts");
+        return NULL;
+    }
+
+    uint32_t sample_rate = 0;
+    size_t total_samples = 0;
+    size_t* start_samples = (size_t*)calloc(segment_count, sizeof(size_t));
+    size_t* end_samples = (size_t*)calloc(segment_count, sizeof(size_t));
+    WavInfo* infos = (WavInfo*)calloc(segment_count, sizeof(WavInfo));
+    if (!start_samples || !end_samples || !infos) {
+        free(start_samples);
+        free(end_samples);
+        free(infos);
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate WAV composition buffers");
+        return NULL;
+    }
+
+    for (size_t i = 0; i < segment_count; i++) {
+        if (!parse_wav(segments[i]->audio_data, segments[i]->audio_size, &infos[i])) {
+            free(start_samples);
+            free(end_samples);
+            free(infos);
+            set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Composed speech requires mono 16-bit PCM WAV segments");
+            return NULL;
+        }
+        if (i == 0) sample_rate = infos[i].sample_rate;
+        if (infos[i].sample_rate != sample_rate) {
+            free(start_samples);
+            free(end_samples);
+            free(infos);
+            set_error(client, TYPECAST_ERROR_INVALID_PARAM, "WAV segment sample rates must match");
+            return NULL;
+        }
+        size_t samples = infos[i].pcm_len / 2;
+        const uint8_t* pcm = segments[i]->audio_data + infos[i].pcm_start;
+        start_samples[i] = 0;
+        end_samples[i] = samples;
+        while (start_samples[i] < end_samples[i] && read_sample(pcm, start_samples[i]) == 0) start_samples[i]++;
+        while (end_samples[i] > start_samples[i] && read_sample(pcm, end_samples[i] - 1) == 0) end_samples[i]--;
+        total_samples += end_samples[i] - start_samples[i];
+        if (i < pause_count) total_samples += (size_t)(pauses[i] * (float)sample_rate + 0.5f);
+    }
+
+    TypecastTTSResponse* response = (TypecastTTSResponse*)calloc(1, sizeof(TypecastTTSResponse));
+    if (!response) {
+        free(start_samples);
+        free(end_samples);
+        free(infos);
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate composed response");
+        return NULL;
+    }
+    response->audio_size = 44 + total_samples * 2;
+    response->audio_data = (uint8_t*)calloc(1, response->audio_size);
+    if (!response->audio_data) {
+        typecast_tts_response_free(response);
+        free(start_samples);
+        free(end_samples);
+        free(infos);
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate composed audio");
+        return NULL;
+    }
+    response->format = TYPECAST_AUDIO_FORMAT_WAV;
+    response->duration = (float)total_samples / (float)sample_rate;
+    write_wav_header(response->audio_data, sample_rate, (uint32_t)(total_samples * 2));
+
+    size_t cursor = 44;
+    for (size_t i = 0; i < segment_count; i++) {
+        const uint8_t* pcm = segments[i]->audio_data + infos[i].pcm_start;
+        for (size_t sample = start_samples[i]; sample < end_samples[i]; sample++) {
+            memcpy(response->audio_data + cursor, pcm + sample * 2, 2);
+            cursor += 2;
+        }
+        if (i < pause_count) {
+            size_t pause_samples = (size_t)(pauses[i] * (float)sample_rate + 0.5f);
+            cursor += pause_samples * 2;
+        }
+    }
+
+    free(start_samples);
+    free(end_samples);
+    free(infos);
+    return response;
+}
+
+TYPECAST_API TypecastTTSResponse* typecast_speech_composer_generate(
+    TypecastSpeechComposer* composer,
+    TypecastAudioFormat output_format
+) {
+    if (!composer) return NULL;
+    if (output_format == TYPECAST_AUDIO_FORMAT_MP3) {
+        set_error(composer->client, TYPECAST_ERROR_INVALID_PARAM, "MP3 conversion is not available for composed speech in the C SDK");
+        return NULL;
+    }
+
+    TypecastTTSRequest* requests = NULL;
+    size_t request_count = 0;
+    TypecastErrorCode err = typecast_speech_composer_segment_requests(composer, &requests, &request_count);
+    if (err != TYPECAST_OK) return NULL;
+    if (request_count == 0) {
+        typecast_speech_composer_segment_requests_free(requests, request_count);
+        set_error(composer->client, TYPECAST_ERROR_INVALID_PARAM, "At least one speech segment is required");
+        return NULL;
+    }
+
+    TypecastTTSResponse** segments = (TypecastTTSResponse**)calloc(request_count, sizeof(TypecastTTSResponse*));
+    float* pauses = (float*)calloc(request_count > 1 ? request_count - 1 : 1, sizeof(float));
+    if (!segments || !pauses) {
+        free(segments);
+        free(pauses);
+        typecast_speech_composer_segment_requests_free(requests, request_count);
+        set_error(composer->client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate composed speech buffers");
+        return NULL;
+    }
+
+    size_t request_index = 0;
+    size_t pause_index = 0;
+    float pending_pause = 0.0f;
+    int has_audio = 0;
+    for (size_t i = 0; i < composer->count; i++) {
+        if (composer->parts[i].kind == COMPOSER_PART_PAUSE) {
+            pending_pause += composer->parts[i].pause_seconds;
+            continue;
+        }
+        if (has_audio) pauses[pause_index++] = pending_pause;
+        pending_pause = 0.0f;
+        segments[request_index] = typecast_text_to_speech(composer->client, &requests[request_index]);
+        if (!segments[request_index]) {
+            for (size_t j = 0; j < request_index; j++) typecast_tts_response_free(segments[j]);
+            free(segments);
+            free(pauses);
+            typecast_speech_composer_segment_requests_free(requests, request_count);
+            return NULL;
+        }
+        request_index++;
+        has_audio = 1;
+    }
+
+    TypecastTTSResponse* response = compose_wav_response(composer->client, segments, request_count, pauses, pause_index);
+    for (size_t i = 0; i < request_count; i++) typecast_tts_response_free(segments[i]);
+    free(segments);
+    free(pauses);
+    typecast_speech_composer_segment_requests_free(requests, request_count);
+    return response;
 }
 
 TYPECAST_API TypecastErrorCode typecast_generate_to_file(

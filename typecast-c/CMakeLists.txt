@@ -170,6 +170,18 @@ if(TYPECAST_BUILD_TESTS)
 
     add_test(NAME typecast_mock_tests COMMAND test_mock)
 
+    # Composed speech tests (pause markup and per-segment request building)
+    add_executable(test_composer tests/test_composer.c)
+    target_include_directories(test_composer PRIVATE include)
+
+    if(TYPECAST_BUILD_SHARED)
+        target_link_libraries(test_composer PRIVATE typecast)
+    elseif(TYPECAST_BUILD_STATIC)
+        target_link_libraries(test_composer PRIVATE typecast_static CURL::libcurl)
+    endif()
+
+    add_test(NAME typecast_composer_tests COMMAND test_composer)
+
     # Timestamp TTS tests (fixture byte-equality, no API key required)
     add_executable(test_timestamps tests/test_timestamps.c)
     target_include_directories(test_timestamps PRIVATE include src)

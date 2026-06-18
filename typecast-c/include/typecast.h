@@ -186,6 +186,7 @@ typedef enum {
  * ============================================ */
 
 typedef struct TypecastClient TypecastClient;
+typedef struct TypecastSpeechComposer TypecastSpeechComposer;
 
 /* ============================================
  * TTS Request
@@ -326,6 +327,41 @@ typedef struct {
     float duration;          /* Audio duration in seconds */
     TypecastAudioFormat format; /* Audio format (wav/mp3) */
 } TypecastTTSResponse;
+
+/* ============================================
+ * Composed Speech API
+ * ============================================ */
+
+typedef struct {
+    int use_volume;
+    int volume;
+    int use_target_lufs;
+    float target_lufs;
+    int use_audio_pitch;
+    int audio_pitch;
+    int use_audio_tempo;
+    float audio_tempo;
+    int use_audio_format;
+    TypecastAudioFormat audio_format;
+} TypecastComposerOutput;
+
+typedef struct {
+    const char* voice_id;
+    int use_model;
+    TypecastModel model;
+    const char* language;
+    TypecastPrompt* prompt;
+    int use_output;
+    TypecastComposerOutput output;
+    int use_seed;
+    int seed;
+} TypecastComposerSettings;
+
+typedef struct {
+    char* text;
+    float pause_seconds;
+    int is_pause;
+} TypecastSpeechPart;
 
 /* ============================================
  * Voice Model Info
@@ -484,6 +520,66 @@ TYPECAST_API TypecastErrorCode typecast_generate_to_file(
  * @param response Pointer to TTSResponse
  */
 TYPECAST_API void typecast_tts_response_free(TypecastTTSResponse* response);
+
+/**
+ * Parse pause markup in text. Valid tokens use <|{seconds}s|>, for example
+ * <|3s|>, <|0.3s|>, or <|0.34413s|>. Invalid tokens are preserved as text.
+ *
+ * @param text Input text
+ * @param out_parts Output array. Free with typecast_speech_parts_free().
+ * @param out_count Number of parts written
+ * @return TYPECAST_OK on success
+ */
+TYPECAST_API TypecastErrorCode typecast_parse_pause_markup(
+    const char* text,
+    TypecastSpeechPart** out_parts,
+    size_t* out_count
+);
+
+TYPECAST_API void typecast_speech_parts_free(
+    TypecastSpeechPart* parts,
+    size_t count
+);
+
+TYPECAST_API TypecastSpeechComposer* typecast_speech_composer_create(
+    TypecastClient* client
+);
+
+TYPECAST_API void typecast_speech_composer_destroy(
+    TypecastSpeechComposer* composer
+);
+
+TYPECAST_API TypecastErrorCode typecast_speech_composer_defaults(
+    TypecastSpeechComposer* composer,
+    const TypecastComposerSettings* settings
+);
+
+TYPECAST_API TypecastErrorCode typecast_speech_composer_say(
+    TypecastSpeechComposer* composer,
+    const char* text,
+    const TypecastComposerSettings* overrides
+);
+
+TYPECAST_API TypecastErrorCode typecast_speech_composer_pause(
+    TypecastSpeechComposer* composer,
+    float seconds
+);
+
+TYPECAST_API TypecastErrorCode typecast_speech_composer_segment_requests(
+    TypecastSpeechComposer* composer,
+    TypecastTTSRequest** out_requests,
+    size_t* out_count
+);
+
+TYPECAST_API void typecast_speech_composer_segment_requests_free(
+    TypecastTTSRequest* requests,
+    size_t count
+);
+
+TYPECAST_API TypecastTTSResponse* typecast_speech_composer_generate(
+    TypecastSpeechComposer* composer,
+    TypecastAudioFormat output_format
+);
 
 /* ============================================
  * Text-to-Speech with Timestamps API
