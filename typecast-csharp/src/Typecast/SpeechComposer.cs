@@ -178,10 +178,10 @@ public class SpeechComposer
             var valueStart = start + 2;
             var end = text.IndexOf("|>", valueStart, StringComparison.Ordinal);
             if (end < 0) break;
-            var token = text[valueStart..end];
+            var token = text.Substring(valueStart, end - valueStart);
             if (TryParsePauseToken(token, out var seconds))
             {
-                parts.Add(new SpeechPart(text[textStart..start], 0, false));
+                parts.Add(new SpeechPart(text.Substring(textStart, start - textStart), 0, false));
                 parts.Add(new SpeechPart("", seconds, true));
                 textStart = end + 2;
                 searchStart = textStart;
@@ -191,7 +191,7 @@ public class SpeechComposer
                 searchStart = valueStart;
             }
         }
-        parts.Add(new SpeechPart(text[textStart..], 0, false));
+        parts.Add(new SpeechPart(text.Substring(textStart), 0, false));
         return parts;
     }
 
@@ -257,7 +257,7 @@ public class SpeechComposer
     {
         seconds = 0;
         if (!token.EndsWith("s", StringComparison.Ordinal) || token.Length < 2) return false;
-        var number = token[..^1];
+        var number = token.Substring(0, token.Length - 1);
         if (number.Any(c => !char.IsDigit(c) && c != '.')) return false;
         return double.TryParse(number, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out seconds);
     }
