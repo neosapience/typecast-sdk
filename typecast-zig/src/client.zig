@@ -31,7 +31,6 @@ pub const Client = struct {
             .allocator = allocator,
             .http_client = .{
                 .allocator = allocator,
-                .io = std.Io.Threaded.global_single_threaded.io(),
             },
             .api_key = config.api_key,
             .base_url = config.base_url,
