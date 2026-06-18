@@ -76,12 +76,14 @@
 //! ```
 
 pub mod client;
+pub mod composer;
 pub mod errors;
 pub mod models;
 pub mod timestamps;
 
 // Re-export main types for convenience
 pub use client::{ClientConfig, TypecastClient, DEFAULT_BASE_URL, DEFAULT_TIMEOUT_SECS};
+pub use composer::{parse_pause_markup, ComposerSettings, SpeechComposer, SpeechPart};
 pub use errors::{Result, TypecastError};
 pub use models::{
     Age, AudioFormat, Credits, CustomVoice, EmotionPreset, ErrorResponse, Gender,
