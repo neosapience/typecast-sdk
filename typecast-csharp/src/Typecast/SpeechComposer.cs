@@ -143,7 +143,7 @@ public class SpeechComposer
 
         var audio = ComposeWav(segments, pauses);
         var info = ParseWav(audio);
-        return new TTSResponse(audio, (double)(info.PcmLength / 2) / info.SampleRate, AudioFormat.Wav);
+        return new TTSResponse(audio, info.PcmLength / 2.0 / info.SampleRate, AudioFormat.Wav);
     }
 
     /// <summary>
