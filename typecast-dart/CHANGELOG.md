@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4
+
+- Added text pause parsing and multi-speaker speech composition helpers.
+
 ## 0.1.3
 
 - Added `generateToFile` for writing generated speech directly to an audio file.
