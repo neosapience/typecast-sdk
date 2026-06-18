@@ -239,6 +239,7 @@ After each SDK PR is merged to `main`:
 1. Patch version bump on the SDK's version file (`package.json`, `pyproject.toml`, `Cargo.toml`, etc.) and lockfile refresh, landed via the same fast-forward-to-`main` flow used in #11.
 2. Manual publish via the SDK's standard channel (npm, PyPI, Maven Central, crates.io, NuGet, GitHub release). Tokens read from the repo-root `.env` file (`NPM_TOKEN`, `PYPI_TOKEN`, `CARGO_REGISTRY_TOKEN`, etc.) as in the #10/#11 release flow.
 3. Tags follow the existing convention per SDK (none for js/python, `typecast-{lang}/v{version}` for go/swift, etc.).
+4. For SDKs with installable generated or packaged artifacts, verify the installed artifact, not only the source file. For C releases, run `cmake --install` into a temporary prefix and confirm the installed `include/typecast.h` exposes the expected `TYPECAST_VERSION*` values.
 
 ## 8. CI Workflow Shape
 

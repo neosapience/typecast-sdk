@@ -145,6 +145,12 @@ if(TYPECAST_BUILD_TESTS)
     
     add_executable(test_typecast tests/test_main.c)
     target_include_directories(test_typecast PRIVATE include)
+    target_compile_definitions(test_typecast PRIVATE
+        EXPECTED_TYPECAST_VERSION="${PROJECT_VERSION}"
+        EXPECTED_TYPECAST_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+        EXPECTED_TYPECAST_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+        EXPECTED_TYPECAST_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+    )
     
     if(TYPECAST_BUILD_SHARED)
         target_link_libraries(test_typecast PRIVATE typecast)
