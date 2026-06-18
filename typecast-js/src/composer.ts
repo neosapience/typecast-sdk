@@ -62,7 +62,7 @@ export class SpeechComposer {
         if (!wavSpec) {
           throw new Error('pause cannot be the first composed part');
         }
-        outputSamples.push(...new Array(secondsToSamples(part.seconds, wavSpec.sampleRate)).fill(0));
+        outputSamples.push(...Array<number>(secondsToSamples(part.seconds, wavSpec.sampleRate)).fill(0));
         continue;
       }
 
