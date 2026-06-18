@@ -11,7 +11,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 use typecast_rust::{
     timestamps::{TTSRequestWithTimestamps, TTSWithTimestampsResponse},
-    ClientConfig, TTSModel, TypecastClient, TypecastError,
+    AudioFormat, ClientConfig, ComposerSettings, EmotionPreset, Output, PresetPrompt, TTSModel,
+    TypecastClient, TypecastError,
 };
 
 // ---------------------------------------------------------------------------
@@ -55,6 +56,82 @@ fn make_client(server: &Server) -> TypecastClient {
         .base_url(server.url())
         .timeout(Duration::from_secs(5));
     TypecastClient::new(config).expect("client builds")
+}
+
+fn small_wav() -> Vec<u8> {
+    let mut buf = Vec::new();
+    buf.extend_from_slice(b"RIFF");
+    buf.extend_from_slice(&36u32.to_le_bytes());
+    buf.extend_from_slice(b"WAVE");
+    buf.extend_from_slice(b"fmt ");
+    buf.extend_from_slice(&16u32.to_le_bytes());
+    buf.extend_from_slice(&1u16.to_le_bytes());
+    buf.extend_from_slice(&1u16.to_le_bytes());
+    buf.extend_from_slice(&44100u32.to_le_bytes());
+    buf.extend_from_slice(&88200u32.to_le_bytes());
+    buf.extend_from_slice(&2u16.to_le_bytes());
+    buf.extend_from_slice(&16u16.to_le_bytes());
+    buf.extend_from_slice(b"data");
+    buf.extend_from_slice(&0u32.to_le_bytes());
+    buf
+}
+
+#[tokio::test]
+async fn compose_speech_smoke_for_timestamps_binary_coverage() {
+    let mut server = Server::new_async().await;
+    let _m1 = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(small_wav())
+        .create_async()
+        .await;
+    let _m2 = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(small_wav())
+        .create_async()
+        .await;
+    let _m3 = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(small_wav())
+        .create_async()
+        .await;
+    let _m4 = server
+        .mock("POST", "/v1/text-to-speech")
+        .with_status(200)
+        .with_header("content-type", "audio/wav")
+        .with_body(small_wav())
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let response = client
+        .compose_speech()
+        .defaults(
+            ComposerSettings::new()
+                .voice_id("voice-a")
+                .model(TTSModel::SsfmV30)
+                .language("eng")
+                .prompt(PresetPrompt::new().emotion_preset(EmotionPreset::Normal))
+                .output(Output::new().audio_format(AudioFormat::Wav))
+                .seed(1),
+        )
+        .say("Hello<|0.001s|>there")
+        .say_with(
+            "World<|0.001s|>again",
+            ComposerSettings::new()
+                .voice_id("voice-b")
+                .model(TTSModel::SsfmV30),
+        )
+        .generate()
+        .await
+        .unwrap();
+
+    assert_eq!(response.format, AudioFormat::Wav);
 }
 
 // ---------------------------------------------------------------------------

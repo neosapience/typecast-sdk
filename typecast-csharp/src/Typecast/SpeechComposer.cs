@@ -230,13 +230,21 @@ public class SpeechComposer
     private static Output? MergeOutput(Output? baseOutput, Output? overrideOutput)
     {
         if (baseOutput is null && overrideOutput is null) return null;
-        return new Output(
-            volume: overrideOutput?.Volume ?? baseOutput?.Volume,
-            audioPitch: overrideOutput?.AudioPitch ?? baseOutput?.AudioPitch,
-            audioTempo: overrideOutput?.AudioTempo ?? baseOutput?.AudioTempo,
-            audioFormat: overrideOutput?.AudioFormat ?? baseOutput?.AudioFormat,
-            targetLufs: overrideOutput?.TargetLufs ?? baseOutput?.TargetLufs
-        );
+        var merged = CopyOutput(baseOutput) ?? new Output
+        {
+            Volume = null,
+            AudioPitch = null,
+            AudioTempo = null,
+            AudioFormat = null,
+            TargetLufs = null
+        };
+        if (overrideOutput is null) return merged;
+        if (overrideOutput.Volume.HasValue) merged.Volume = overrideOutput.Volume;
+        if (overrideOutput.AudioPitch.HasValue) merged.AudioPitch = overrideOutput.AudioPitch;
+        if (overrideOutput.AudioTempo.HasValue) merged.AudioTempo = overrideOutput.AudioTempo;
+        if (overrideOutput.AudioFormat.HasValue) merged.AudioFormat = overrideOutput.AudioFormat;
+        if (overrideOutput.TargetLufs.HasValue) merged.TargetLufs = overrideOutput.TargetLufs;
+        return merged;
     }
 
     private static Output? CopyOutput(Output? output)
@@ -250,7 +258,7 @@ public class SpeechComposer
         seconds = 0;
         if (!token.EndsWith("s", StringComparison.Ordinal) || token.Length < 2) return false;
         var number = token[..^1];
-        if (number.Length == 0 || number.Any(c => !char.IsDigit(c) && c != '.')) return false;
+        if (number.Any(c => !char.IsDigit(c) && c != '.')) return false;
         return double.TryParse(number, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out seconds);
     }
 

@@ -137,9 +137,6 @@ func (c *SpeechComposer) Generate(ctx context.Context) (*TTSResponse, error) {
 		outputSamples = append(outputSamples, trimComposerSilence(wav.samples)...)
 	}
 
-	if spec == nil {
-		return nil, fmt.Errorf("at least one speech segment is required")
-	}
 	if outputFormat == AudioFormatMP3 {
 		return nil, fmt.Errorf("ffmpeg is required to encode composed speech as mp3")
 	}

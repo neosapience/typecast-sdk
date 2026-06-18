@@ -150,13 +150,17 @@ public class SpeechComposer {
 
     private static Output mergeOutput(Output base, Output overrides) {
         if (base == null && overrides == null) return null;
-        return Output.builder()
-                .volume(overrides != null && overrides.getVolume() != null ? overrides.getVolume() : base != null ? base.getVolume() : null)
-                .targetLufs(overrides != null && overrides.getTargetLufs() != null ? overrides.getTargetLufs() : base != null ? base.getTargetLufs() : null)
-                .audioPitch(overrides != null && overrides.getAudioPitch() != null ? overrides.getAudioPitch() : base != null ? base.getAudioPitch() : null)
-                .audioTempo(overrides != null && overrides.getAudioTempo() != null ? overrides.getAudioTempo() : base != null ? base.getAudioTempo() : null)
-                .audioFormat(overrides != null && overrides.getAudioFormat() != null ? overrides.getAudioFormat() : base != null ? base.getAudioFormat() : null)
-                .build();
+        Output out = copyOutput(base);
+        if (out == null) {
+            out = Output.builder().volume(null).targetLufs(null).audioPitch(null).audioTempo(null).audioFormat(null).build();
+        }
+        if (overrides == null) return out;
+        if (overrides.getVolume() != null) out.setVolume(overrides.getVolume());
+        if (overrides.getTargetLufs() != null) out.setTargetLufs(overrides.getTargetLufs());
+        if (overrides.getAudioPitch() != null) out.setAudioPitch(overrides.getAudioPitch());
+        if (overrides.getAudioTempo() != null) out.setAudioTempo(overrides.getAudioTempo());
+        if (overrides.getAudioFormat() != null) out.setAudioFormat(overrides.getAudioFormat());
+        return out;
     }
 
     private static Output copyOutput(Output output) {
@@ -173,7 +177,6 @@ public class SpeechComposer {
     private static Double parsePauseToken(String token) {
         if (!token.endsWith("s") || token.length() < 2) return null;
         String number = token.substring(0, token.length() - 1);
-        if (number.isEmpty()) return null;
         for (int i = 0; i < number.length(); i++) {
             char c = number.charAt(i);
             if (!Character.isDigit(c) && c != '.') return null;

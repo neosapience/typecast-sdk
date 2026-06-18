@@ -804,23 +804,29 @@ TYPECAST_API TypecastErrorCode typecast_parse_pause_markup(
         if (parse_pause_token(text + value_start, end - value_start, &seconds)) {
             size_t text_len = start - text_start;
             char* chunk = (char*)malloc(text_len + 1);
+            /* LCOV_EXCL_START */
             if (!chunk) {
                 typecast_speech_parts_free(parts, count);
                 return TYPECAST_ERROR_OUT_OF_MEMORY;
             }
+            /* LCOV_EXCL_STOP */
             memcpy(chunk, text + text_start, text_len);
             chunk[text_len] = '\0';
             TypecastErrorCode err = append_speech_part(&parts, &count, &capacity, (TypecastSpeechPart){ .text = chunk, .pause_seconds = 0.0f, .is_pause = 0 });
+            /* LCOV_EXCL_START */
             if (err != TYPECAST_OK) {
                 free(chunk);
                 typecast_speech_parts_free(parts, count);
                 return err;
             }
+            /* LCOV_EXCL_STOP */
             err = append_speech_part(&parts, &count, &capacity, (TypecastSpeechPart){ .text = NULL, .pause_seconds = seconds, .is_pause = 1 });
+            /* LCOV_EXCL_START */
             if (err != TYPECAST_OK) {
                 typecast_speech_parts_free(parts, count);
                 return err;
             }
+            /* LCOV_EXCL_STOP */
             text_start = end + 2;
             search_start = text_start;
         } else {
@@ -829,16 +835,20 @@ TYPECAST_API TypecastErrorCode typecast_parse_pause_markup(
     }
 
     char* tail = strdup_safe(text + text_start);
+    /* LCOV_EXCL_START */
     if (!tail) {
         typecast_speech_parts_free(parts, count);
         return TYPECAST_ERROR_OUT_OF_MEMORY;
     }
+    /* LCOV_EXCL_STOP */
     TypecastErrorCode err = append_speech_part(&parts, &count, &capacity, (TypecastSpeechPart){ .text = tail, .pause_seconds = 0.0f, .is_pause = 0 });
+    /* LCOV_EXCL_START */
     if (err != TYPECAST_OK) {
         free(tail);
         typecast_speech_parts_free(parts, count);
         return err;
     }
+    /* LCOV_EXCL_STOP */
 
     *out_parts = parts;
     *out_count = count;
@@ -912,10 +922,12 @@ static TypecastOutput composer_output_to_tts(TypecastComposerOutput output) {
 TYPECAST_API TypecastSpeechComposer* typecast_speech_composer_create(TypecastClient* client) {
     if (!client) return NULL;
     TypecastSpeechComposer* composer = (TypecastSpeechComposer*)calloc(1, sizeof(TypecastSpeechComposer));
+    /* LCOV_EXCL_START */
     if (!composer) {
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate speech composer");
         return NULL;
     }
+    /* LCOV_EXCL_STOP */
     composer->client = client;
     return composer;
 }
@@ -939,10 +951,12 @@ static TypecastErrorCode append_composer_part(TypecastSpeechComposer* composer, 
     if (composer->count == composer->capacity) {
         size_t next = (composer->capacity == 0) ? 4 : composer->capacity * 2;
         ComposerPart* resized = (ComposerPart*)realloc(composer->parts, next * sizeof(ComposerPart));
+        /* LCOV_EXCL_START */
         if (!resized) {
             set_error(composer->client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate composer part");
             return TYPECAST_ERROR_OUT_OF_MEMORY;
         }
+        /* LCOV_EXCL_STOP */
         composer->parts = resized;
         composer->capacity = next;
     }
@@ -957,10 +971,12 @@ TYPECAST_API TypecastErrorCode typecast_speech_composer_say(
 ) {
     if (!composer || !text) return TYPECAST_ERROR_INVALID_PARAM;
     char* copy = strdup_safe(text);
+    /* LCOV_EXCL_START */
     if (!copy) {
         set_error(composer->client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate speech text");
         return TYPECAST_ERROR_OUT_OF_MEMORY;
     }
+    /* LCOV_EXCL_STOP */
     ComposerPart part = {0};
     part.kind = COMPOSER_PART_SPEECH;
     part.text = copy;
@@ -993,12 +1009,14 @@ TYPECAST_API TypecastErrorCode typecast_speech_composer_segment_requests(
     }
     TypecastTTSRequest* requests = (TypecastTTSRequest*)calloc(speech_count ? speech_count : 1, sizeof(TypecastTTSRequest));
     TypecastOutput* outputs = (TypecastOutput*)calloc(speech_count ? speech_count : 1, sizeof(TypecastOutput));
+    /* LCOV_EXCL_START */
     if (!requests || !outputs) {
         free(requests);
         free(outputs);
         set_error(composer->client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate segment requests");
         return TYPECAST_ERROR_OUT_OF_MEMORY;
     }
+    /* LCOV_EXCL_STOP */
 
     size_t index = 0;
     for (size_t i = 0; i < composer->count; i++) {
@@ -1102,16 +1120,19 @@ static void write_wav_header(uint8_t* out, uint32_t sample_rate, uint32_t data_l
 }
 
 static TypecastTTSResponse* compose_wav_response(TypecastClient* client, TypecastTTSResponse** segments, size_t segment_count, const float* pauses, size_t pause_count) {
+    /* LCOV_EXCL_START */
     if (segment_count == 0 || pause_count + 1 != segment_count) {
         set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Invalid composed speech parts");
         return NULL;
     }
+    /* LCOV_EXCL_STOP */
 
     uint32_t sample_rate = 0;
     size_t total_samples = 0;
     size_t* start_samples = (size_t*)calloc(segment_count, sizeof(size_t));
     size_t* end_samples = (size_t*)calloc(segment_count, sizeof(size_t));
     WavInfo* infos = (WavInfo*)calloc(segment_count, sizeof(WavInfo));
+    /* LCOV_EXCL_START */
     if (!start_samples || !end_samples || !infos) {
         free(start_samples);
         free(end_samples);
@@ -1119,6 +1140,7 @@ static TypecastTTSResponse* compose_wav_response(TypecastClient* client, Typecas
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate WAV composition buffers");
         return NULL;
     }
+    /* LCOV_EXCL_STOP */
 
     for (size_t i = 0; i < segment_count; i++) {
         if (!parse_wav(segments[i]->audio_data, segments[i]->audio_size, &infos[i])) {
@@ -1147,6 +1169,7 @@ static TypecastTTSResponse* compose_wav_response(TypecastClient* client, Typecas
     }
 
     TypecastTTSResponse* response = (TypecastTTSResponse*)calloc(1, sizeof(TypecastTTSResponse));
+    /* LCOV_EXCL_START */
     if (!response) {
         free(start_samples);
         free(end_samples);
@@ -1154,8 +1177,10 @@ static TypecastTTSResponse* compose_wav_response(TypecastClient* client, Typecas
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate composed response");
         return NULL;
     }
+    /* LCOV_EXCL_STOP */
     response->audio_size = 44 + total_samples * 2;
     response->audio_data = (uint8_t*)calloc(1, response->audio_size);
+    /* LCOV_EXCL_START */
     if (!response->audio_data) {
         typecast_tts_response_free(response);
         free(start_samples);
@@ -1164,6 +1189,7 @@ static TypecastTTSResponse* compose_wav_response(TypecastClient* client, Typecas
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate composed audio");
         return NULL;
     }
+    /* LCOV_EXCL_STOP */
     response->format = TYPECAST_AUDIO_FORMAT_WAV;
     response->duration = (float)total_samples / (float)sample_rate;
     write_wav_header(response->audio_data, sample_rate, (uint32_t)(total_samples * 2));
@@ -1209,6 +1235,7 @@ TYPECAST_API TypecastTTSResponse* typecast_speech_composer_generate(
 
     TypecastTTSResponse** segments = (TypecastTTSResponse**)calloc(request_count, sizeof(TypecastTTSResponse*));
     float* pauses = (float*)calloc(request_count > 1 ? request_count - 1 : 1, sizeof(float));
+    /* LCOV_EXCL_START */
     if (!segments || !pauses) {
         free(segments);
         free(pauses);
@@ -1216,6 +1243,7 @@ TYPECAST_API TypecastTTSResponse* typecast_speech_composer_generate(
         set_error(composer->client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate composed speech buffers");
         return NULL;
     }
+    /* LCOV_EXCL_STOP */
 
     size_t request_index = 0;
     size_t pause_index = 0;

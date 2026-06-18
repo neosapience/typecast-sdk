@@ -179,6 +179,10 @@ if(TYPECAST_BUILD_TESTS)
     elseif(TYPECAST_BUILD_STATIC)
         target_link_libraries(test_composer PRIVATE typecast_static CURL::libcurl)
     endif()
+    if(NOT WIN32)
+        find_package(Threads REQUIRED)
+        target_link_libraries(test_composer PRIVATE Threads::Threads)
+    endif()
 
     add_test(NAME typecast_composer_tests COMMAND test_composer)
 

@@ -127,7 +127,9 @@ impl<'a> SpeechComposer<'a> {
             .iter()
             .any(|part| matches!(part, ComposerPart::Speech { .. }))
         {
-            return validation_error("at least one speech segment is required");
+            return Err(TypecastError::ValidationError {
+                detail: "at least one speech segment is required".to_string(),
+            });
         }
 
         let output_format = self
@@ -142,11 +144,10 @@ impl<'a> SpeechComposer<'a> {
         for part in plan {
             match part {
                 ComposerPart::Pause(seconds) => {
-                    if !seconds.is_finite() || seconds <= 0.0 {
-                        return validation_error("pause seconds must be greater than 0");
-                    }
                     let Some(spec) = wav_spec else {
-                        return validation_error("pause cannot be the first composed part");
+                        return Err(TypecastError::ValidationError {
+                            detail: "pause cannot be the first composed part".to_string(),
+                        });
                     };
                     output_samples.extend(vec![0; seconds_to_samples(seconds, spec.sample_rate)]);
                 }
@@ -158,9 +159,10 @@ impl<'a> SpeechComposer<'a> {
                     let wav = parse_wav(&response.audio_data)?;
                     if let Some(spec) = wav_spec {
                         if spec != wav.spec {
-                            return validation_error(
-                                "all composed WAV segments must use the same PCM format",
-                            );
+                            return Err(TypecastError::ValidationError {
+                                detail: "all composed WAV segments must use the same PCM format"
+                                    .to_string(),
+                            });
                         }
                     }
                     wav_spec = Some(wav.spec);
@@ -169,12 +171,12 @@ impl<'a> SpeechComposer<'a> {
             }
         }
 
-        let Some(spec) = wav_spec else {
-            return validation_error("at least one speech segment is required");
-        };
+        let spec = wav_spec.expect("speech segments always set a WAV spec");
         let audio_data = encode_wav(&output_samples, spec);
         if output_format == AudioFormat::Mp3 {
-            return validation_error("ffmpeg is required to encode composed speech as mp3");
+            return Err(TypecastError::ValidationError {
+                detail: "ffmpeg is required to encode composed speech as mp3".to_string(),
+            });
         }
 
         Ok(TTSResponse {
@@ -190,7 +192,9 @@ impl<'a> SpeechComposer<'a> {
             match part {
                 ComposerPart::Pause(seconds) => {
                     if !seconds.is_finite() || *seconds <= 0.0 {
-                        return validation_error("pause seconds must be greater than 0");
+                        return Err(TypecastError::ValidationError {
+                            detail: "pause seconds must be greater than 0".to_string(),
+                        });
                     }
                     plan.push(ComposerPart::Pause(*seconds));
                 }
@@ -199,23 +203,26 @@ impl<'a> SpeechComposer<'a> {
                         match parsed {
                             SpeechPart::Pause(seconds) => plan.push(ComposerPart::Pause(seconds)),
                             SpeechPart::Text(text) => {
-                                if text.trim().is_empty() {
-                                    continue;
+                                if !text.trim().is_empty() {
+                                    if settings.voice_id.as_deref().unwrap_or("").is_empty() {
+                                        return Err(TypecastError::ValidationError {
+                                            detail:
+                                                "voice_id is required for composed speech segments"
+                                                    .to_string(),
+                                        });
+                                    }
+                                    if settings.model.is_none() {
+                                        return Err(TypecastError::ValidationError {
+                                            detail:
+                                                "model is required for composed speech segments"
+                                                    .to_string(),
+                                        });
+                                    }
+                                    plan.push(ComposerPart::Speech {
+                                        text,
+                                        settings: settings.clone(),
+                                    });
                                 }
-                                if settings.voice_id.as_deref().unwrap_or("").is_empty() {
-                                    return validation_error(
-                                        "voice_id is required for composed speech segments",
-                                    );
-                                }
-                                if settings.model.is_none() {
-                                    return validation_error(
-                                        "model is required for composed speech segments",
-                                    );
-                                }
-                                plan.push(ComposerPart::Speech {
-                                    text,
-                                    settings: settings.clone(),
-                                });
                             }
                         }
                     }
@@ -243,15 +250,16 @@ pub fn parse_pause_markup(text: &str) -> Vec<SpeechPart> {
 
         if let Some(seconds_text) = token_body.strip_suffix('s') {
             if valid_seconds_literal(seconds_text) {
-                if let Ok(seconds) = seconds_text.parse::<f64>() {
-                    if token_start > last_emit {
-                        parts.push(SpeechPart::Text(text[last_emit..token_start].to_string()));
-                    }
-                    parts.push(SpeechPart::Pause(seconds));
-                    last_emit = token_end;
-                    search_from = token_end;
-                    continue;
+                let seconds = seconds_text
+                    .parse::<f64>()
+                    .expect("validated seconds literals parse as f64");
+                if token_start > last_emit {
+                    parts.push(SpeechPart::Text(text[last_emit..token_start].to_string()));
                 }
+                parts.push(SpeechPart::Pause(seconds));
+                last_emit = token_end;
+                search_from = token_end;
+                continue;
             }
         }
 
@@ -315,16 +323,14 @@ fn merge_output(base: Option<Output>, override_output: Option<Output>) -> Option
 }
 
 fn request_from_settings(text: String, settings: ComposerSettings) -> Result<TTSRequest> {
-    let Some(voice_id) = settings.voice_id else {
-        return validation_error("voice_id is required for composed speech segments");
-    };
-    let Some(model) = settings.model else {
-        return validation_error("model is required for composed speech segments");
-    };
     Ok(TTSRequest {
-        voice_id,
+        voice_id: settings
+            .voice_id
+            .expect("build_plan validates composed speech voice_id"),
         text,
-        model,
+        model: settings
+            .model
+            .expect("build_plan validates composed speech model"),
         language: settings.language,
         prompt: settings.prompt,
         output: merge_output(
@@ -337,7 +343,9 @@ fn request_from_settings(text: String, settings: ComposerSettings) -> Result<TTS
 
 fn parse_wav(data: &[u8]) -> Result<ParsedWav> {
     if data.len() < 12 || &data[0..4] != b"RIFF" || &data[8..12] != b"WAVE" {
-        return validation_error("unsupported WAV data");
+        return Err(TypecastError::ValidationError {
+            detail: "unsupported WAV data".to_string(),
+        });
     }
 
     let mut offset = 12usize;
@@ -354,13 +362,17 @@ fn parse_wav(data: &[u8]) -> Result<ParsedWav> {
         let chunk_data_offset = offset + 8;
         let chunk_end = chunk_data_offset + chunk_size;
         if chunk_end > data.len() {
-            return validation_error("unsupported WAV data");
+            return Err(TypecastError::ValidationError {
+                detail: "unsupported WAV data".to_string(),
+            });
         }
 
         match chunk_id {
             b"fmt " => {
                 if chunk_size < 16 {
-                    return validation_error("unsupported WAV data");
+                    return Err(TypecastError::ValidationError {
+                        detail: "unsupported WAV data".to_string(),
+                    });
                 }
                 let audio_format =
                     u16::from_le_bytes([data[chunk_data_offset], data[chunk_data_offset + 1]]);
@@ -377,9 +389,10 @@ fn parse_wav(data: &[u8]) -> Result<ParsedWav> {
                     data[chunk_data_offset + 15],
                 ]);
                 if audio_format != 1 || channels != 1 || bits_per_sample != 16 {
-                    return validation_error(
-                        "only mono 16-bit PCM WAV is supported for composed speech",
-                    );
+                    return Err(TypecastError::ValidationError {
+                        detail: "only mono 16-bit PCM WAV is supported for composed speech"
+                            .to_string(),
+                    });
                 }
                 spec = Some(WavSpec {
                     sample_rate,
@@ -400,10 +413,14 @@ fn parse_wav(data: &[u8]) -> Result<ParsedWav> {
     }
 
     let Some(spec) = spec else {
-        return validation_error("unsupported WAV data");
+        return Err(TypecastError::ValidationError {
+            detail: "unsupported WAV data".to_string(),
+        });
     };
     let Some(samples) = samples else {
-        return validation_error("unsupported WAV data");
+        return Err(TypecastError::ValidationError {
+            detail: "unsupported WAV data".to_string(),
+        });
     };
     Ok(ParsedWav { spec, samples })
 }
@@ -446,8 +463,90 @@ fn seconds_to_samples(seconds: f64, sample_rate: u32) -> usize {
     (seconds * sample_rate as f64).round() as usize
 }
 
-fn validation_error<T>(detail: impl Into<String>) -> Result<T> {
-    Err(TypecastError::ValidationError {
-        detail: detail.into(),
-    })
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::ClientConfig;
+    use crate::models::{EmotionPreset, PresetPrompt};
+    use mockito::Server;
+    use std::time::Duration;
+
+    fn small_wav() -> Vec<u8> {
+        let mut buf = Vec::new();
+        buf.extend_from_slice(b"RIFF");
+        buf.extend_from_slice(&36u32.to_le_bytes());
+        buf.extend_from_slice(b"WAVE");
+        buf.extend_from_slice(b"fmt ");
+        buf.extend_from_slice(&16u32.to_le_bytes());
+        buf.extend_from_slice(&1u16.to_le_bytes());
+        buf.extend_from_slice(&1u16.to_le_bytes());
+        buf.extend_from_slice(&44100u32.to_le_bytes());
+        buf.extend_from_slice(&88200u32.to_le_bytes());
+        buf.extend_from_slice(&2u16.to_le_bytes());
+        buf.extend_from_slice(&16u16.to_le_bytes());
+        buf.extend_from_slice(b"data");
+        buf.extend_from_slice(&0u32.to_le_bytes());
+        buf
+    }
+
+    #[tokio::test]
+    async fn compose_speech_smoke_for_lib_binary_coverage() {
+        let mut server = Server::new_async().await;
+        let _m1 = server
+            .mock("POST", "/v1/text-to-speech")
+            .with_status(200)
+            .with_header("content-type", "audio/wav")
+            .with_body(small_wav())
+            .create_async()
+            .await;
+        let _m2 = server
+            .mock("POST", "/v1/text-to-speech")
+            .with_status(200)
+            .with_header("content-type", "audio/wav")
+            .with_body(small_wav())
+            .create_async()
+            .await;
+        let _m3 = server
+            .mock("POST", "/v1/text-to-speech")
+            .with_status(200)
+            .with_header("content-type", "audio/wav")
+            .with_body(small_wav())
+            .create_async()
+            .await;
+        let _m4 = server
+            .mock("POST", "/v1/text-to-speech")
+            .with_status(200)
+            .with_header("content-type", "audio/wav")
+            .with_body(small_wav())
+            .create_async()
+            .await;
+
+        let config = ClientConfig::new("test-api-key")
+            .base_url(server.url())
+            .timeout(Duration::from_secs(5));
+        let client = TypecastClient::new(config).expect("client builds");
+        let response = client
+            .compose_speech()
+            .defaults(
+                ComposerSettings::new()
+                    .voice_id("voice-a")
+                    .model(TTSModel::SsfmV30)
+                    .language("eng")
+                    .prompt(PresetPrompt::new().emotion_preset(EmotionPreset::Normal))
+                    .output(Output::new().audio_format(AudioFormat::Wav))
+                    .seed(1),
+            )
+            .say("Hello<|0.001s|>there")
+            .say_with(
+                "World<|0.001s|>again",
+                ComposerSettings::new()
+                    .voice_id("voice-b")
+                    .model(TTSModel::SsfmV30),
+            )
+            .generate()
+            .await
+            .unwrap();
+
+        assert_eq!(response.format, AudioFormat::Wav);
+    }
 }

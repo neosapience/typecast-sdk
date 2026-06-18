@@ -28,14 +28,17 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
           voiceId: "voice-a",
           model: .ssfmV30,
           language: .english,
-          output: OutputSettings(audioPitch: 1, audioFormat: .wav)
+          prompt: .basic(Prompt(emotionPreset: .happy, emotionIntensity: 1.0)),
+          output: OutputSettings(audioPitch: 1, audioFormat: .wav),
+          seed: 123
         )
       )
       .say(
         "Hello<|0.001s|>world",
         overrides: ComposerSettings(
           voiceId: "voice-b",
-          output: OutputSettings(audioTempo: 1.1)
+          prompt: .preset(PresetPrompt(emotionPreset: .sad, emotionIntensity: 0.5)),
+          output: OutputSettings(volume: 80, audioTempo: 1.1)
         )
       )
       .generate()
@@ -48,8 +51,11 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
     XCTAssertEqual(output["audio_format"] as? String, "wav")
     XCTAssertEqual(output["audio_pitch"] as? Int, 1)
     XCTAssertEqual(output["audio_tempo"] as? Double, 1.1)
+    XCTAssertEqual(output["volume"] as? Int, 80)
+    XCTAssertEqual(bodies[0]["seed"] as? Int, 123)
+    XCTAssertNotNil(bodies[0]["prompt"])
 
-    XCTAssertEqual(response.format, .wav)
+    XCTAssertEqual(response.format, AudioFormat.wav)
     XCTAssertEqual(samples(fromWav: response.audioData), [1000, 2000, 0, -1000, -2000])
     XCTAssertEqual(response.duration, 0.005, accuracy: 0.0001)
   }
@@ -85,30 +91,11 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
     } catch {
       XCTFail("unexpected error: \(error)")
     }
-  }
-
-  func testParsePauseMarkupIsLenientForInvalidTokens() {
-    let parts = parsePauseMarkup("a<|0.3s|>b<|abc|>c<|3s|>")
-    XCTAssertEqual(
-      parts,
-      [
-        SpeechPart.text("a"),
-        SpeechPart.pause(0.3),
-        SpeechPart.text("b<|abc|>c"),
-        SpeechPart.pause(3)
-      ]
-    )
-  }
-
-  func testComposeSpeechRejectsBadWavMismatchedSpecsAndMp3() async throws {
-    MockURLProtocol.requestHandler = { req in
-      (self.httpResponse(url: req.url!, status: 200, headers: ["Content-Type": "audio/wav"]), Data("not wav".utf8))
-    }
 
     do {
       _ = try await client
         .composeSpeech()
-        .defaults(ComposerSettings(voiceId: "voice-a", model: .ssfmV30))
+        .defaults(ComposerSettings(voiceId: "voice-a"))
         .say("Hello")
         .generate()
       XCTFail("expected error")
@@ -117,7 +104,88 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
         XCTFail("wrong error: \(error)")
         return
       }
-      XCTAssertTrue(message.contains("unsupported WAV data"))
+      XCTAssertTrue(message.contains("model is required"))
+    } catch {
+      XCTFail("unexpected error: \(error)")
+    }
+
+    do {
+      _ = try await client
+        .composeSpeech()
+        .defaults(ComposerSettings(voiceId: "voice-a", model: .ssfmV30))
+        .pause(0.1)
+        .say("Hello")
+        .generate()
+      XCTFail("expected error")
+    } catch let error as TypecastError {
+      guard case .validationError(let message) = error else {
+        XCTFail("wrong error: \(error)")
+        return
+      }
+      XCTAssertTrue(message.contains("pause cannot be the first"))
+    } catch {
+      XCTFail("unexpected error: \(error)")
+    }
+
+    do {
+      _ = try await client.composeSpeech().generate()
+      XCTFail("expected error")
+    } catch let error as TypecastError {
+      guard case .validationError(let message) = error else {
+        XCTFail("wrong error: \(error)")
+        return
+      }
+      XCTAssertTrue(message.contains("at least one speech segment"))
+    } catch {
+      XCTFail("unexpected error: \(error)")
+    }
+  }
+
+  func testParsePauseMarkupIsLenientForInvalidTokens() {
+    let parts = parsePauseMarkup("a<|0.3s|>b<|abc|>c<|s|>d<|.3s|>e<|3.s|>f<|3..1s|>g<|3xs|>h<|3s|>")
+    XCTAssertEqual(
+      parts,
+      [
+        SpeechPart.text("a"),
+        SpeechPart.pause(0.3),
+        SpeechPart.text("b<|abc|>c<|s|>d<|.3s|>e<|3.s|>f<|3..1s|>g<|3xs|>h"),
+        SpeechPart.pause(3)
+      ]
+    )
+  }
+
+  func testParsePauseMarkupKeepsUnclosedTokenAsText() {
+    XCTAssertEqual(parsePauseMarkup("hello<|0.3s"), [.text("hello<|0.3s")])
+  }
+
+  func testComposeSpeechRejectsBadWavMismatchedSpecsAndMp3() async throws {
+    for wav in [
+      Data("not wav".utf8),
+      makeTestWav(samples: [100], sampleRate: 1000, audioFormat: 2),
+      makeTestWavWithShortFmtChunk(),
+      makeTestWavWithInvalidChunkSize(),
+      makeTestWavWithDataOnly(),
+      makeTestWavWithoutData(extraChunk: true),
+      makeTestWavWithoutData(extraChunk: false)
+    ] {
+      MockURLProtocol.requestHandler = { req in
+        (self.httpResponse(url: req.url!, status: 200, headers: ["Content-Type": "audio/wav"]), wav)
+      }
+
+      do {
+        _ = try await client
+          .composeSpeech()
+          .defaults(ComposerSettings(voiceId: "voice-a", model: .ssfmV30))
+          .say("Hello")
+          .generate()
+        XCTFail("expected error")
+      } catch let error as TypecastError {
+        guard case .validationError(let message) = error else {
+          XCTFail("wrong error: \(error)")
+          return
+        }
+        XCTAssertTrue(message.contains("unsupported WAV data") || message.contains("only mono 16-bit PCM WAV"))
+      }
     }
 
     var mismatchResponses = [
@@ -174,14 +242,32 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
     }
   }
 
-  private func makeTestWav(samples: [Int16], sampleRate: UInt32) -> Data {
+  func testComposeSpeechTrimsAllZeroAudioToEmptyWav() async throws {
+    MockURLProtocol.requestHandler = { req in
+      (
+        self.httpResponse(url: req.url!, status: 200, headers: ["Content-Type": "audio/wav"]),
+        self.makeTestWav(samples: [0, 0], sampleRate: 1000)
+      )
+    }
+
+    let response = try await client
+      .composeSpeech()
+      .defaults(ComposerSettings(voiceId: "voice-a", model: .ssfmV30))
+      .say("Silence")
+      .generate()
+
+    XCTAssertEqual(samples(fromWav: response.audioData), [])
+    XCTAssertEqual(response.duration, 0)
+  }
+
+  private func makeTestWav(samples: [Int16], sampleRate: UInt32, audioFormat: UInt16 = 1) -> Data {
     var data = Data()
     data.append(contentsOf: "RIFF".utf8)
     data.append(UInt32(36 + samples.count * 2).littleEndianData)
     data.append(contentsOf: "WAVE".utf8)
     data.append(contentsOf: "fmt ".utf8)
     data.append(UInt32(16).littleEndianData)
-    data.append(UInt16(1).littleEndianData)
+    data.append(audioFormat.littleEndianData)
     data.append(UInt16(1).littleEndianData)
     data.append(sampleRate.littleEndianData)
     data.append((sampleRate * 2).littleEndianData)
@@ -190,6 +276,57 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
     data.append(contentsOf: "data".utf8)
     data.append(UInt32(samples.count * 2).littleEndianData)
     samples.forEach { data.append($0.littleEndianData) }
+    return data
+  }
+
+  private func makeTestWavWithoutData(extraChunk: Bool) -> Data {
+    var data = Data()
+    let payloadLength: UInt32 = extraChunk ? 12 : 8
+    data.append(contentsOf: "RIFF".utf8)
+    data.append(UInt32(28 + payloadLength).littleEndianData)
+    data.append(contentsOf: "WAVE".utf8)
+    data.append(contentsOf: "fmt ".utf8)
+    data.append(UInt32(16).littleEndianData)
+    data.append(UInt16(1).littleEndianData)
+    data.append(UInt16(1).littleEndianData)
+    data.append(UInt32(1000).littleEndianData)
+    data.append(UInt32(2000).littleEndianData)
+    data.append(UInt16(2).littleEndianData)
+    data.append(UInt16(16).littleEndianData)
+    if extraChunk {
+      data.append(contentsOf: "JUNK".utf8)
+      data.append(UInt32(4).littleEndianData)
+      data.append(UInt32(123).littleEndianData)
+    }
+    return data
+  }
+
+  private func makeTestWavWithInvalidChunkSize() -> Data {
+    var data = makeTestWav(samples: [], sampleRate: 1000)
+    data.replaceSubrange(36..<40, with: Data("JUNK".utf8))
+    data.replaceSubrange(40..<44, with: UInt32(1000).littleEndianData)
+    return data
+  }
+
+  private func makeTestWavWithShortFmtChunk() -> Data {
+    var data = Data()
+    data.append(contentsOf: "RIFF".utf8)
+    data.append(UInt32(12).littleEndianData)
+    data.append(contentsOf: "WAVE".utf8)
+    data.append(contentsOf: "fmt ".utf8)
+    data.append(UInt32(4).littleEndianData)
+    data.append(UInt32(1).littleEndianData)
+    return data
+  }
+
+  private func makeTestWavWithDataOnly() -> Data {
+    var data = Data()
+    data.append(contentsOf: "RIFF".utf8)
+    data.append(UInt32(40).littleEndianData)
+    data.append(contentsOf: "WAVE".utf8)
+    data.append(contentsOf: "data".utf8)
+    data.append(UInt32(2).littleEndianData)
+    data.append(Int16(100).littleEndianData)
     return data
   }
 

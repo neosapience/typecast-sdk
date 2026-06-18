@@ -86,9 +86,6 @@ public final class SpeechComposer {
     for part in plan {
       switch part {
       case .pause(let seconds):
-        guard seconds.isFinite, seconds > 0 else {
-          throw TypecastError.validationError("pause seconds must be greater than 0")
-        }
         guard let spec = wavSpec else {
           throw TypecastError.validationError("pause cannot be the first composed part")
         }
@@ -105,9 +102,7 @@ public final class SpeechComposer {
       }
     }
 
-    guard let finalSpec = wavSpec else {
-      throw TypecastError.validationError("at least one speech segment is required")
-    }
+    let finalSpec = wavSpec!
     let wavData = encodeWAV(samples: outputSamples, spec: finalSpec)
     if outputFormat == .mp3 {
       throw TypecastError.validationError("MP3 conversion is app-level responsibility for composed speech")
@@ -151,16 +146,10 @@ public final class SpeechComposer {
   }
 
   private func request(text: String, settings: ComposerSettings) throws -> TTSRequest {
-    guard let voiceId = settings.voiceId, !voiceId.isEmpty else {
-      throw TypecastError.validationError("voiceId is required for composed speech segments")
-    }
-    guard let model = settings.model else {
-      throw TypecastError.validationError("model is required for composed speech segments")
-    }
     return TTSRequest(
-      voiceId: voiceId,
+      voiceId: settings.voiceId!,
       text: text,
-      model: model,
+      model: settings.model!,
       language: settings.language,
       prompt: settings.prompt,
       output: mergeOutput(settings.output, OutputSettings(audioFormat: .wav)),

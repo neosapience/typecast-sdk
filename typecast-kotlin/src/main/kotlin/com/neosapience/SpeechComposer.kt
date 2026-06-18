@@ -185,13 +185,20 @@ class SpeechComposer internal constructor(private val client: TypecastClient) {
 
         private fun mergeOutput(base: Output?, overrides: Output?): Output? {
             if (base == null && overrides == null) return null
-            return Output(
-                volume = overrides?.volume ?: base?.volume,
-                targetLufs = overrides?.targetLufs ?: base?.targetLufs,
-                audioPitch = overrides?.audioPitch ?: base?.audioPitch,
-                audioTempo = overrides?.audioTempo ?: base?.audioTempo,
-                audioFormat = overrides?.audioFormat ?: base?.audioFormat,
+            var merged = copyOutput(base) ?: Output(
+                volume = null,
+                targetLufs = null,
+                audioPitch = null,
+                audioTempo = null,
+                audioFormat = null,
             )
+            if (overrides == null) return merged
+            if (overrides.volume != null) merged = merged.copy(volume = overrides.volume)
+            if (overrides.targetLufs != null) merged = merged.copy(targetLufs = overrides.targetLufs)
+            if (overrides.audioPitch != null) merged = merged.copy(audioPitch = overrides.audioPitch)
+            if (overrides.audioTempo != null) merged = merged.copy(audioTempo = overrides.audioTempo)
+            if (overrides.audioFormat != null) merged = merged.copy(audioFormat = overrides.audioFormat)
+            return merged
         }
 
         private fun copyOutput(output: Output?): Output? {
@@ -201,12 +208,13 @@ class SpeechComposer internal constructor(private val client: TypecastClient) {
         private fun parsePauseToken(token: String): Double? {
             if (!token.endsWith("s") || token.length < 2) return null
             val number = token.dropLast(1)
-            if (number.isEmpty() || number.any { !it.isDigit() && it != '.' }) return null
+            if (number.any { !it.isDigit() && it != '.' }) return null
             return number.toDoubleOrNull()
         }
 
         private fun composeWav(wavs: List<ByteArray>, pauses: List<Double>): ByteArray {
-            check(wavs.isNotEmpty() && pauses.size + 1 == wavs.size) { "Invalid composed speech parts" }
+            check(wavs.isNotEmpty()) { "Invalid composed speech parts" }
+            check(pauses.size + 1 == wavs.size) { "Invalid composed speech parts" }
             val infos = wavs.map(::parseWav)
             val sampleRate = infos.first().sampleRate
             check(infos.all { it.sampleRate == sampleRate }) { "WAV segment sample rates must match" }
@@ -222,7 +230,9 @@ class SpeechComposer internal constructor(private val client: TypecastClient) {
                 while (end > start && readShort(wav, info.pcmStart + (end - 1) * 2).toInt() == 0) end--
                 ranges.add(start until end)
                 totalSamples += end - start
-                if (index < pauses.size) totalSamples += (pauses[index] * sampleRate).roundToInt()
+                if (index < pauses.size) {
+                    totalSamples += (pauses[index] * sampleRate).roundToInt()
+                }
             }
 
             val output = ByteArray(44 + totalSamples * 2)
