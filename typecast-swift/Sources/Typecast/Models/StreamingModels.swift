@@ -23,22 +23,38 @@ public struct OutputStream: Codable, Sendable {
         case audioFormat = "audio_format"
     }
 
+    private static func isValidTargetLufs(_ value: Double?) -> Bool {
+        guard let value else { return true }
+        return value.isFinite && value >= -70.0 && value <= 0.0
+    }
+
     public init(
         targetLufs: Double? = nil,
         audioPitch: Int? = nil,
         audioTempo: Double? = nil,
         audioFormat: AudioFormat? = nil
     ) {
-        if let targetLufs {
-            precondition(
-                !targetLufs.isNaN && targetLufs >= -70.0 && targetLufs <= 0.0,
-                "targetLufs must be between -70 and 0"
-            )
-        }
+        precondition(Self.isValidTargetLufs(targetLufs))
         self.targetLufs = targetLufs
         self.audioPitch = audioPitch
         self.audioTempo = audioTempo
         self.audioFormat = audioFormat
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let targetLufs = try container.decodeIfPresent(Double.self, forKey: .targetLufs)
+        guard Self.isValidTargetLufs(targetLufs) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .targetLufs,
+                in: container,
+                debugDescription: "targetLufs must be between -70 and 0"
+            )
+        }
+        self.targetLufs = targetLufs
+        self.audioPitch = try container.decodeIfPresent(Int.self, forKey: .audioPitch)
+        self.audioTempo = try container.decodeIfPresent(Double.self, forKey: .audioTempo)
+        self.audioFormat = try container.decodeIfPresent(AudioFormat.self, forKey: .audioFormat)
     }
 }
 

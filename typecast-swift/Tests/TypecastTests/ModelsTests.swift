@@ -188,9 +188,15 @@ final class ModelsTests: XCTestCase {
 
     func testOutputStreamDefaultsAreNil() {
         let output = Typecast.OutputStream()
+        XCTAssertNil(output.targetLufs)
         XCTAssertNil(output.audioPitch)
         XCTAssertNil(output.audioTempo)
         XCTAssertNil(output.audioFormat)
+    }
+
+    func testOutputStreamRejectsInvalidDecodedTargetLufs() {
+        let data = #"{"target_lufs":0.1}"#.data(using: .utf8)!
+        XCTAssertThrowsError(try JSONDecoder().decode(Typecast.OutputStream.self, from: data))
     }
 
     func testTTSRequestStreamFullRoundTrip() throws {
