@@ -35,16 +35,22 @@ module Typecast
     end
 
     class OutputStream
-      attr_reader :audio_pitch, :audio_tempo, :audio_format
+      attr_reader :audio_pitch, :audio_tempo, :audio_format, :target_lufs
 
-      def initialize(audio_pitch: nil, audio_tempo: nil, audio_format: nil)
+      def initialize(audio_pitch: nil, audio_tempo: nil, audio_format: nil, target_lufs: nil)
         @audio_pitch = audio_pitch
         @audio_tempo = audio_tempo
         @audio_format = audio_format
+        @target_lufs = target_lufs
       end
 
       def to_h
-        Models.compact(audio_pitch: audio_pitch, audio_tempo: audio_tempo, audio_format: audio_format)
+        Models.compact(
+          audio_pitch: audio_pitch,
+          audio_tempo: audio_tempo,
+          audio_format: audio_format,
+          target_lufs: target_lufs
+        )
       end
     end
 

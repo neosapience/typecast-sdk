@@ -47,9 +47,10 @@ class CoverageStreamingTest {
         val copy = o.copy()
         assertEquals(o, copy)
         assertEquals(o.hashCode(), copy.hashCode())
-        assertEquals(5, o.component1())
-        assertEquals(1.25, o.component2())
-        assertEquals("mp3", o.component3())
+        assertNull(o.component1())
+        assertEquals(5, o.component2())
+        assertEquals(1.25, o.component3())
+        assertEquals("mp3", o.component4())
         assertTrue(o.toString().contains("mp3"))
         assertNotEquals(o, o.copy(audioPitch = 1))
         assertFalse(o.equals(null))
@@ -67,8 +68,11 @@ class CoverageStreamingTest {
         assertThrows(IllegalArgumentException::class.java) { OutputStream(audioTempo = 0.4) }
         assertThrows(IllegalArgumentException::class.java) { OutputStream(audioTempo = 2.1) }
         assertThrows(IllegalArgumentException::class.java) { OutputStream(audioFormat = "ogg") }
+        assertThrows(IllegalArgumentException::class.java) { OutputStream(targetLufs = -71.0) }
+        assertThrows(IllegalArgumentException::class.java) { OutputStream(targetLufs = 0.1) }
         assertDoesNotThrow { OutputStream(audioFormat = "wav") }
         assertDoesNotThrow { OutputStream(audioFormat = "mp3") }
+        assertDoesNotThrow { OutputStream(targetLufs = -14.0) }
     }
 
     @Test
@@ -77,10 +81,12 @@ class CoverageStreamingTest {
             .audioPitch(-2)
             .audioTempo(0.75)
             .audioFormat("mp3")
+            .targetLufs(-14.0)
             .build()
         assertEquals(-2, built.audioPitch)
         assertEquals(0.75, built.audioTempo)
         assertEquals("mp3", built.audioFormat)
+        assertEquals(-14.0, built.targetLufs)
 
         val def = OutputStream.builder().build()
         assertEquals(0, def.audioPitch)

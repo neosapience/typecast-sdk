@@ -3,9 +3,8 @@ import { TTSModel, LanguageCode, TTSPrompt } from './TextToSpeech';
 /**
  * Audio output settings for the streaming TTS endpoint.
  *
- * Unlike the non-streaming `Output`, this intentionally omits `volume` and
- * `target_lufs`: the streaming endpoint emits audio chunk-by-chunk and cannot
- * apply post-hoc loudness normalization.
+ * Unlike the non-streaming `Output`, this intentionally omits `volume`.
+ * Streaming supports `target_lufs` for absolute loudness normalization.
  */
 export interface OutputStream {
   /**
@@ -27,13 +26,18 @@ export interface OutputStream {
    * @default 'wav'
    */
   audio_format?: 'wav' | 'mp3';
+  /**
+   * Target loudness in LUFS for absolute loudness normalization.
+   * @min -70
+   * @max 0
+   */
+  target_lufs?: number;
 }
 
 /**
  * Text-to-Speech streaming request parameters.
  *
- * Same shape as `TTSRequest`, but `output` uses `OutputStream` (no volume /
- * target_lufs).
+ * Same shape as `TTSRequest`, but `output` uses `OutputStream` (no volume).
  */
 export interface TTSRequestStream {
   /**
@@ -49,7 +53,7 @@ export interface TTSRequestStream {
   language?: LanguageCode;
   /** Emotion and style settings for the generated speech */
   prompt?: TTSPrompt;
-  /** Audio output settings (no volume / target_lufs in streaming mode) */
+  /** Audio output settings (no volume in streaming mode) */
   output?: OutputStream;
   /** Random seed for reproducible results (same seed + same parameters = same output) */
   seed?: number;

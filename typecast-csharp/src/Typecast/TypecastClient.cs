@@ -234,7 +234,7 @@ public class TypecastClient : IDisposable
     /// stream from <c>POST /v1/text-to-speech/stream</c>.
     /// </summary>
     /// <param name="request">The streaming TTS request. Uses <see cref="OutputStream"/>
-    /// which omits <c>volume</c> and <c>target_lufs</c>.</param>
+    /// which omits <c>volume</c>.</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>
     /// A <see cref="Stream"/> containing the audio bytes as they arrive from the
@@ -609,7 +609,7 @@ public class TypecastClient : IDisposable
     private string SerializeStreamRequest(TTSRequestStream request)
     {
         // Build the request object manually to handle prompt polymorphism.
-        // OutputStream omits volume / target_lufs by design.
+        // OutputStream omits volume by design.
         var dict = new Dictionary<string, object>
         {
             ["text"] = request.Text,
@@ -630,6 +630,8 @@ public class TypecastClient : IDisposable
         if (request.Output != null)
         {
             var outputDict = new Dictionary<string, object>();
+            if (request.Output.TargetLufs.HasValue)
+                outputDict["target_lufs"] = request.Output.TargetLufs.Value;
             if (request.Output.AudioPitch.HasValue)
                 outputDict["audio_pitch"] = request.Output.AudioPitch.Value;
             if (request.Output.AudioTempo.HasValue)

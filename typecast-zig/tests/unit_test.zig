@@ -112,10 +112,10 @@ test "OutputStream default values" {
     try testing.expectEqual(models.AudioFormat.wav, output.audio_format);
 }
 
-test "OutputStream must not have volume or target_lufs" {
+test "OutputStream must not have volume" {
     // Compile-time check: these fields must not exist on OutputStream.
     try testing.expect(!@hasField(models.OutputStream, "volume"));
-    try testing.expect(!@hasField(models.OutputStream, "target_lufs"));
+    try testing.expect(@hasField(models.OutputStream, "target_lufs"));
 }
 
 // ── TtsRequest required vs optional fields ─────────────────────────────
@@ -260,13 +260,13 @@ test "serializeTtsRequest with all optional fields" {
     try testing.expect(obj.get("output") != null);
 }
 
-test "serializeTtsRequestStream has no volume or target_lufs" {
+test "serializeTtsRequestStream has no volume and supports target_lufs" {
     const allocator = testing.allocator;
     const req = models.TtsRequestStream{
         .voice_id = "v1",
         .text = "Stream test",
         .model = .ssfm_v30,
-        .output = .{ .audio_format = .mp3 },
+        .output = .{ .audio_format = .mp3, .target_lufs = -14.0 },
     };
     const json_bytes = try json_helpers.serializeTtsRequestStream(allocator, req);
     defer allocator.free(json_bytes);
@@ -276,7 +276,12 @@ test "serializeTtsRequestStream has no volume or target_lufs" {
     const output_obj = parsed.value.object.get("output").?.object;
 
     try testing.expect(output_obj.get("volume") == null);
-    try testing.expect(output_obj.get("target_lufs") == null);
+    const target_lufs_value = output_obj.get("target_lufs").?;
+    switch (target_lufs_value) {
+        .integer => |value| try testing.expectEqual(@as(i64, -14), value),
+        .float => |value| try testing.expectApproxEqAbs(@as(f64, -14.0), value, 1e-9),
+        else => return error.TestUnexpectedResult,
+    }
     try testing.expectEqualStrings("mp3", output_obj.get("audio_format").?.string);
 }
 

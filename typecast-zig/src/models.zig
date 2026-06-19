@@ -186,6 +186,8 @@ pub const Output = struct {
 };
 
 pub const OutputStream = struct {
+    /// Target loudness in LUFS. Valid range: -70.0 to 0.0.
+    target_lufs: ?f64 = null,
     audio_pitch: ?i32 = 0,
     audio_tempo: ?f64 = 1.0,
     audio_format: AudioFormat = .wav,

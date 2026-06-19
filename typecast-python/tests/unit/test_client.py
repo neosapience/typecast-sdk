@@ -282,9 +282,15 @@ class TestOutputStreamModel:
         with pytest.raises(ValidationError):
             OutputStream(volume=100)  # type: ignore[call-arg]
 
-    def test_no_target_lufs_field(self):
+    def test_target_lufs_field(self):
+        out = OutputStream(target_lufs=-14.0)
+        assert out.target_lufs == -14.0
+
+    def test_target_lufs_range(self):
         with pytest.raises(ValidationError):
-            OutputStream(target_lufs=-14.0)  # type: ignore[call-arg]
+            OutputStream(target_lufs=-71.0)
+        with pytest.raises(ValidationError):
+            OutputStream(target_lufs=0.1)
 
 
 class TestTTSRequestStreamModel:

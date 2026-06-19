@@ -1094,9 +1094,17 @@ static void test_tts_stream_with_output_mp3(void) {
     ASSERT(strstr(g_server.last_body, "\"audio_format\":\"mp3\"") != NULL);
     ASSERT(strstr(g_server.last_body, "\"audio_pitch\":4") != NULL);
     ASSERT(strstr(g_server.last_body, "\"seed\":7") != NULL);
-    /* CRITICAL: streaming endpoint must NOT receive volume / target_lufs */
+    /* Streaming endpoint must NOT receive volume, but accepts target_lufs. */
     ASSERT(strstr(g_server.last_body, "\"volume\"") == NULL);
     ASSERT(strstr(g_server.last_body, "\"target_lufs\"") == NULL);
+
+    out.use_target_lufs = 1;
+    out.target_lufs = -14.0f;
+    mock_enqueue_text(200, NULL, "MP3DATA");
+    rc = typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s);
+    ASSERT_EQ(rc, TYPECAST_OK);
+    ASSERT(strstr(g_server.last_body, "\"volume\"") == NULL);
+    ASSERT(strstr(g_server.last_body, "\"target_lufs\":-14") != NULL);
 
     free(s.data);
     typecast_client_destroy(c);

@@ -6,15 +6,19 @@ import kotlinx.serialization.Serializable
 /**
  * Audio output configuration for streaming TTS synthesis.
  *
- * Mirrors [Output] but omits `volume` and `target_lufs`, which the
- * streaming endpoint does not support.
+ * Mirrors [Output] but omits `volume`, which the streaming endpoint does not
+ * support. Streaming supports `target_lufs`.
  *
+ * @property targetLufs Target loudness in LUFS (-70 to 0)
  * @property audioPitch Audio pitch adjustment in semitones (-12 to 12, default 0)
  * @property audioTempo Audio tempo multiplier (0.5-2.0, default 1.0)
  * @property audioFormat Audio output format string ("wav" or "mp3", default "wav")
  */
 @Serializable
 data class OutputStream(
+    @SerialName("target_lufs")
+    val targetLufs: Double? = null,
+
     @SerialName("audio_pitch")
     val audioPitch: Int? = 0,
 
@@ -34,6 +38,9 @@ data class OutputStream(
         audioFormat?.let {
             require(it == "wav" || it == "mp3") { "AudioFormat must be 'wav' or 'mp3'" }
         }
+        targetLufs?.let {
+            require(it in -70.0..0.0) { "TargetLufs must be between -70 and 0" }
+        }
     }
 
     companion object {
@@ -44,13 +51,16 @@ data class OutputStream(
         private var audioPitch: Int? = 0
         private var audioTempo: Double? = 1.0
         private var audioFormat: String? = "wav"
+        private var targetLufs: Double? = null
 
         fun audioPitch(value: Int?) = apply { audioPitch = value }
         fun audioTempo(value: Double?) = apply { audioTempo = value }
         fun audioFormat(value: String?) = apply { audioFormat = value }
+        fun targetLufs(value: Double?) = apply { targetLufs = value }
 
         fun build(): OutputStream {
             return OutputStream(
+                targetLufs = targetLufs,
                 audioPitch = audioPitch,
                 audioTempo = audioTempo,
                 audioFormat = audioFormat

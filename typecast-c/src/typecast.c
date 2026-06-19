@@ -1383,7 +1383,7 @@ static size_t stream_write_callback(void* contents, size_t size, size_t nmemb, v
 }
 
 /* Build the streaming JSON body. Mirrors build_tts_request_json but the
- * output object intentionally omits volume / target_lufs (rejected by
+ * output object intentionally omits volume (rejected by
  * /v1/text-to-speech/stream). */
 static cJSON* build_tts_stream_request_json(const TypecastTTSRequestStream* request) {
     cJSON* root = cJSON_CreateObject();
@@ -1434,8 +1434,9 @@ static cJSON* build_tts_stream_request_json(const TypecastTTSRequestStream* requ
     if (request->output) {
         cJSON* output = cJSON_CreateObject();
         if (output) {
-            /* NOTE: volume and target_lufs are deliberately omitted - the
-             * streaming endpoint rejects them. */
+            if (request->output->use_target_lufs) {
+                cJSON_AddNumberToObject(output, "target_lufs", request->output->target_lufs);
+            }
             if (request->output->audio_pitch != 0) {
                 cJSON_AddNumberToObject(output, "audio_pitch", request->output->audio_pitch);
             }
