@@ -41,10 +41,11 @@ jobs:
 
           split_sha="$(git subtree split --prefix=typecast-php HEAD)"
           remote="https://x-access-token:${TYPECAST_PHP_MIRROR_TOKEN}@github.com/neosapience/typecast-php.git"
+          mirror_main_sha="$(git ls-remote "$remote" refs/heads/main | cut -f1)"
 
           # The standalone repository is a deprecated Packagist mirror, so its
           # main branch should exactly match the split subtree history.
-          git push --force-with-lease "$remote" "${split_sha}:refs/heads/main"
+          git push --force-with-lease="refs/heads/main:${mirror_main_sha}" "$remote" "${split_sha}:refs/heads/main"
 
           if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == typecast-php/v* ]]; then
             mirror_tag="${GITHUB_REF_NAME#typecast-php/}"
