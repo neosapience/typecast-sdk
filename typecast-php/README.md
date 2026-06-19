@@ -1,5 +1,10 @@
 # Typecast PHP SDK
 
+> Source of truth: this `typecast-php/` subtree in
+> [`neosapience/typecast-sdk`](https://github.com/neosapience/typecast-sdk/tree/main/typecast-php).
+> [`neosapience/typecast-php`](https://github.com/neosapience/typecast-php)
+> is kept as a deprecated Packagist mirror for `neosapience/typecast-php`.
+
 Official PHP SDK for the [Typecast](https://typecast.ai) Text-to-Speech API.
 
 ## Requirements
