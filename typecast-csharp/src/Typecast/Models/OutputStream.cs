@@ -73,7 +73,7 @@ public class OutputStream
             throw new ArgumentOutOfRangeException(nameof(AudioTempo), "AudioTempo must be between 0.5 and 2.0.");
         }
 
-        if (TargetLufs.HasValue && (TargetLufs.Value < -70.0 || TargetLufs.Value > 0.0))
+        if (TargetLufs.HasValue && (double.IsNaN(TargetLufs.Value) || TargetLufs.Value < -70.0 || TargetLufs.Value > 0.0))
         {
             throw new ArgumentOutOfRangeException(nameof(TargetLufs), "TargetLufs must be between -70 and 0.");
         }

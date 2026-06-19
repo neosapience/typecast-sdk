@@ -403,8 +403,13 @@ fn output_stream_builder_clamps_values() {
         &OutputStream::new().audio_format(AudioFormat::Wav).target_lufs(-14.0),
     )
     .unwrap();
-    assert!(!json.contains("volume"));
-    assert!(json.contains("target_lufs"));
+    let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let obj = value.as_object().unwrap();
+    assert!(obj.get("volume").is_none());
+    assert_eq!(
+        obj.get("target_lufs").and_then(|value| value.as_f64()),
+        Some(-14.0)
+    );
 }
 
 #[test]

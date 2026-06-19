@@ -275,6 +275,28 @@ public class CoverageGapModelTests
             .WithMessage("*AudioTempo*");
     }
 
+    [Theory]
+    [InlineData(-71.0)]
+    [InlineData(0.1)]
+    [InlineData(double.NaN)]
+    public void OutputStream_Validate_InvalidTargetLufs_ShouldThrow(double targetLufs)
+    {
+        var output = new OutputStream { TargetLufs = targetLufs };
+        output.Invoking(o => o.Validate())
+            .Should().Throw<ArgumentOutOfRangeException>()
+            .WithMessage("*TargetLufs*");
+    }
+
+    [Theory]
+    [InlineData(-70.0)]
+    [InlineData(-14.0)]
+    [InlineData(0.0)]
+    public void OutputStream_Validate_ValidTargetLufs_ShouldNotThrow(double targetLufs)
+    {
+        var output = new OutputStream { TargetLufs = targetLufs };
+        output.Invoking(o => o.Validate()).Should().NotThrow();
+    }
+
     // ----- TTSRequestStream -----
 
     [Fact]

@@ -146,7 +146,7 @@ impl Output {
 
     /// Set the target LUFS (-70 to 0)
     pub fn target_lufs(mut self, lufs: f64) -> Self {
-        self.target_lufs = Some(lufs.clamp(-70.0, 0.0));
+        self.target_lufs = lufs.is_finite().then_some(lufs.clamp(-70.0, 0.0));
         self
     }
 

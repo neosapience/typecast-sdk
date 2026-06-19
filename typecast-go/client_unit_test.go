@@ -356,7 +356,7 @@ func TestTextToSpeech_MalformedErrorBody(t *testing.T) {
 type errReader struct{}
 
 func (errReader) Read(p []byte) (int, error) { return 0, errors.New("read boom") }
-func (errReader) Close() error                { return nil }
+func (errReader) Close() error               { return nil }
 
 // roundTripperFunc lets us inject a custom response.
 type roundTripperFunc func(*http.Request) (*http.Response, error)
@@ -1248,10 +1248,20 @@ func TestOutputStream_Validate(t *testing.T) {
 	if err := (&OutputStream{AudioFormat: AudioFormat("flac")}).Validate(); err == nil {
 		t.Error("expected format error")
 	}
+	// lufs out of range
+	badL := -71.0
+	if err := (&OutputStream{TargetLUFS: &badL}).Validate(); err == nil {
+		t.Error("expected lufs range error")
+	}
+	highL := 1.0
+	if err := (&OutputStream{TargetLUFS: &highL}).Validate(); err == nil {
+		t.Error("expected lufs range error")
+	}
 	// all valid
 	t2 := 1.0
 	p2 := 0
-	if err := (&OutputStream{AudioTempo: &t2, AudioPitch: &p2, AudioFormat: AudioFormatMP3}).Validate(); err != nil {
+	l2 := -14.0
+	if err := (&OutputStream{AudioTempo: &t2, AudioPitch: &p2, AudioFormat: AudioFormatMP3, TargetLUFS: &l2}).Validate(); err != nil {
 		t.Errorf("expected valid, got %v", err)
 	}
 }

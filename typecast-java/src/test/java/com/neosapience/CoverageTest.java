@@ -1190,6 +1190,31 @@ class CoverageTest {
     }
 
     @Test
+    void textToSpeechStream_withTargetLufs_serializesBody() throws Exception {
+        mockServer.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "audio/wav")
+                .setBody(new okio.Buffer().write(new byte[]{0})));
+
+        TTSRequestStream req = TTSRequestStream.builder()
+                .voiceId("tc_test")
+                .text("Hi")
+                .model(TTSModel.SSFM_V30)
+                .output(OutputStream.builder()
+                        .targetLufs(-14.0)
+                        .build())
+                .build();
+
+        InputStream is = client.textToSpeechStream(req);
+        is.close();
+
+        RecordedRequest rr = mockServer.takeRequest();
+        String body = rr.getBody().readUtf8();
+        assertTrue(body.contains("\"target_lufs\":-14.0"));
+        assertFalse(body.contains("volume"));
+    }
+
+    @Test
     void textToSpeechStream_promptObjectBranch() throws Exception {
         mockServer.enqueue(new MockResponse()
                 .setResponseCode(200)
@@ -1379,9 +1404,11 @@ class CoverageTest {
     @Test
     void outputStream_settersChain() {
         OutputStream o = new OutputStream();
+        assertSame(o, o.setTargetLufs(null));
         assertSame(o, o.setAudioPitch(null));
         assertSame(o, o.setAudioTempo(null));
         assertSame(o, o.setAudioFormat(AudioFormat.MP3));
+        assertNull(o.getTargetLufs());
         assertNull(o.getAudioPitch());
         assertNull(o.getAudioTempo());
         assertEquals(AudioFormat.MP3, o.getAudioFormat());
@@ -1406,12 +1433,24 @@ class CoverageTest {
     }
 
     @Test
+    void outputStream_validatesTargetLufsRange() {
+        assertThrows(IllegalArgumentException.class, () -> new OutputStream().setTargetLufs(-71.0));
+        assertThrows(IllegalArgumentException.class, () -> new OutputStream().setTargetLufs(0.1));
+        assertThrows(IllegalArgumentException.class, () -> new OutputStream().setTargetLufs(Double.NaN));
+        assertThrows(IllegalArgumentException.class, () -> new OutputStream().setTargetLufs(Double.POSITIVE_INFINITY));
+        assertDoesNotThrow(() -> new OutputStream().setTargetLufs(-70.0));
+        assertDoesNotThrow(() -> new OutputStream().setTargetLufs(0.0));
+    }
+
+    @Test
     void outputStream_builderAllFields() {
         OutputStream o = OutputStream.builder()
                 .audioPitch(3)
                 .audioTempo(1.25)
                 .audioFormat(AudioFormat.MP3)
+                .targetLufs(-14.0)
                 .build();
+        assertEquals(Double.valueOf(-14.0), o.getTargetLufs());
         assertEquals(Integer.valueOf(3), o.getAudioPitch());
         assertEquals(Double.valueOf(1.25), o.getAudioTempo());
         assertEquals(AudioFormat.MP3, o.getAudioFormat());

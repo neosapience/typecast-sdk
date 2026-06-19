@@ -29,6 +29,12 @@ public struct OutputStream: Codable, Sendable {
         audioTempo: Double? = nil,
         audioFormat: AudioFormat? = nil
     ) {
+        if let targetLufs {
+            precondition(
+                !targetLufs.isNaN && targetLufs >= -70.0 && targetLufs <= 0.0,
+                "targetLufs must be between -70 and 0"
+            )
+        }
         self.targetLufs = targetLufs
         self.audioPitch = audioPitch
         self.audioTempo = audioTempo

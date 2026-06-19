@@ -2,6 +2,7 @@ package typecast
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"unicode/utf8"
 )
@@ -102,7 +103,7 @@ func (o *Output) Validate() error {
 	if o.Volume != nil && (*o.Volume < 0 || *o.Volume > 200) {
 		return fmt.Errorf("volume must be between 0 and 200")
 	}
-	if o.TargetLUFS != nil && (*o.TargetLUFS < -70 || *o.TargetLUFS > 0) {
+	if o.TargetLUFS != nil && (math.IsNaN(*o.TargetLUFS) || math.IsInf(*o.TargetLUFS, 0) || *o.TargetLUFS < -70 || *o.TargetLUFS > 0) {
 		return fmt.Errorf("target_lufs must be between -70 and 0")
 	}
 	if o.AudioPitch != nil && (*o.AudioPitch < -12 || *o.AudioPitch > 12) {

@@ -276,7 +276,12 @@ test "serializeTtsRequestStream has no volume and supports target_lufs" {
     const output_obj = parsed.value.object.get("output").?.object;
 
     try testing.expect(output_obj.get("volume") == null);
-    try testing.expectEqual(@as(i64, -14), output_obj.get("target_lufs").?.integer);
+    const target_lufs_value = output_obj.get("target_lufs").?;
+    switch (target_lufs_value) {
+        .integer => |value| try testing.expectEqual(@as(i64, -14), value),
+        .float => |value| try testing.expectApproxEqAbs(@as(f64, -14.0), value, 1e-9),
+        else => return error.TestUnexpectedResult,
+    }
     try testing.expectEqualStrings("mp3", output_obj.get("audio_format").?.string);
 }
 

@@ -289,6 +289,8 @@ class TestOutputStreamModel:
     def test_target_lufs_range(self):
         with pytest.raises(ValidationError):
             OutputStream(target_lufs=-71.0)
+        with pytest.raises(ValidationError):
+            OutputStream(target_lufs=0.1)
 
 
 class TestTTSRequestStreamModel:

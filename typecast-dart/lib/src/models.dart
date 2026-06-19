@@ -98,7 +98,10 @@ class Output {
 }
 
 class OutputStream {
-  const OutputStream({this.audioPitch, this.audioTempo, this.audioFormat, this.targetLufs});
+  const OutputStream(
+      {this.audioPitch, this.audioTempo, this.audioFormat, this.targetLufs})
+      : assert(targetLufs == null || (targetLufs >= -70.0 && targetLufs <= 0.0),
+            'targetLufs must be between -70 and 0');
 
   final int? audioPitch;
   final double? audioTempo;
