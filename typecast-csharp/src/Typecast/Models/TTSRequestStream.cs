@@ -5,7 +5,7 @@ namespace Typecast.Models;
 /// <summary>
 /// Request model for streaming Text-to-Speech synthesis.
 /// Mirrors <see cref="TTSRequest"/> but uses <see cref="OutputStream"/>,
-/// which omits <c>volume</c> and <c>target_lufs</c>.
+/// which omits <c>volume</c>.
 /// </summary>
 public class TTSRequestStream
 {

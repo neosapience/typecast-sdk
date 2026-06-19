@@ -7,7 +7,7 @@ namespace Neosapience\Typecast\Models;
 /**
  * Audio output settings for streaming TTS request.
  *
- * The streaming endpoint does not support volume or target_lufs.
+ * The streaming endpoint does not support volume, but supports target_lufs.
  */
 class OutputStream
 {
@@ -15,6 +15,7 @@ class OutputStream
         public ?int $audioPitch = 0,
         public ?float $audioTempo = 1.0,
         public ?string $audioFormat = 'wav',
+        public ?float $targetLufs = null,
     ) {
         if ($this->audioPitch !== null && ($this->audioPitch < -12 || $this->audioPitch > 12)) {
             throw new \InvalidArgumentException('audioPitch must be between -12 and 12');
@@ -24,6 +25,9 @@ class OutputStream
         }
         if ($this->audioFormat !== null && !in_array($this->audioFormat, ['wav', 'mp3'], true)) {
             throw new \InvalidArgumentException("audioFormat must be 'wav' or 'mp3'");
+        }
+        if ($this->targetLufs !== null && ($this->targetLufs < -70.0 || $this->targetLufs > 0.0)) {
+            throw new \InvalidArgumentException('targetLufs must be between -70 and 0');
         }
     }
 
@@ -42,6 +46,9 @@ class OutputStream
         }
         if ($this->audioFormat !== null) {
             $data['audio_format'] = $this->audioFormat;
+        }
+        if ($this->targetLufs !== null) {
+            $data['target_lufs'] = $this->targetLufs;
         }
 
         return $data;

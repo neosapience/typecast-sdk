@@ -289,10 +289,12 @@ typedef struct {
 /**
  * Output settings for streaming TTS request.
  *
- * The streaming endpoint (/v1/text-to-speech/stream) does NOT accept
- * `volume` or `target_lufs`, so they are deliberately absent here.
+ * The streaming endpoint (/v1/text-to-speech/stream) does not accept
+ * `volume`, but supports `target_lufs`.
  */
 typedef struct {
+    int use_target_lufs;                /* Set to 1 to use target_lufs */
+    float target_lufs;                  /* -70 to 0 */
     int audio_pitch;                    /* -12 to 12, default 0 */
     float audio_tempo;                  /* 0.5 to 2.0, default 1.0 */
     TypecastAudioFormat audio_format;   /* wav or mp3, default wav */
@@ -302,7 +304,7 @@ typedef struct {
  * Streaming TTS Request structure (for text-to-speech/stream).
  *
  * Mirrors TypecastTTSRequest but uses TypecastOutputStream which omits
- * the volume / target_lufs fields rejected by the streaming endpoint.
+ * the volume field rejected by the streaming endpoint.
  */
 typedef struct {
     const char* text;                /* Required: Text to convert (max 2000 chars) */
@@ -310,7 +312,7 @@ typedef struct {
     TypecastModel model;             /* Required: ssfm-v21 or ssfm-v30 */
     const char* language;            /* Optional: ISO 639-3 code */
     TypecastPrompt* prompt;          /* Optional: Emotion settings */
-    TypecastOutputStream* output;    /* Optional: Audio output settings (no volume / lufs) */
+    TypecastOutputStream* output;    /* Optional: Audio output settings (no volume) */
     int seed;                        /* Optional: Random seed (0 = not set) */
 } TypecastTTSRequestStream;
 
@@ -915,6 +917,8 @@ TYPECAST_API const char* typecast_error_message(TypecastErrorCode code);
 /** Create default streaming output settings */
 #define TYPECAST_OUTPUT_STREAM_DEFAULT() \
     ((TypecastOutputStream){ \
+        .use_target_lufs = 0, \
+        .target_lufs = 0.0f, \
         .audio_pitch = 0, \
         .audio_tempo = 1.0f, \
         .audio_format = TYPECAST_AUDIO_FORMAT_WAV \

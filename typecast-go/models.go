@@ -218,8 +218,7 @@ func (r GenerateToFileRequest) toTTSRequest() *TTSRequest {
 }
 
 // OutputStream represents audio output settings for the streaming endpoint.
-// Unlike Output, it does not support Volume or TargetLUFS because the
-// streaming endpoint cannot apply loudness normalization.
+// Unlike Output, it does not support Volume. Streaming supports TargetLUFS.
 type OutputStream struct {
 	// AudioPitch adjusts pitch in semitones (-12 to +12, default: 0)
 	AudioPitch *int `json:"audio_pitch,omitempty"`
@@ -227,6 +226,8 @@ type OutputStream struct {
 	AudioTempo *float64 `json:"audio_tempo,omitempty"`
 	// AudioFormat is the output format (wav or mp3, default: wav)
 	AudioFormat AudioFormat `json:"audio_format,omitempty"`
+	// TargetLUFS sets absolute loudness normalization (-70 to 0).
+	TargetLUFS *float64 `json:"target_lufs,omitempty"`
 }
 
 // Validate checks the OutputStream fields for invalid values.
@@ -243,11 +244,14 @@ func (o *OutputStream) Validate() error {
 	if o.AudioFormat != "" && o.AudioFormat != AudioFormatWAV && o.AudioFormat != AudioFormatMP3 {
 		return fmt.Errorf("audio_format must be one of wav or mp3")
 	}
+	if o.TargetLUFS != nil && (*o.TargetLUFS < -70 || *o.TargetLUFS > 0) {
+		return fmt.Errorf("target_lufs must be between -70 and 0")
+	}
 	return nil
 }
 
 // TTSRequestStream represents a streaming text-to-speech request.
-// It mirrors TTSRequest but uses OutputStream which omits volume / target_lufs.
+// It mirrors TTSRequest but uses OutputStream which omits volume.
 type TTSRequestStream struct {
 	// VoiceID is the voice identifier (required)
 	VoiceID string `json:"voice_id"`

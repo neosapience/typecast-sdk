@@ -3,10 +3,11 @@ package com.neosapience.models;
 /**
  * Audio output configuration for streaming TTS synthesis.
  *
- * <p>Mirrors {@link Output} but omits {@code volume} and {@code targetLufs},
- * which are not supported by the streaming endpoint.</p>
+ * <p>Mirrors {@link Output} but omits {@code volume}, which is not supported
+ * by the streaming endpoint. Streaming supports {@code targetLufs}.</p>
  */
 public class OutputStream {
+    private Double targetLufs;
     private Integer audioPitch;
     private Double audioTempo;
     private AudioFormat audioFormat;
@@ -18,6 +19,19 @@ public class OutputStream {
         this.audioPitch = 0;
         this.audioTempo = 1.0;
         this.audioFormat = AudioFormat.WAV;
+        this.targetLufs = null;
+    }
+
+    public Double getTargetLufs() {
+        return targetLufs;
+    }
+
+    public OutputStream setTargetLufs(Double targetLufs) {
+        if (targetLufs != null && (targetLufs.isNaN() || targetLufs.isInfinite() || targetLufs < -70.0 || targetLufs > 0.0)) {
+            throw new IllegalArgumentException("Target LUFS must be between -70 and 0");
+        }
+        this.targetLufs = targetLufs;
+        return this;
     }
 
     /**
@@ -104,6 +118,12 @@ public class OutputStream {
         private Integer audioPitch = 0;
         private Double audioTempo = 1.0;
         private AudioFormat audioFormat = AudioFormat.WAV;
+        private Double targetLufs = null;
+
+        public Builder targetLufs(Double targetLufs) {
+            this.targetLufs = targetLufs;
+            return this;
+        }
 
         /**
          * Sets the audio pitch adjustment.
@@ -148,6 +168,7 @@ public class OutputStream {
             output.setAudioPitch(audioPitch);
             output.setAudioTempo(audioTempo);
             output.setAudioFormat(audioFormat);
+            output.setTargetLufs(targetLufs);
             return output;
         }
     }
@@ -155,6 +176,8 @@ public class OutputStream {
     @Override
     public String toString() {
         return "OutputStream{" +
+                "targetLufs=" + targetLufs +
+                ", " +
                 "audioPitch=" + audioPitch +
                 ", audioTempo=" + audioTempo +
                 ", audioFormat=" + audioFormat +

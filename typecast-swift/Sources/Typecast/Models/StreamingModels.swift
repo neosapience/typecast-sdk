@@ -4,10 +4,11 @@ import Foundation
 
 /// Audio output settings supported by the streaming TTS endpoint.
 ///
-/// Unlike `OutputSettings`, this struct intentionally omits `volume` and
-/// `target_lufs` because the `/v1/text-to-speech/stream` endpoint does not
-/// support loudness post-processing.
+/// Unlike `OutputSettings`, this struct intentionally omits `volume`.
+/// The `/v1/text-to-speech/stream` endpoint supports `target_lufs`.
 public struct OutputStream: Codable, Sendable {
+    /// Target loudness in LUFS (-70 to 0)
+    public var targetLufs: Double?
     /// Audio pitch adjustment in semitones (-12 to +12, default: 0)
     public var audioPitch: Int?
     /// Audio tempo/speed multiplier (0.5 to 2.0, default: 1.0)
@@ -16,16 +17,19 @@ public struct OutputStream: Codable, Sendable {
     public var audioFormat: AudioFormat?
 
     enum CodingKeys: String, CodingKey {
+        case targetLufs = "target_lufs"
         case audioPitch = "audio_pitch"
         case audioTempo = "audio_tempo"
         case audioFormat = "audio_format"
     }
 
     public init(
+        targetLufs: Double? = nil,
         audioPitch: Int? = nil,
         audioTempo: Double? = nil,
         audioFormat: AudioFormat? = nil
     ) {
+        self.targetLufs = targetLufs
         self.audioPitch = audioPitch
         self.audioTempo = audioTempo
         self.audioFormat = audioFormat
@@ -38,7 +42,7 @@ public struct OutputStream: Codable, Sendable {
 /// (`POST /v1/text-to-speech/stream`).
 ///
 /// Mirrors `TTSRequest` but uses `OutputStream` for the `output` field
-/// because the streaming endpoint does not accept volume/LUFS settings.
+/// because the streaming endpoint does not accept volume settings.
 public struct TTSRequestStream: Codable, Sendable {
     /// Voice ID in format 'tc_' followed by a unique identifier.
     /// Browse available API voices at https://typecast.ai/developers/api/voices.

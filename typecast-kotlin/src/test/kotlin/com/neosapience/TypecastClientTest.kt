@@ -336,7 +336,7 @@ class TypecastClientTest {
             .text("Hello, world!")
             .model(TTSModel.SSFM_V30)
             .language(LanguageCode.ENG)
-            .output(OutputStream.builder().audioFormat("wav").build())
+            .output(OutputStream.builder().audioFormat("wav").targetLufs(-14.0).build())
             .build()
 
         val received = client.textToSpeechStream(request).use { it.readBytes() }
@@ -350,9 +350,9 @@ class TypecastClientTest {
         assertTrue(body.contains("\"voice_id\":\"tc_test_voice\""))
         assertTrue(body.contains("\"text\":\"Hello, world!\""))
         assertTrue(body.contains("\"audio_format\":\"wav\""))
-        // OutputStream must NOT serialize volume / target_lufs.
+        // OutputStream must NOT serialize volume, but accepts target_lufs.
         assertFalse(body.contains("volume"))
-        assertFalse(body.contains("target_lufs"))
+        assertTrue(body.contains("\"target_lufs\":-14.0"))
     }
 
     @Test

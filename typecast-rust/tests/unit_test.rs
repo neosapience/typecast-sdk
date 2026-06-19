@@ -398,10 +398,13 @@ fn output_stream_builder_clamps_values() {
     let _ = format!("{out2:?}");
     let _ = out2.clone();
 
-    // Ensure volume / target_lufs are NOT serialized for OutputStream.
-    let json = serde_json::to_string(&OutputStream::new().audio_format(AudioFormat::Wav)).unwrap();
+    // Ensure volume is NOT serialized and target_lufs is supported for OutputStream.
+    let json = serde_json::to_string(
+        &OutputStream::new().audio_format(AudioFormat::Wav).target_lufs(-14.0),
+    )
+    .unwrap();
     assert!(!json.contains("volume"));
-    assert!(!json.contains("target_lufs"));
+    assert!(json.contains("target_lufs"));
 }
 
 #[test]

@@ -183,9 +183,8 @@ class TTSResponse(BaseModel):
 class OutputStream(BaseModel):
     """Audio output settings for streaming mode.
 
-    Streaming mode does not support `volume` or `target_lufs` because the
-    server has to commit each chunk before the full waveform is known.
-    Passing either field raises a validation error so misuse fails fast.
+    Streaming mode does not support `volume`, but it supports `target_lufs`
+    for absolute loudness normalization.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -195,12 +194,18 @@ class OutputStream(BaseModel):
     audio_format: Optional[str] = Field(
         default="wav", description="Audio format", examples=["wav", "mp3"]
     )
+    target_lufs: Optional[float] = Field(
+        default=None,
+        ge=-70.0,
+        le=0.0,
+        description="Target loudness in LUFS for streaming output normalization (-70 to 0).",
+    )
 
 
 class TTSRequestStream(BaseModel):
     """Request body for `POST /v1/text-to-speech/stream`.
 
-    Mirrors `TTSRequest` but uses `OutputStream` (no volume / target_lufs).
+    Mirrors `TTSRequest` but uses `OutputStream` (no volume).
     """
 
     model_config = ConfigDict(json_schema_extra={"exclude_none": True})

@@ -100,14 +100,14 @@ class ModelsTest extends TestCase
 
     public function testOutputStreamToArray(): void
     {
-        $output = new OutputStream(audioPitch: -2, audioTempo: 0.8, audioFormat: 'mp3');
+        $output = new OutputStream(audioPitch: -2, audioTempo: 0.8, audioFormat: 'mp3', targetLufs: -14.0);
         $arr = $output->toArray();
 
         $this->assertSame(-2, $arr['audio_pitch']);
         $this->assertSame(0.8, $arr['audio_tempo']);
         $this->assertSame('mp3', $arr['audio_format']);
+        $this->assertSame(-14.0, $arr['target_lufs']);
         $this->assertArrayNotHasKey('volume', $arr);
-        $this->assertArrayNotHasKey('target_lufs', $arr);
     }
 
     public function testOutputStreamToArrayDefaultsExcluded(): void

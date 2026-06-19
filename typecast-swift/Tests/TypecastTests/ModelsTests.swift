@@ -169,18 +169,19 @@ final class ModelsTests: XCTestCase {
     // MARK: - Streaming models
 
     func testOutputStreamRoundTripFull() throws {
-        let output = Typecast.OutputStream(audioPitch: 2, audioTempo: 1.25, audioFormat: .mp3)
+        let output = Typecast.OutputStream(targetLufs: -14.0, audioPitch: 2, audioTempo: 1.25, audioFormat: .mp3)
         let data = try JSONEncoder().encode(output)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        // Streaming output must NOT include volume or target_lufs.
+        // Streaming output must NOT include volume, but accepts target_lufs.
         XCTAssertNil(json?["volume"])
-        XCTAssertNil(json?["target_lufs"])
+        XCTAssertEqual(json?["target_lufs"] as? Double, -14.0)
         XCTAssertEqual(json?["audio_pitch"] as? Int, 2)
         XCTAssertEqual(json?["audio_tempo"] as? Double, 1.25)
         XCTAssertEqual(json?["audio_format"] as? String, "mp3")
 
         let decoded = try JSONDecoder().decode(Typecast.OutputStream.self, from: data)
         XCTAssertEqual(decoded.audioPitch, 2)
+        XCTAssertEqual(decoded.targetLufs, -14.0)
         XCTAssertEqual(decoded.audioTempo, 1.25)
         XCTAssertEqual(decoded.audioFormat, .mp3)
     }

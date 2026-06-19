@@ -186,6 +186,7 @@ pub const Output = struct {
 };
 
 pub const OutputStream = struct {
+    target_lufs: ?f64 = null,
     audio_pitch: ?i32 = 0,
     audio_tempo: ?f64 = 1.0,
     audio_format: AudioFormat = .wav,

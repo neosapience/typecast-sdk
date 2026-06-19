@@ -488,6 +488,9 @@ public class TypecastClient {
             OutputStream output = request.getOutput();
             JsonObject outputJson = new JsonObject();
 
+            if (output.getTargetLufs() != null) {
+                outputJson.addProperty("target_lufs", output.getTargetLufs());
+            }
             if (output.getAudioPitch() != null) {
                 outputJson.addProperty("audio_pitch", output.getAudioPitch());
             }

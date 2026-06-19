@@ -163,6 +163,11 @@ fn writeOutput(ws: *std.json.Stringify, output: models.Output) !void {
 fn writeOutputStream(ws: *std.json.Stringify, output: models.OutputStream) !void {
     try ws.beginObject();
 
+    if (output.target_lufs) |lufs| {
+        try ws.objectField("target_lufs");
+        try ws.write(lufs);
+    }
+
     if (output.audio_pitch) |pitch| {
         if (pitch != 0) {
             try ws.objectField("audio_pitch");

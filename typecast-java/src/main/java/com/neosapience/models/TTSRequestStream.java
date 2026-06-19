@@ -4,8 +4,7 @@ package com.neosapience.models;
  * Request object for streaming Text-to-Speech synthesis.
  *
  * <p>Mirrors {@link TTSRequest} but uses {@link OutputStream} for the
- * {@code output} field, which omits {@code volume} and {@code targetLufs}
- * (not supported by the streaming endpoint).</p>
+ * {@code output} field, which omits {@code volume}.</p>
  *
  * <p>Required fields: voiceId, text, model</p>
  * <p>Optional fields: language, prompt, output, seed</p>

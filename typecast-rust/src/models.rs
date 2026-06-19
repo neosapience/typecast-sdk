@@ -171,10 +171,13 @@ impl Output {
 
 /// Audio output settings for streaming TTS requests.
 ///
-/// Identical to [`Output`] but without `volume` or `target_lufs`, which are
-/// not supported by the streaming endpoint.
+/// Identical to [`Output`] but without `volume`, which is not supported by the
+/// streaming endpoint. Streaming supports `target_lufs`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct OutputStream {
+    /// Target loudness in LUFS (-70 to 0)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_lufs: Option<f64>,
     /// Pitch adjustment in semitones (-12 to +12, default: 0)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio_pitch: Option<i32>,
@@ -207,6 +210,12 @@ impl OutputStream {
     /// Set the audio format
     pub fn audio_format(mut self, format: AudioFormat) -> Self {
         self.audio_format = Some(format);
+        self
+    }
+
+    /// Set the target LUFS (-70 to 0)
+    pub fn target_lufs(mut self, lufs: f64) -> Self {
+        self.target_lufs = Some(lufs.clamp(-70.0, 0.0));
         self
     }
 }
@@ -507,7 +516,7 @@ impl TTSRequest {
 /// Streaming Text-to-Speech request parameters.
 ///
 /// Mirrors [`TTSRequest`] but the `output` field uses [`OutputStream`], which
-/// excludes `volume` and `target_lufs` (not supported by the streaming endpoint).
+/// excludes `volume` (not supported by the streaming endpoint).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TTSRequestStream {
     /// Voice ID in format `tc_` followed by a unique identifier.
@@ -523,7 +532,7 @@ pub struct TTSRequestStream {
     /// Emotion and style settings
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prompt: Option<TTSPrompt>,
-    /// Audio output settings (without volume/target_lufs)
+    /// Audio output settings (without volume)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<OutputStream>,
     /// Random seed for reproducible results

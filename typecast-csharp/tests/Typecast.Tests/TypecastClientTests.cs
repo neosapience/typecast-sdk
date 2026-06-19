@@ -950,7 +950,7 @@ public class TypecastClientTests : IDisposable
         {
             Language = LanguageCode.English,
             Prompt = new Prompt { EmotionPreset = EmotionPreset.Happy, EmotionIntensity = 1.2 },
-            Output = new OutputStream(audioPitch: 2, audioTempo: 1.1, audioFormat: AudioFormat.Wav),
+            Output = new OutputStream(audioPitch: 2, audioTempo: 1.1, audioFormat: AudioFormat.Wav, targetLufs: -14.0),
             Seed = 7,
         };
 
@@ -973,9 +973,9 @@ public class TypecastClientTests : IDisposable
         capturedBody.Should().Contain("\"audio_pitch\":2");
         capturedBody.Should().Contain("\"audio_tempo\":1.1");
         capturedBody.Should().Contain("\"audio_format\":\"wav\"");
+        capturedBody.Should().Contain("\"target_lufs\":-14");
         capturedBody.Should().Contain("\"seed\":7");
         capturedBody.Should().NotContain("\"volume\"");
-        capturedBody.Should().NotContain("\"target_lufs\"");
     }
 
     [Fact]

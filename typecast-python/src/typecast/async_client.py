@@ -191,8 +191,7 @@ class AsyncTypecast:
 
         Args:
             request: Streaming TTS request. Uses `OutputStream`, which omits
-                `volume` and `target_lufs` (not supported by the streaming
-                endpoint).
+                `volume` (not supported by the streaming endpoint).
             chunk_size: Maximum bytes returned per yielded chunk.
 
         Yields:
