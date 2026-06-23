@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"os"
 	"runtime"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -23,10 +22,11 @@ const (
 	DefaultBaseURL = "https://api.typecast.ai"
 	// DefaultTimeout is the default HTTP client timeout
 	DefaultTimeout = 60 * time.Second
-	// SDKVersionFallback is used when Go build info does not contain a module version.
-	SDKVersionFallback = "dev"
-	modulePath         = "github.com/neosapience/typecast-sdk/typecast-go"
 )
+
+// SDKVersion is the Typecast Go SDK version reported in User-Agent.
+// Release builds may override it with -ldflags "-X github.com/neosapience/typecast-sdk/typecast-go.SDKVersion=<version>".
+var SDKVersion = "dev"
 
 // ClientConfig holds configuration options for the TypecastClient
 type ClientConfig struct {
@@ -109,28 +109,12 @@ func (c *Client) setUserAgent(headers http.Header) {
 		"User-Agent",
 		fmt.Sprintf(
 			"typecast-go/%s Go/%s net-http (base=%s; timeout=%s)",
-			sdkVersion(),
+			SDKVersion,
 			strings.TrimPrefix(runtime.Version(), "go"),
 			base,
 			timeout,
 		),
 	)
-}
-
-func sdkVersion() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return SDKVersionFallback
-	}
-	if info.Main.Path == modulePath && info.Main.Version != "" && info.Main.Version != "(devel)" {
-		return info.Main.Version
-	}
-	for _, dep := range info.Deps {
-		if dep.Path == modulePath && dep.Version != "" && dep.Version != "(devel)" {
-			return dep.Version
-		}
-	}
-	return SDKVersionFallback
 }
 
 func isDefaultBaseURL(baseURL string) bool {

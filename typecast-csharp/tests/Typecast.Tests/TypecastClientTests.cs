@@ -74,6 +74,26 @@ public class TypecastClientTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_WithDefaultHostAndCustomTimeout_ShouldReportUserAgentContext()
+    {
+        // Arrange
+        using var httpClient = new HttpClient(new Mock<HttpMessageHandler>().Object);
+        var config = new TypecastClientConfig
+        {
+            ApiKey = "test-api-key",
+            TimeoutSeconds = 45,
+            HttpClient = httpClient
+        };
+
+        // Act
+        using var client = new TypecastClient(config);
+
+        // Assert
+        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().StartWith("typecast-csharp/");
+        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().Contain("(tfm=net8.0; base=default; timeout=45s)");
+    }
+
+    [Fact]
     public async Task TextToSpeechAsync_WithNullRequest_ShouldThrow()
     {
         // Act & Assert

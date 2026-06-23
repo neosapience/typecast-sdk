@@ -54,9 +54,16 @@ class CoverageTest {
         TypecastClient c = new TypecastClient("key");
         try {
             assertEquals("https://api.typecast.ai", c.getBaseUrl());
+            assertTrue(c.buildUserAgent().endsWith(" (base=default; timeout=30-60-60)"));
         } finally {
             c.close();
         }
+    }
+
+    @Test
+    void versionOrFallback_handlesPackageMetadata() {
+        assertEquals("dev", TypecastClient.versionOrFallback(null, "dev"));
+        assertEquals("1.2.3", TypecastClient.versionOrFallback("1.2.3", "dev"));
     }
 
     @Test

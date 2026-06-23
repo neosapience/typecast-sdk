@@ -167,23 +167,25 @@ public class TypecastClient {
         return builder.build();
     }
 
-    private String buildUserAgent() {
-        String sdkVersion = TypecastClient.class.getPackage().getImplementationVersion();
-        if (sdkVersion == null || sdkVersion.isBlank()) {
-            sdkVersion = "dev";
-        }
+    String buildUserAgent() {
+        String sdkVersion = versionOrFallback(
+                TypecastClient.class.getPackage().getImplementationVersion(),
+                "dev");
         String javaVersion = System.getProperty("java.version", "unknown");
         String majorJavaVersion = javaVersion.split("\\.")[0];
-        String okhttpVersion = OkHttpClient.class.getPackage().getImplementationVersion();
-        if (okhttpVersion == null || okhttpVersion.isBlank()) {
-            okhttpVersion = "4.x";
-        }
+        String okhttpVersion = versionOrFallback(
+                OkHttpClient.class.getPackage().getImplementationVersion(),
+                "4.x");
         String base = isDefaultBaseUrl(baseUrl) ? "default" : "custom";
         return "typecast-java/" + sdkVersion
                 + " Java/" + majorJavaVersion
                 + " JVM/" + majorJavaVersion
                 + " OkHttp/" + okhttpVersion
                 + " (base=" + base + "; timeout=30-60-60)";
+    }
+
+    static String versionOrFallback(String version, String fallback) {
+        return version == null ? fallback : version;
     }
 
     /**

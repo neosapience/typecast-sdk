@@ -75,7 +75,7 @@ public class TypecastClient : IDisposable
 
     private string BuildUserAgent(TypecastClientConfig config)
     {
-        var version = typeof(TypecastClient).Assembly.GetName().Version?.ToString(3) ?? "dev";
+        var version = typeof(TypecastClient).Assembly.GetName().Version!.ToString(3);
         var baseKind = string.Equals(
             _apiHost.TrimEnd('/'),
             TypecastClientConfig.DefaultApiHost,

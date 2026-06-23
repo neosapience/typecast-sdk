@@ -116,6 +116,20 @@ func TestSetAuthHeader_ProxyHostAllowsMissingAPIKey(t *testing.T) {
 	}
 }
 
+func TestSetUserAgent_DefaultBaseAndCustomTimeout(t *testing.T) {
+	c := NewClient(&ClientConfig{APIKey: "k", Timeout: 7 * time.Second})
+	headers := http.Header{}
+	c.setUserAgent(headers)
+
+	got := headers.Get("User-Agent")
+	if !strings.HasPrefix(got, "typecast-go/dev Go/") {
+		t.Fatalf("unexpected user agent prefix: %q", got)
+	}
+	if !strings.Contains(got, " net-http (base=default; timeout=7s)") {
+		t.Fatalf("unexpected user agent metadata: %q", got)
+	}
+}
+
 func TestCloneVoice_DefaultHostWithoutAPIKeyReturnsError(t *testing.T) {
 	c := NewClient(&ClientConfig{BaseURL: DefaultBaseURL})
 	_, err := c.CloneVoice(context.Background(), []byte("audio"), "sample.wav", "voice", string(ModelSSFMV30))
