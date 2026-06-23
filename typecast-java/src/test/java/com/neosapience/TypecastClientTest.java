@@ -116,6 +116,13 @@ class TypecastClientTest {
         assertEquals("POST", recordedRequest.getMethod());
         assertEquals("/v1/text-to-speech", recordedRequest.getPath());
         assertEquals("test-api-key", recordedRequest.getHeader("X-API-KEY"));
+        String userAgent = recordedRequest.getHeader("User-Agent");
+        assertNotNull(userAgent);
+        assertTrue(userAgent.startsWith("typecast-java/"));
+        assertTrue(userAgent.contains(" OkHttp/"));
+        assertTrue(userAgent.contains(" (base=custom; timeout=30-60-60; os="));
+        assertTrue(userAgent.contains("; arch="));
+        assertTrue(userAgent.endsWith("; sdk_env=java; platform=server)"));
         assertTrue(recordedRequest.getBody().readUtf8().contains("\"voice_id\":\"tc_test\""));
     }
 

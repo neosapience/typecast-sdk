@@ -39,6 +39,7 @@ public class TypecastClient {
     private static final String DEFAULT_BASE_URL = "https://api.typecast.ai";
     private static final String API_KEY_HEADER = "X-API-KEY";
     private static final String CONTENT_TYPE_JSON = "application/json";
+    private static final String USER_AGENT_HEADER = "User-Agent";
     private static final MediaType JSON_MEDIA_TYPE = MediaType.get(CONTENT_TYPE_JSON);
 
     private final String baseUrl;
@@ -162,7 +163,68 @@ public class TypecastClient {
         if (!apiKey.isEmpty()) {
             builder.addHeader(API_KEY_HEADER, apiKey);
         }
+        builder.header(USER_AGENT_HEADER, buildUserAgent());
         return builder.build();
+    }
+
+    String buildUserAgent() {
+        String sdkVersion = versionOrFallback(
+                TypecastClient.class.getPackage().getImplementationVersion(),
+                "dev");
+        String majorJavaVersion = majorJavaVersion(System.getProperty("java.version", "unknown"));
+        String okhttpVersion = versionOrFallback(
+                OkHttpClient.class.getPackage().getImplementationVersion(),
+                "4.x");
+        String base = isDefaultBaseUrl(baseUrl) ? "default" : "custom";
+        return "typecast-java/" + sdkVersion
+                + " Java/" + majorJavaVersion
+                + " JVM/" + majorJavaVersion
+                + " OkHttp/" + okhttpVersion
+                + " (base=" + base
+                + "; timeout=30-60-60"
+                + "; os=" + normalizedOs(System.getProperty("os.name", "unknown"))
+                + "; arch=" + normalizedArch(System.getProperty("os.arch", "unknown"))
+                + "; sdk_env=java; platform=server)";
+    }
+
+    static String versionOrFallback(String version, String fallback) {
+        return version == null ? fallback : version;
+    }
+
+    static String majorJavaVersion(String javaVersion) {
+        String[] parts = javaVersion.split("\\.");
+        if (parts.length > 1 && "1".equals(parts[0])) {
+            return parts[1];
+        }
+        return parts[0];
+    }
+
+    static String normalizedOs(String osName) {
+        String normalized = osName == null ? "" : osName.toLowerCase();
+        if (normalized.contains("mac") || normalized.contains("darwin")) {
+            return "macos";
+        }
+        if (normalized.contains("win")) {
+            return "windows";
+        }
+        if (normalized.contains("linux")) {
+            return "linux";
+        }
+        return normalized.isEmpty() ? "unknown" : normalized.replaceAll("\\s+", "-");
+    }
+
+    static String normalizedArch(String archName) {
+        String normalized = archName == null ? "" : archName.toLowerCase();
+        if ("x86_64".equals(normalized) || "amd64".equals(normalized)) {
+            return "x64";
+        }
+        if ("aarch64".equals(normalized) || "arm64".equals(normalized)) {
+            return "arm64";
+        }
+        if ("x86".equals(normalized) || "i386".equals(normalized) || "i686".equals(normalized)) {
+            return "x86";
+        }
+        return normalized.isEmpty() ? "unknown" : normalized;
     }
 
     /**

@@ -1,4 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -69,7 +71,56 @@ public class TypecastClient : IDisposable
         {
             _httpClient.DefaultRequestHeaders.Add("X-API-KEY", apiKey);
         }
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(BuildUserAgent(config));
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+    }
+
+    private string BuildUserAgent(TypecastClientConfig config)
+    {
+        var version = typeof(TypecastClient).Assembly.GetName().Version!.ToString(3);
+        var baseKind = string.Equals(
+            _apiHost.TrimEnd('/'),
+            TypecastClientConfig.DefaultApiHost,
+            StringComparison.OrdinalIgnoreCase)
+            ? "default"
+            : "custom";
+        var timeout = config.TimeoutSeconds == 30 ? "default" : $"{config.TimeoutSeconds}s";
+        return $"typecast-csharp/{version} dotnet/{Environment.Version.Major}.{Environment.Version.Minor} HttpClient (tfm={TargetFramework}; base={baseKind}; timeout={timeout}; os={OSName}; arch={ArchitectureName}; sdk_env=dotnet; platform=server)";
+    }
+
+    [ExcludeFromCodeCoverage]
+    private static string OSName =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "macos" :
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "windows" :
+        RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "linux" :
+        "unknown";
+
+    [ExcludeFromCodeCoverage]
+    private static string ArchitectureName => RuntimeInformation.ProcessArchitecture switch
+    {
+        Architecture.X64 => "x64",
+        Architecture.X86 => "x86",
+        Architecture.Arm64 => "arm64",
+        Architecture.Arm => "arm",
+        _ => RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()
+    };
+
+    private static string TargetFramework
+    {
+        get
+        {
+#if NET10_0
+            return "net10.0";
+#elif NET8_0
+            return "net8.0";
+#elif NET6_0
+            return "net6.0";
+#elif NETSTANDARD2_1
+            return "netstandard2.1";
+#else
+            return "netstandard2.0";
+#endif
+        }
     }
 
     #region Text-to-Speech with Timestamps

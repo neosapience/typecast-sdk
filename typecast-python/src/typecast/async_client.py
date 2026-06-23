@@ -11,6 +11,7 @@ from ._voice_clone import (
     validate_clone_inputs,
     validate_custom_voice_id,
 )
+from ._user_agent import aiohttp_user_agent
 from .client import _guess_audio_mime
 from .client import _output_with_inferred_format
 from .client import _validate_output_path
@@ -81,7 +82,7 @@ class AsyncTypecast:
     async def __aenter__(self):
         # Auth header at session scope; per-request Content-Type is set by aiohttp
         # (json= auto-sets application/json, data=FormData() auto-sets multipart).
-        headers = {}
+        headers = {"User-Agent": aiohttp_user_agent(self.host)}
         if self.api_key:
             headers["X-API-KEY"] = self.api_key
         self.session = aiohttp.ClientSession(headers=headers)
@@ -203,7 +204,11 @@ class AsyncTypecast:
             NotFoundError, UnprocessableEntityError, RateLimitError,
             InternalServerError, TypecastError: depending on response status.
         """
-        if not isinstance(chunk_size, int) or isinstance(chunk_size, bool) or chunk_size < 1:
+        if (
+            not isinstance(chunk_size, int)
+            or isinstance(chunk_size, bool)
+            or chunk_size < 1
+        ):
             raise ValueError("chunk_size must be a positive integer")
         if not self.session:
             raise TypecastError("Client session not initialized. Use async with.")

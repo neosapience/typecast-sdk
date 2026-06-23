@@ -62,6 +62,9 @@ describe('TypecastClient', () => {
           headers: {
             'X-API-KEY': 'test-api-key',
             'Content-Type': 'application/json',
+            'User-Agent': expect.stringMatching(
+              /^typecast-js\/0\.4\.5 Node\/\d+\.\d+ fetch \(runtime=node; base=custom; os=[a-z0-9_-]+; arch=[a-z0-9_-]+; sdk_env=node; platform=server\)$/,
+            ),
           },
           body: JSON.stringify(baseRequest),
         }),
@@ -261,10 +264,10 @@ describe('TypecastClient', () => {
         'https://dummy-api.ai/v1/text-to-speech/stream',
         expect.objectContaining({
           method: 'POST',
-          headers: {
+          headers: expect.objectContaining({
             'X-API-KEY': 'test-api-key',
             'Content-Type': 'application/json',
-          },
+          }),
           body: JSON.stringify(streamRequest),
         }),
       );
@@ -345,10 +348,10 @@ describe('TypecastClient', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         'https://dummy-api.ai/v1/voices',
         expect.objectContaining({
-          headers: {
+          headers: expect.objectContaining({
             'X-API-KEY': 'test-api-key',
             'Content-Type': 'application/json',
-          },
+          }),
         }),
       );
     });
@@ -532,10 +535,10 @@ describe('TypecastClient', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         'https://dummy-api.ai/v1/users/me/subscription',
         expect.objectContaining({
-          headers: {
+          headers: expect.objectContaining({
             'X-API-KEY': 'test-api-key',
             'Content-Type': 'application/json',
-          },
+          }),
         }),
       );
     });
@@ -583,10 +586,10 @@ describe('TypecastClient', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         'https://env-host.example/v1/voices',
         expect.objectContaining({
-          headers: {
+          headers: expect.objectContaining({
             'X-API-KEY': 'env-api-key',
             'Content-Type': 'application/json',
-          },
+          }),
         }),
       );
     });
@@ -623,6 +626,76 @@ describe('TypecastClient', () => {
 
       const [calledUrl] = mockFetch.mock.calls[0];
       expect(calledUrl).toBe('https://api.typecast.ai/v1/voices');
+    });
+
+    it.each([
+      ['x64', 'x64'],
+      ['arm64', 'arm64'],
+      ['ia32', 'x86'],
+      ['ppc64', 'ppc64'],
+      ['', 'unknown'],
+    ])('reports normalized architecture context for %s', async (arch, expectedArch) => {
+      const originalArch = Object.getOwnPropertyDescriptor(process, 'arch');
+      Object.defineProperty(process, 'arch', { value: arch, configurable: true });
+      try {
+        const archClient = new TypecastClient({
+          baseHost: 'https://dummy-api.ai',
+          apiKey: 'test-api-key',
+        });
+        mockFetch.mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve([]),
+        });
+
+        await archClient.getVoices();
+
+        const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(init.headers).toEqual(
+          expect.objectContaining({
+            'User-Agent': expect.stringContaining(`arch=${expectedArch}`),
+          }),
+        );
+      } finally {
+        if (originalArch) {
+          Object.defineProperty(process, 'arch', originalArch);
+        }
+        mockFetch.mockClear();
+      }
+    });
+
+    it.each([
+      ['darwin', 'macos'],
+      ['win32', 'windows'],
+      ['', 'unknown'],
+    ])('reports normalized operating system context for %s', async (platform, expectedOS) => {
+      const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
+      Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+      try {
+        const osClient = new TypecastClient({
+          baseHost: 'https://dummy-api.ai',
+          apiKey: 'test-api-key',
+        });
+        mockFetch.mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve([]),
+        });
+
+        await osClient.getVoices();
+
+        const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+        expect(init.headers).toEqual(
+          expect.objectContaining({
+            'User-Agent': expect.stringContaining(`os=${expectedOS}`),
+          }),
+        );
+      } finally {
+        if (originalPlatform) {
+          Object.defineProperty(process, 'platform', originalPlatform);
+        }
+        mockFetch.mockClear();
+      }
     });
   });
 });

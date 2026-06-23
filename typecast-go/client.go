@@ -11,6 +11,7 @@ import (
 	"net/textproto"
 	"net/url"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +23,10 @@ const (
 	// DefaultTimeout is the default HTTP client timeout
 	DefaultTimeout = 60 * time.Second
 )
+
+// SDKVersion is the Typecast Go SDK version reported in User-Agent.
+// Release builds may override it with -ldflags "-X github.com/neosapience/typecast-sdk/typecast-go.SDKVersion=<version>".
+var SDKVersion = "dev"
 
 // ClientConfig holds configuration options for the TypecastClient
 type ClientConfig struct {
@@ -91,6 +96,59 @@ func (c *Client) setAuthHeader(headers http.Header) error {
 	return nil
 }
 
+func (c *Client) setUserAgent(headers http.Header) {
+	base := "custom"
+	if isDefaultBaseURL(c.baseURL) {
+		base = "default"
+	}
+	timeout := "default"
+	if c.httpClient != nil && c.httpClient.Timeout > 0 && c.httpClient.Timeout != DefaultTimeout {
+		timeout = c.httpClient.Timeout.String()
+	}
+	headers.Set(
+		"User-Agent",
+		fmt.Sprintf(
+			"typecast-go/%s Go/%s net-http (base=%s; timeout=%s; os=%s; arch=%s; sdk_env=go; platform=server)",
+			SDKVersion,
+			strings.TrimPrefix(runtime.Version(), "go"),
+			base,
+			timeout,
+			normalizedOS(runtime.GOOS),
+			normalizedArch(runtime.GOARCH),
+		),
+	)
+}
+
+func normalizedOS(os string) string {
+	switch os {
+	case "darwin":
+		return "macos"
+	case "windows":
+		return "windows"
+	default:
+		if os == "" {
+			return "unknown"
+		}
+		return os
+	}
+}
+
+func normalizedArch(arch string) string {
+	switch arch {
+	case "amd64":
+		return "x64"
+	case "386":
+		return "x86"
+	case "arm64":
+		return "arm64"
+	default:
+		if arch == "" {
+			return "unknown"
+		}
+		return arch
+	}
+}
+
 func isDefaultBaseURL(baseURL string) bool {
 	normalized := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	return strings.EqualFold(normalized, DefaultBaseURL)
@@ -118,6 +176,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 	if err := c.setAuthHeader(req.Header); err != nil {
 		return nil, err
 	}
+	c.setUserAgent(req.Header)
 
 	return c.httpClient.Do(req)
 }
@@ -403,6 +462,7 @@ func (c *Client) CloneVoice(ctx context.Context, audio []byte, filename, name, m
 	if err := c.setAuthHeader(req.Header); err != nil {
 		return nil, err
 	}
+	c.setUserAgent(req.Header)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := c.httpClient.Do(req)
