@@ -12,12 +12,15 @@
     },
     "autoload": {
         "psr-4": {
-            "Neosapience\\Typecast\\": "src/"
+            "Neosapience\\Typecast\\": "typecast-php/src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Neosapience\\Typecast\\Tests\\": "tests/"
+            "Neosapience\\Typecast\\Tests\\": "typecast-php/tests/"
         }
+    },
+    "support": {
+        "source": "https://github.com/neosapience/typecast-sdk/tree/main/typecast-php"
     }
 }
