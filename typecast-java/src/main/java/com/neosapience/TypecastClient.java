@@ -171,8 +171,7 @@ public class TypecastClient {
         String sdkVersion = versionOrFallback(
                 TypecastClient.class.getPackage().getImplementationVersion(),
                 "dev");
-        String javaVersion = System.getProperty("java.version", "unknown");
-        String majorJavaVersion = javaVersion.split("\\.")[0];
+        String majorJavaVersion = majorJavaVersion(System.getProperty("java.version", "unknown"));
         String okhttpVersion = versionOrFallback(
                 OkHttpClient.class.getPackage().getImplementationVersion(),
                 "4.x");
@@ -186,6 +185,14 @@ public class TypecastClient {
 
     static String versionOrFallback(String version, String fallback) {
         return version == null ? fallback : version;
+    }
+
+    static String majorJavaVersion(String javaVersion) {
+        String[] parts = javaVersion.split("\\.");
+        if (parts.length > 1 && "1".equals(parts[0])) {
+            return parts[1];
+        }
+        return parts[0];
     }
 
     /**
