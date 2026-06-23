@@ -183,6 +183,9 @@ func TestTextToSpeech_HappyPathWAV(t *testing.T) {
 		if r.Header.Get("Content-Type") != "application/json" {
 			t.Errorf("missing content type")
 		}
+		if got := r.Header.Get("User-Agent"); !strings.HasPrefix(got, "typecast-go/dev Go/") || !strings.Contains(got, " net-http (base=custom; timeout=default)") {
+			t.Errorf("unexpected user agent %q", got)
+		}
 		var body TTSRequest
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		w.Header().Set("Content-Type", "audio/wav")

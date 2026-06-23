@@ -39,6 +39,7 @@ public class TypecastClient {
     private static final String DEFAULT_BASE_URL = "https://api.typecast.ai";
     private static final String API_KEY_HEADER = "X-API-KEY";
     private static final String CONTENT_TYPE_JSON = "application/json";
+    private static final String USER_AGENT_HEADER = "User-Agent";
     private static final MediaType JSON_MEDIA_TYPE = MediaType.get(CONTENT_TYPE_JSON);
 
     private final String baseUrl;
@@ -162,7 +163,27 @@ public class TypecastClient {
         if (!apiKey.isEmpty()) {
             builder.addHeader(API_KEY_HEADER, apiKey);
         }
+        builder.header(USER_AGENT_HEADER, buildUserAgent());
         return builder.build();
+    }
+
+    private String buildUserAgent() {
+        String sdkVersion = TypecastClient.class.getPackage().getImplementationVersion();
+        if (sdkVersion == null || sdkVersion.isBlank()) {
+            sdkVersion = "dev";
+        }
+        String javaVersion = System.getProperty("java.version", "unknown");
+        String majorJavaVersion = javaVersion.split("\\.")[0];
+        String okhttpVersion = OkHttpClient.class.getPackage().getImplementationVersion();
+        if (okhttpVersion == null || okhttpVersion.isBlank()) {
+            okhttpVersion = "4.x";
+        }
+        String base = isDefaultBaseUrl(baseUrl) ? "default" : "custom";
+        return "typecast-java/" + sdkVersion
+                + " Java/" + majorJavaVersion
+                + " JVM/" + majorJavaVersion
+                + " OkHttp/" + okhttpVersion
+                + " (base=" + base + "; timeout=30-60-60)";
     }
 
     /**

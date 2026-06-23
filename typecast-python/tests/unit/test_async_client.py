@@ -146,7 +146,12 @@ class TestAsyncVoices:
                 f"{HOST}/v1/voices",
                 status=200,
                 payload=[
-                    {"voice_id": "v1", "voice_name": "V1", "model": "ssfm-v21", "emotions": ["normal"]},
+                    {
+                        "voice_id": "v1",
+                        "voice_name": "V1",
+                        "model": "ssfm-v21",
+                        "emotions": ["normal"],
+                    },
                 ],
             )
             async with AsyncTypecast(host=HOST, api_key="key") as client:
@@ -183,7 +188,12 @@ class TestAsyncGetVoice:
                 f"{HOST}/v1/voices/v1",
                 status=200,
                 payload=[
-                    {"voice_id": "v1", "voice_name": "V1", "model": "ssfm-v21", "emotions": ["normal"]},
+                    {
+                        "voice_id": "v1",
+                        "voice_name": "V1",
+                        "model": "ssfm-v21",
+                        "emotions": ["normal"],
+                    },
                 ],
             )
             async with AsyncTypecast(host=HOST, api_key="key") as client:
@@ -195,7 +205,12 @@ class TestAsyncGetVoice:
             m.get(
                 f"{HOST}/v1/voices/v1",
                 status=200,
-                payload={"voice_id": "v1", "voice_name": "V1", "model": "ssfm-v21", "emotions": ["normal"]},
+                payload={
+                    "voice_id": "v1",
+                    "voice_name": "V1",
+                    "model": "ssfm-v21",
+                    "emotions": ["normal"],
+                },
             )
             async with AsyncTypecast(host=HOST, api_key="key") as client:
                 voice = await client.get_voice("v1")
@@ -224,6 +239,7 @@ class TestAsyncVoicesV2:
 
     async def test_with_filter(self):
         from typecast.models.voices import VoicesV2Filter
+
         with aioresponses() as m:
             m.get(
                 f"{HOST}/v2/voices?model=ssfm-v30",
@@ -297,6 +313,10 @@ class TestAsyncContextManager:
             assert client.session is not None
             # The session was created without the X-API-KEY header
             assert "X-API-KEY" not in client.session._default_headers
+            user_agent = client.session._default_headers["User-Agent"]
+            assert user_agent.startswith("typecast-python/")
+            assert "aiohttp/" in user_agent
+            assert "(mode=async; base=custom; transport=rest)" in user_agent
 
     async def test_aexit_without_session_is_noop(self):
         """Calling __aexit__ without ever calling __aenter__ should not
@@ -347,9 +367,7 @@ class TestAsyncTextToSpeechStream:
             (503, TypecastError),
         ],
     )
-    async def test_stream_error_status_codes(
-        self, stream_request, status, exc_class
-    ):
+    async def test_stream_error_status_codes(self, stream_request, status, exc_class):
         with aioresponses() as m:
             m.post(
                 f"{HOST}/v1/text-to-speech/stream",
@@ -372,22 +390,34 @@ class TestAsyncStreamChunkSizeValidation:
     async def test_zero_chunk_size_raises(self):
         stream_request = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
         async with AsyncTypecast(host=HOST, api_key="key") as client:
-            with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
-                async for _ in client.text_to_speech_stream(stream_request, chunk_size=0):
+            with pytest.raises(
+                ValueError, match="chunk_size must be a positive integer"
+            ):
+                async for _ in client.text_to_speech_stream(
+                    stream_request, chunk_size=0
+                ):
                     pass
 
     async def test_negative_chunk_size_raises(self):
         stream_request = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
         async with AsyncTypecast(host=HOST, api_key="key") as client:
-            with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
-                async for _ in client.text_to_speech_stream(stream_request, chunk_size=-1):
+            with pytest.raises(
+                ValueError, match="chunk_size must be a positive integer"
+            ):
+                async for _ in client.text_to_speech_stream(
+                    stream_request, chunk_size=-1
+                ):
                     pass
 
     async def test_bool_chunk_size_raises(self):
         stream_request = TTSRequestStream(voice_id="tc_x", text="hi", model="ssfm-v30")
         async with AsyncTypecast(host=HOST, api_key="key") as client:
-            with pytest.raises(ValueError, match="chunk_size must be a positive integer"):
-                async for _ in client.text_to_speech_stream(stream_request, chunk_size=True):
+            with pytest.raises(
+                ValueError, match="chunk_size must be a positive integer"
+            ):
+                async for _ in client.text_to_speech_stream(
+                    stream_request, chunk_size=True
+                ):
                     pass
 
 

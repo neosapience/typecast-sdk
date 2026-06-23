@@ -11,6 +11,8 @@ import (
 	"net/textproto"
 	"net/url"
 	"os"
+	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +23,9 @@ const (
 	DefaultBaseURL = "https://api.typecast.ai"
 	// DefaultTimeout is the default HTTP client timeout
 	DefaultTimeout = 60 * time.Second
+	// SDKVersionFallback is used when Go build info does not contain a module version.
+	SDKVersionFallback = "dev"
+	modulePath         = "github.com/neosapience/typecast-sdk/typecast-go"
 )
 
 // ClientConfig holds configuration options for the TypecastClient
@@ -91,6 +96,43 @@ func (c *Client) setAuthHeader(headers http.Header) error {
 	return nil
 }
 
+func (c *Client) setUserAgent(headers http.Header) {
+	base := "custom"
+	if isDefaultBaseURL(c.baseURL) {
+		base = "default"
+	}
+	timeout := "default"
+	if c.httpClient != nil && c.httpClient.Timeout > 0 && c.httpClient.Timeout != DefaultTimeout {
+		timeout = c.httpClient.Timeout.String()
+	}
+	headers.Set(
+		"User-Agent",
+		fmt.Sprintf(
+			"typecast-go/%s Go/%s net-http (base=%s; timeout=%s)",
+			sdkVersion(),
+			strings.TrimPrefix(runtime.Version(), "go"),
+			base,
+			timeout,
+		),
+	)
+}
+
+func sdkVersion() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return SDKVersionFallback
+	}
+	if info.Main.Path == modulePath && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	for _, dep := range info.Deps {
+		if dep.Path == modulePath && dep.Version != "" && dep.Version != "(devel)" {
+			return dep.Version
+		}
+	}
+	return SDKVersionFallback
+}
+
 func isDefaultBaseURL(baseURL string) bool {
 	normalized := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	return strings.EqualFold(normalized, DefaultBaseURL)
@@ -118,6 +160,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 	if err := c.setAuthHeader(req.Header); err != nil {
 		return nil, err
 	}
+	c.setUserAgent(req.Header)
 
 	return c.httpClient.Do(req)
 }
@@ -403,6 +446,7 @@ func (c *Client) CloneVoice(ctx context.Context, audio []byte, filename, name, m
 	if err := c.setAuthHeader(req.Header); err != nil {
 		return nil, err
 	}
+	c.setUserAgent(req.Header)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := c.httpClient.Do(req)

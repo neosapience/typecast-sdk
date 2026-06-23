@@ -10,6 +10,7 @@ from ._voice_clone import (
     validate_clone_inputs,
     validate_custom_voice_id,
 )
+from ._user_agent import requests_user_agent
 from .composer import SpeechComposer
 from .exceptions import (
     BadRequestError,
@@ -111,7 +112,10 @@ class Typecast:
         if not self.api_key and conf.is_default_host(self.host):
             raise ValueError("API key is required for the default Typecast API host")
         self.session = requests.Session()
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": requests_user_agent(self.host),
+        }
         if self.api_key:
             headers["X-API-KEY"] = self.api_key
         self.session.headers.update(headers)
@@ -236,7 +240,11 @@ class Typecast:
             NotFoundError, UnprocessableEntityError, RateLimitError,
             InternalServerError, TypecastError: depending on response status.
         """
-        if not isinstance(chunk_size, int) or isinstance(chunk_size, bool) or chunk_size < 1:
+        if (
+            not isinstance(chunk_size, int)
+            or isinstance(chunk_size, bool)
+            or chunk_size < 1
+        ):
             raise ValueError("chunk_size must be a positive integer")
         endpoint = "/v1/text-to-speech/stream"
         response = self.session.post(

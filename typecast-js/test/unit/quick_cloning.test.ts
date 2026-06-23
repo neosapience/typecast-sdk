@@ -129,6 +129,10 @@ describe('TypecastClient.cloneVoice', () => {
     // Critical: Content-Type must NOT be in headers, so fetch can set multipart boundary
     expect(init.headers).not.toHaveProperty('Content-Type');
     expect(init.headers).toHaveProperty('X-API-KEY', 'test-api-key');
+    expect(init.headers).toHaveProperty(
+      'User-Agent',
+      expect.stringMatching(/^typecast-js\/0\.4\.5 Node\/\d+\.\d+ fetch \(runtime=node; base=custom\)$/),
+    );
     expect(init.body).toBeInstanceOf(FormData);
     const form = init.body;
     expect(form.get('name')).toBe('demo');

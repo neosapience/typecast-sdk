@@ -62,6 +62,9 @@ describe('TypecastClient', () => {
           headers: {
             'X-API-KEY': 'test-api-key',
             'Content-Type': 'application/json',
+            'User-Agent': expect.stringMatching(
+              /^typecast-js\/0\.4\.5 Node\/\d+\.\d+ fetch \(runtime=node; base=custom\)$/,
+            ),
           },
           body: JSON.stringify(baseRequest),
         }),
@@ -261,10 +264,10 @@ describe('TypecastClient', () => {
         'https://dummy-api.ai/v1/text-to-speech/stream',
         expect.objectContaining({
           method: 'POST',
-          headers: {
+          headers: expect.objectContaining({
             'X-API-KEY': 'test-api-key',
             'Content-Type': 'application/json',
-          },
+          }),
           body: JSON.stringify(streamRequest),
         }),
       );
@@ -345,10 +348,10 @@ describe('TypecastClient', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         'https://dummy-api.ai/v1/voices',
         expect.objectContaining({
-          headers: {
+          headers: expect.objectContaining({
             'X-API-KEY': 'test-api-key',
             'Content-Type': 'application/json',
-          },
+          }),
         }),
       );
     });
@@ -532,10 +535,10 @@ describe('TypecastClient', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         'https://dummy-api.ai/v1/users/me/subscription',
         expect.objectContaining({
-          headers: {
+          headers: expect.objectContaining({
             'X-API-KEY': 'test-api-key',
             'Content-Type': 'application/json',
-          },
+          }),
         }),
       );
     });
@@ -583,10 +586,10 @@ describe('TypecastClient', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         'https://env-host.example/v1/voices',
         expect.objectContaining({
-          headers: {
+          headers: expect.objectContaining({
             'X-API-KEY': 'env-api-key',
             'Content-Type': 'application/json',
-          },
+          }),
         }),
       );
     });

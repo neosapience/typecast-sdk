@@ -69,6 +69,8 @@ public class TypecastClientTests : IDisposable
 
         // Assert
         httpClient.DefaultRequestHeaders.Should().NotContain(h => h.Key == "X-API-KEY");
+        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().StartWith("typecast-csharp/");
+        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().Contain("(tfm=net8.0; base=custom; timeout=default)");
     }
 
     [Fact]
@@ -438,6 +440,7 @@ public class TypecastClientTests : IDisposable
         // Assert
         capturedRequest.Should().NotBeNull();
         capturedRequest!.Headers.Should().Contain(h => h.Key == "X-API-KEY" && h.Value.Contains("test-api-key"));
+        capturedRequest.Headers.UserAgent.ToString().Should().StartWith("typecast-csharp/");
     }
 
     [Theory]

@@ -15,13 +15,16 @@ import {
 } from './types/QuickCloning';
 import { SpeechComposer } from './composer';
 
+const SDK_VERSION = '0.4.5';
+const DEFAULT_BASE_HOST = 'https://api.typecast.ai';
+
 export class TypecastClient {
   private baseHost: string;
   private headers: Record<string, string>;
 
   constructor(config: Partial<ClientConfig> = {}) {
     const finalConfig: ClientConfig = {
-      baseHost: process.env.TYPECAST_API_HOST || 'https://api.typecast.ai',
+      baseHost: process.env.TYPECAST_API_HOST || DEFAULT_BASE_HOST,
       apiKey: process.env.TYPECAST_API_KEY || '',
       ...config,
     };
@@ -29,6 +32,7 @@ export class TypecastClient {
     this.baseHost = TypecastClient.normalizeBaseHost(finalConfig.baseHost);
     this.headers = {
       'Content-Type': 'application/json',
+      'User-Agent': TypecastClient.buildUserAgent(this.baseHost),
     };
     if (apiKey) {
       this.headers['X-API-KEY'] = apiKey;
@@ -41,6 +45,12 @@ export class TypecastClient {
       normalized = normalized.slice(0, -1);
     }
     return normalized;
+  }
+
+  private static buildUserAgent(baseHost: string): string {
+    const nodeVersion = process.versions.node.split('.').slice(0, 2).join('.');
+    const base = baseHost.toLowerCase() === DEFAULT_BASE_HOST ? 'default' : 'custom';
+    return `typecast-js/${SDK_VERSION} Node/${nodeVersion} fetch (runtime=node; base=${base})`;
   }
 
   /**

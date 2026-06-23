@@ -1,4 +1,3 @@
-
 import pytest
 from pydantic import ValidationError
 
@@ -106,8 +105,20 @@ class TestSyncClient:
         monkeypatch.delenv("TYPECAST_API_KEY", raising=False)
         client = Typecast(host="https://proxy.example")
         assert "X-API-KEY" not in client.session.headers
+        user_agent = client.session.headers["User-Agent"]
+        assert user_agent.startswith("typecast-python/")
+        assert "requests/" in user_agent
+        assert "(mode=sync; base=custom; transport=rest)" in user_agent
 
-    def _mock_response(self, mocker, status_code=200, content=b"data", headers=None, json_data=None, text=""):
+    def _mock_response(
+        self,
+        mocker,
+        status_code=200,
+        content=b"data",
+        headers=None,
+        json_data=None,
+        text="",
+    ):
         m = mocker.Mock()
         m.status_code = status_code
         m.content = content
@@ -125,12 +136,16 @@ class TestSyncClient:
         assert response.format == "wav"
 
     def test_text_to_speech_success_mp3(self, client, sample_request, mocker):
-        mock_resp = self._mock_response(mocker, headers={"X-Audio-Duration": "2.0", "Content-Type": "audio/mp3"})
+        mock_resp = self._mock_response(
+            mocker, headers={"X-Audio-Duration": "2.0", "Content-Type": "audio/mp3"}
+        )
         mocker.patch.object(client.session, "post", return_value=mock_resp)
         response = client.text_to_speech(sample_request)
         assert response.format == "mp3"
 
-    def test_generate_to_file_defaults_model_and_infers_mp3(self, client, tmp_path, mocker):
+    def test_generate_to_file_defaults_model_and_infers_mp3(
+        self, client, tmp_path, mocker
+    ):
         mock_resp = self._mock_response(
             mocker,
             content=b"mp3-data",
@@ -139,7 +154,9 @@ class TestSyncClient:
         post_mock = mocker.patch.object(client.session, "post", return_value=mock_resp)
         output_path = tmp_path / "speech.mp3"
 
-        response = client.generate_to_file(output_path, text="Hello", voice_id="tc_test")
+        response = client.generate_to_file(
+            output_path, text="Hello", voice_id="tc_test"
+        )
 
         assert output_path.read_bytes() == b"mp3-data"
         assert response.format == "mp3"
@@ -147,11 +164,15 @@ class TestSyncClient:
         assert body["model"] == "ssfm-v30"
         assert body["output"]["audio_format"] == "mp3"
 
-    def test_generate_to_file_infers_wav_and_keeps_explicit_output(self, client, tmp_path, mocker):
+    def test_generate_to_file_infers_wav_and_keeps_explicit_output(
+        self, client, tmp_path, mocker
+    ):
         mock_resp = self._mock_response(mocker)
         post_mock = mocker.patch.object(client.session, "post", return_value=mock_resp)
 
-        client.generate_to_file(tmp_path / "speech.wav", text="Hello", voice_id="tc_test")
+        client.generate_to_file(
+            tmp_path / "speech.wav", text="Hello", voice_id="tc_test"
+        )
         client.generate_to_file(
             tmp_path / "speech.mp3",
             text="Hello",
@@ -183,21 +204,44 @@ class TestSyncClient:
 
         post_mock.assert_not_called()
 
-    @pytest.mark.parametrize("status,exc_name", [
-        (400, "BadRequestError"), (401, "UnauthorizedError"), (402, "PaymentRequiredError"),
-        (404, "NotFoundError"), (422, "UnprocessableEntityError"), (429, "RateLimitError"),
-        (500, "InternalServerError"), (503, "TypecastError"),
-    ])
-    def test_text_to_speech_error_status_codes(self, client, sample_request, mocker, status, exc_name):
+    @pytest.mark.parametrize(
+        "status,exc_name",
+        [
+            (400, "BadRequestError"),
+            (401, "UnauthorizedError"),
+            (402, "PaymentRequiredError"),
+            (404, "NotFoundError"),
+            (422, "UnprocessableEntityError"),
+            (429, "RateLimitError"),
+            (500, "InternalServerError"),
+            (503, "TypecastError"),
+        ],
+    )
+    def test_text_to_speech_error_status_codes(
+        self, client, sample_request, mocker, status, exc_name
+    ):
         from typecast import exceptions as exc_mod
+
         exc_class = getattr(exc_mod, exc_name)
-        mock_resp = self._mock_response(mocker, status_code=status, text=f"error {status}")
+        mock_resp = self._mock_response(
+            mocker, status_code=status, text=f"error {status}"
+        )
         mocker.patch.object(client.session, "post", return_value=mock_resp)
         with pytest.raises(exc_class):
             client.text_to_speech(sample_request)
 
     def test_voices_success_no_filter(self, client, mocker):
-        mock_resp = self._mock_response(mocker, json_data=[{"voice_id": "v1", "voice_name": "Voice 1", "model": "ssfm-v21", "emotions": ["normal"]}])
+        mock_resp = self._mock_response(
+            mocker,
+            json_data=[
+                {
+                    "voice_id": "v1",
+                    "voice_name": "Voice 1",
+                    "model": "ssfm-v21",
+                    "emotions": ["normal"],
+                }
+            ],
+        )
         get_mock = mocker.patch.object(client.session, "get", return_value=mock_resp)
         voices = client.voices()
         assert len(voices) == 1
@@ -208,29 +252,51 @@ class TestSyncClient:
         mock_resp = self._mock_response(mocker, json_data=[])
         get_mock = mocker.patch.object(client.session, "get", return_value=mock_resp)
         client.voices(model="ssfm-v21")
-        get_mock.assert_called_once_with(f"{client.host}/v1/voices", params={"model": "ssfm-v21"})
+        get_mock.assert_called_once_with(
+            f"{client.host}/v1/voices", params={"model": "ssfm-v21"}
+        )
 
     def test_voices_error_path(self, client, mocker):
         from typecast.exceptions import UnauthorizedError
+
         mock_resp = self._mock_response(mocker, status_code=401, text="no key")
         mocker.patch.object(client.session, "get", return_value=mock_resp)
         with pytest.raises(UnauthorizedError):
             client.voices()
 
     def test_get_voice_returns_first_when_list(self, client, mocker):
-        mock_resp = self._mock_response(mocker, json_data=[{"voice_id": "v1", "voice_name": "V1", "model": "ssfm-v21", "emotions": ["normal"]}])
+        mock_resp = self._mock_response(
+            mocker,
+            json_data=[
+                {
+                    "voice_id": "v1",
+                    "voice_name": "V1",
+                    "model": "ssfm-v21",
+                    "emotions": ["normal"],
+                }
+            ],
+        )
         mocker.patch.object(client.session, "get", return_value=mock_resp)
         voice = client.get_voice("v1")
         assert voice.voice_id == "v1"
 
     def test_get_voice_returns_dict_when_single(self, client, mocker):
-        mock_resp = self._mock_response(mocker, json_data={"voice_id": "v1", "voice_name": "V1", "model": "ssfm-v21", "emotions": ["normal"]})
+        mock_resp = self._mock_response(
+            mocker,
+            json_data={
+                "voice_id": "v1",
+                "voice_name": "V1",
+                "model": "ssfm-v21",
+                "emotions": ["normal"],
+            },
+        )
         mocker.patch.object(client.session, "get", return_value=mock_resp)
         voice = client.get_voice("v1")
         assert voice.voice_id == "v1"
 
     def test_get_voice_error(self, client, mocker):
         from typecast.exceptions import NotFoundError
+
         mock_resp = self._mock_response(mocker, status_code=404, text="not found")
         mocker.patch.object(client.session, "get", return_value=mock_resp)
         with pytest.raises(NotFoundError):
@@ -244,6 +310,7 @@ class TestSyncClient:
 
     def test_voices_v2_with_filter(self, client, mocker):
         from typecast.models.voices import VoicesV2Filter
+
         mock_resp = self._mock_response(mocker, json_data=[])
         get_mock = mocker.patch.object(client.session, "get", return_value=mock_resp)
         client.voices_v2(filter=VoicesV2Filter(model="ssfm-v30"))
@@ -252,19 +319,28 @@ class TestSyncClient:
 
     def test_voices_v2_error(self, client, mocker):
         from typecast.exceptions import InternalServerError
+
         mock_resp = self._mock_response(mocker, status_code=500, text="boom")
         mocker.patch.object(client.session, "get", return_value=mock_resp)
         with pytest.raises(InternalServerError):
             client.voices_v2()
 
     def test_voice_v2_success(self, client, mocker):
-        mock_resp = self._mock_response(mocker, json_data={"voice_id": "v1", "voice_name": "V1", "models": [{"version": "ssfm-v30", "emotions": ["normal"]}]})
+        mock_resp = self._mock_response(
+            mocker,
+            json_data={
+                "voice_id": "v1",
+                "voice_name": "V1",
+                "models": [{"version": "ssfm-v30", "emotions": ["normal"]}],
+            },
+        )
         mocker.patch.object(client.session, "get", return_value=mock_resp)
         voice = client.voice_v2("v1")
         assert voice.voice_id == "v1"
 
     def test_voice_v2_error(self, client, mocker):
         from typecast.exceptions import NotFoundError
+
         mock_resp = self._mock_response(mocker, status_code=404, text="not found")
         mocker.patch.object(client.session, "get", return_value=mock_resp)
         with pytest.raises(NotFoundError):
@@ -331,9 +407,7 @@ class TestSyncStream:
         wav_header = b"RIFF\xff\xff\xff\xffWAVEfmt "
         chunks = [wav_header, b"PCM1", b"PCM2"]
         mock_resp = self._mock_stream_response(mocker, chunks)
-        post_mock = mocker.patch.object(
-            client.session, "post", return_value=mock_resp
-        )
+        post_mock = mocker.patch.object(client.session, "post", return_value=mock_resp)
 
         out = list(client.text_to_speech_stream(stream_request, chunk_size=4096))
 
@@ -422,15 +496,11 @@ class TestSyncSubscription:
         mock_resp = mocker.Mock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = self._payload()
-        get_mock = mocker.patch.object(
-            client.session, "get", return_value=mock_resp
-        )
+        get_mock = mocker.patch.object(client.session, "get", return_value=mock_resp)
 
         sub = client.get_my_subscription()
 
-        get_mock.assert_called_once_with(
-            f"{client.host}/v1/users/me/subscription"
-        )
+        get_mock.assert_called_once_with(f"{client.host}/v1/users/me/subscription")
         assert sub.plan == PlanTier.PLUS
         assert sub.credits.plan_credits == 100000
         assert sub.credits.used_credits == 1234
