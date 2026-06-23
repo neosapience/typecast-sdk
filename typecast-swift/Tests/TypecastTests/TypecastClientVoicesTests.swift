@@ -9,6 +9,8 @@ final class TypecastClientVoicesTests: TypecastClientMockTestCase {
         MockURLProtocol.requestHandler = { req in
             XCTAssertEqual(req.url?.path, "/v2/voices")
             XCTAssertNil(req.url?.query)
+            XCTAssertTrue(req.value(forHTTPHeaderField: "User-Agent")?.contains("typecast-swift/") ?? false)
+            XCTAssertTrue(req.value(forHTTPHeaderField: "User-Agent")?.contains("sdk_env=swift") ?? false)
             let body = """
             [
               {

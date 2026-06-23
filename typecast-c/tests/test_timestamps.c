@@ -658,6 +658,7 @@ static struct {
     pthread_t thread;
     int running;
     char last_path[256];
+    char last_headers[8192];
     char last_body[1024];
 } g_mock;
 
@@ -697,6 +698,7 @@ static void* mini_server_thread(void* arg) {
         if (sscanf(buf, "%15s %255s", method, path) == 2) {
             snprintf(g_mock.last_path, sizeof(g_mock.last_path), "%s", path);
         }
+        snprintf(g_mock.last_headers, sizeof(g_mock.last_headers), "%s", buf);
         /* Parse Content-Length from request headers */
         int content_length = 0;
         {
@@ -1011,6 +1013,9 @@ static void test_http_with_timestamps_happy(void) {
     ASSERT_NOT_NULL(resp);
     ASSERT(resp->words_count == 4);
     ASSERT(resp->audio_duration > 0.0f);
+    ASSERT(strstr(g_mock.last_headers, "User-Agent: typecast-c/") != NULL);
+    ASSERT(strstr(g_mock.last_headers, "sdk_env=c") != NULL);
+    ASSERT(strstr(g_mock.last_headers, "X-API-KEY: test_api_key") != NULL);
 
     /* Verify SRT output */
     char* srt = NULL;

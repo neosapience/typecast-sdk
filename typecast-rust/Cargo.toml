@@ -1,6 +1,6 @@
 [package]
 name = "typecast-rust"
-version = "0.3.5"
+version = "0.3.6"
 edition = "2021"
 authors = ["Neosapience <help@typecast.ai>"]
 description = "Official Rust SDK for Typecast Text-to-Speech API"

@@ -1,8 +1,13 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const models = @import("models.zig");
 const json_helpers = @import("json.zig");
 const timestamps = @import("timestamps.zig");
 const composer = @import("composer.zig");
+
+const SDK_VERSION = "0.2.6";
+const USER_AGENT_DEFAULT = "typecast-zig/" ++ SDK_VERSION ++ " Zig/unknown std-http (base=default; os=" ++ osName() ++ "; arch=" ++ archName() ++ "; sdk_env=zig; platform=server)";
+const USER_AGENT_CUSTOM = "typecast-zig/" ++ SDK_VERSION ++ " Zig/unknown std-http (base=custom; os=" ++ osName() ++ "; arch=" ++ archName() ++ "; sdk_env=zig; platform=server)";
 
 pub const Client = struct {
     allocator: std.mem.Allocator,
@@ -41,6 +46,10 @@ pub const Client = struct {
         self.http_client.deinit();
     }
 
+    fn userAgent(self: *const Client) []const u8 {
+        return if (isDefaultBaseUrl(self.base_url)) USER_AGENT_DEFAULT else USER_AGENT_CUSTOM;
+    }
+
     // ── Public API methods ────────────────────────────────────────────
 
     /// Create a composed speech builder for multi-speaker audio and pauses.
@@ -61,9 +70,13 @@ pub const Client = struct {
         const uri = try buildUri(self.base_url, path, null);
 
         const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
-            &.{.{ .name = "Content-Type", .value = "application/json" }}
+            &.{
+                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "Content-Type", .value = "application/json" },
+            }
         else
             &.{
+                .{ .name = "User-Agent", .value = self.userAgent() },
                 .{ .name = "X-API-KEY", .value = self.api_key },
                 .{ .name = "Content-Type", .value = "application/json" },
             };
@@ -147,9 +160,13 @@ pub const Client = struct {
         const uri = try buildUri(self.base_url, path, null);
 
         const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
-            &.{.{ .name = "Content-Type", .value = "application/json" }}
+            &.{
+                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "Content-Type", .value = "application/json" },
+            }
         else
             &.{
+                .{ .name = "User-Agent", .value = self.userAgent() },
                 .{ .name = "X-API-KEY", .value = self.api_key },
                 .{ .name = "Content-Type", .value = "application/json" },
             };
@@ -216,9 +233,13 @@ pub const Client = struct {
         const uri = try buildUri(self.base_url, path, query);
 
         const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
-            &.{.{ .name = "Content-Type", .value = "application/json" }}
+            &.{
+                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "Content-Type", .value = "application/json" },
+            }
         else
             &.{
+                .{ .name = "User-Agent", .value = self.userAgent() },
                 .{ .name = "X-API-KEY", .value = self.api_key },
                 .{ .name = "Content-Type", .value = "application/json" },
             };
@@ -368,9 +389,13 @@ pub const Client = struct {
         const uri = try buildUri(self.base_url, path, null);
 
         const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
-            &.{.{ .name = "Content-Type", .value = ct }}
+            &.{
+                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "Content-Type", .value = ct },
+            }
         else
             &.{
+                .{ .name = "User-Agent", .value = self.userAgent() },
                 .{ .name = "X-API-KEY", .value = self.api_key },
                 .{ .name = "Content-Type", .value = ct },
             };
@@ -401,9 +426,12 @@ pub const Client = struct {
         const uri = try buildUri(self.base_url, path, null);
 
         const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
-            &.{}
+            &.{.{ .name = "User-Agent", .value = self.userAgent() }}
         else
-            &.{.{ .name = "X-API-KEY", .value = self.api_key }};
+            &.{
+                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "X-API-KEY", .value = self.api_key },
+            };
         var req = try self.http_client.request(.DELETE, uri, .{ .extra_headers = headers });
         defer req.deinit();
 
@@ -428,9 +456,12 @@ pub const Client = struct {
         const uri = try buildUri(self.base_url, path, query);
 
         const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
-            &.{}
+            &.{.{ .name = "User-Agent", .value = self.userAgent() }}
         else
-            &.{.{ .name = "X-API-KEY", .value = self.api_key }};
+            &.{
+                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "X-API-KEY", .value = self.api_key },
+            };
         var req = try self.http_client.request(.GET, uri, .{ .extra_headers = headers });
         defer req.deinit();
 
@@ -598,4 +629,37 @@ fn isDefaultBaseUrl(base_url: []const u8) bool {
     const trimmed_space = std.mem.trim(u8, base_url, " \t\r\n");
     const normalized = std.mem.trimRight(u8, trimmed_space, "/");
     return std.ascii.eqlIgnoreCase(normalized, "https://api.typecast.ai");
+}
+
+fn osName() []const u8 {
+    return switch (builtin.target.os.tag) {
+        .macos => "macos",
+        .windows => "windows",
+        .linux => "linux",
+        .ios => "ios",
+        else => "unknown",
+    };
+}
+
+fn archName() []const u8 {
+    return switch (builtin.target.cpu.arch) {
+        .x86_64 => "x64",
+        .aarch64 => "arm64",
+        .x86 => "x86",
+        .arm => "arm",
+        else => "unknown",
+    };
+}
+
+test "user agent includes sdk metadata" {
+    var client = Client.init(std.testing.allocator, .{
+        .api_key = "test-key",
+        .base_url = "https://api.typecast.ai",
+    });
+    defer client.deinit();
+
+    const ua = client.userAgent();
+    try std.testing.expect(std.mem.indexOf(u8, ua, "typecast-zig/") != null);
+    try std.testing.expect(std.mem.indexOf(u8, ua, "sdk_env=zig") != null);
+    try std.testing.expect(std.mem.indexOf(u8, ua, "platform=server") != null);
 }

@@ -11,7 +11,7 @@ use crate::models::{
 };
 use bytes::Bytes;
 use futures_util::stream::{Stream, StreamExt};
-use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
+use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, USER_AGENT};
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -146,6 +146,11 @@ impl TypecastClient {
 
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        headers.insert(
+            USER_AGENT,
+            HeaderValue::from_str(&build_user_agent(&base_url, config.timeout))
+                .expect("SDK-generated User-Agent is valid ASCII"),
+        );
         if !api_key.is_empty() {
             headers.insert(
                 "X-API-KEY",
@@ -707,6 +712,96 @@ impl TypecastClient {
             return Err(self.handle_error_response(response).await);
         }
         Ok(())
+    }
+}
+
+fn build_user_agent(base_url: &str, timeout: Duration) -> String {
+    let base = if is_default_base_url(base_url) {
+        "default"
+    } else {
+        "custom"
+    };
+    let timeout_value = if timeout == Duration::from_secs(DEFAULT_TIMEOUT_SECS) {
+        "default".to_string()
+    } else {
+        format!("{}ms", timeout.as_millis())
+    };
+    format!(
+        "typecast-rust/{} Rust/{} reqwest (base={}; timeout={}; os={}; arch={}; sdk_env=rust; platform=server)",
+        env!("CARGO_PKG_VERSION"),
+        rust_version(),
+        base,
+        timeout_value,
+        os_name(),
+        arch_name()
+    )
+}
+
+fn rust_version() -> &'static str {
+    "unknown"
+}
+
+fn os_name() -> &'static str {
+    normalize_os_name(env::consts::OS)
+}
+
+fn normalize_os_name(os: &str) -> &'static str {
+    match os {
+        "macos" => "macos",
+        "windows" => "windows",
+        "linux" => "linux",
+        "ios" => "ios",
+        "android" => "android",
+        _ => "unknown",
+    }
+}
+
+fn arch_name() -> &'static str {
+    normalize_arch_name(env::consts::ARCH)
+}
+
+fn normalize_arch_name(arch: &str) -> &'static str {
+    match arch {
+        "x86_64" => "x64",
+        "aarch64" => "arm64",
+        "x86" => "x86",
+        "arm" => "arm",
+        _ => "unknown",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_agent_includes_sdk_metadata_and_base_timeout_context() {
+        let default_user_agent =
+            build_user_agent(DEFAULT_BASE_URL, Duration::from_secs(DEFAULT_TIMEOUT_SECS));
+        assert!(default_user_agent.starts_with("typecast-rust/"));
+        assert!(default_user_agent.contains("base=default"));
+        assert!(default_user_agent.contains("timeout=default"));
+        assert!(default_user_agent.contains("sdk_env=rust; platform=server"));
+
+        let custom_user_agent = build_user_agent("https://proxy.example", Duration::from_secs(5));
+        assert!(custom_user_agent.contains("base=custom"));
+        assert!(custom_user_agent.contains("timeout=5000ms"));
+    }
+
+    #[test]
+    fn platform_metadata_normalizes_known_and_unknown_values() {
+        assert_eq!(normalize_os_name("macos"), "macos");
+        assert_eq!(normalize_os_name("windows"), "windows");
+        assert_eq!(normalize_os_name("linux"), "linux");
+        assert_eq!(normalize_os_name("ios"), "ios");
+        assert_eq!(normalize_os_name("android"), "android");
+        assert_eq!(normalize_os_name("solaris"), "unknown");
+
+        assert_eq!(normalize_arch_name("x86_64"), "x64");
+        assert_eq!(normalize_arch_name("aarch64"), "arm64");
+        assert_eq!(normalize_arch_name("x86"), "x86");
+        assert_eq!(normalize_arch_name("arm"), "arm");
+        assert_eq!(normalize_arch_name("mips"), "unknown");
     }
 }
 

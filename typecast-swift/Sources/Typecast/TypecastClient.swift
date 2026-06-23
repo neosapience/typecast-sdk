@@ -2,6 +2,7 @@ import Foundation
 
 /// Typecast API client for text-to-speech and voice operations
 public final class TypecastClient: Sendable {
+  private static let sdkVersion = "0.3.7"
   private let configuration: TypecastConfiguration
   private let session: URLSession
   private let decoder: JSONDecoder
@@ -50,6 +51,7 @@ public final class TypecastClient: Sendable {
     var request = URLRequest(url: url)
     request.httpMethod = method
     setAuthHeader(&request)
+    setUserAgentHeader(&request)
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.httpBody = body
     return request
@@ -59,6 +61,46 @@ public final class TypecastClient: Sendable {
     if let apiKey = configuration.apiKey, !apiKey.isEmpty {
       request.setValue(apiKey, forHTTPHeaderField: "X-API-KEY")
     }
+  }
+
+  private func setUserAgentHeader(_ request: inout URLRequest) {
+    request.setValue(buildUserAgent(), forHTTPHeaderField: "User-Agent")
+  }
+
+  internal func buildUserAgent() -> String {
+    let base =
+      configuration.baseURL.caseInsensitiveCompare(TypecastConfiguration.defaultBaseURL)
+      == .orderedSame ? "default" : "custom"
+    return "typecast-swift/\(Self.sdkVersion) Swift/unknown URLSession " +
+      "(base=\(base); os=\(Self.osName()); arch=\(Self.archName()); sdk_env=swift; platform=server)"
+  }
+
+  private static func osName() -> String {
+    #if os(macOS)
+      return "macos"
+    #elseif os(iOS)
+      return "ios"
+    #elseif os(Linux)
+      return "linux"
+    #elseif os(Windows)
+      return "windows"
+    #else
+      return "unknown"
+    #endif
+  }
+
+  private static func archName() -> String {
+    #if arch(arm64)
+      return "arm64"
+    #elseif arch(x86_64)
+      return "x64"
+    #elseif arch(i386)
+      return "x86"
+    #elseif arch(arm)
+      return "arm"
+    #else
+      return "unknown"
+    #endif
   }
 
   private func validateAuthentication() throws {
@@ -342,6 +384,7 @@ public final class TypecastClient: Sendable {
     request.setValue(
       "multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
     setAuthHeader(&request)
+    setUserAgentHeader(&request)
     request.httpBody = body
 
     let (data, response) = try await session.data(for: request)
@@ -388,6 +431,7 @@ public final class TypecastClient: Sendable {
     var request = URLRequest(url: url)
     request.httpMethod = "DELETE"
     setAuthHeader(&request)
+    setUserAgentHeader(&request)
 
     let (data, response) = try await session.data(for: request)
     guard let httpResponse = response as? HTTPURLResponse else {

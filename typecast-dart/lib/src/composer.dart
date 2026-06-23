@@ -61,8 +61,9 @@ class SpeechComposer {
     String text, {
     ComposerSettings overrides = const ComposerSettings(),
   }) {
-    _parts
-        .add(_ComposerPart.speech(text, _mergeSettings(_defaults, overrides)));
+    _parts.add(
+      _ComposerPart.speech(text, _mergeSettings(_defaults, overrides)),
+    );
     return this;
   }
 
@@ -94,7 +95,8 @@ class SpeechComposer {
           throw ArgumentError('pause cannot be the first composed part');
         }
         outputSamples.addAll(
-            List.filled(_secondsToSamples(seconds, spec.sampleRate), 0));
+          List.filled(_secondsToSamples(seconds, spec.sampleRate), 0),
+        );
         continue;
       }
 
@@ -102,7 +104,8 @@ class SpeechComposer {
       final wav = _parseWav(response.audioData);
       if (wavSpec != null && wav.spec != wavSpec) {
         throw ArgumentError(
-            'all composed WAV segments must use the same PCM format');
+          'all composed WAV segments must use the same PCM format',
+        );
       }
       wavSpec = wav.spec;
       outputSamples.addAll(_trimSilence(wav.samples));
@@ -114,7 +117,8 @@ class SpeechComposer {
     }
     if (outputFormat == AudioFormat.mp3) {
       throw ArgumentError(
-          'MP3 conversion is app-level responsibility for composed speech');
+        'MP3 conversion is app-level responsibility for composed speech',
+      );
     }
     return TtsResponse(
       audioData: _encodeWav(outputSamples, finalSpec),
@@ -142,7 +146,8 @@ class SpeechComposer {
         if (text.trim().isEmpty) continue;
         if ((part.settings.voiceId ?? '').trim().isEmpty) {
           throw ArgumentError(
-              'voiceId is required for composed speech segments');
+            'voiceId is required for composed speech segments',
+          );
         }
         if (part.settings.model == null) {
           throw ArgumentError('model is required for composed speech segments');
@@ -235,7 +240,9 @@ class _ParsedWav {
 }
 
 ComposerSettings _mergeSettings(
-    ComposerSettings base, ComposerSettings override) {
+  ComposerSettings base,
+  ComposerSettings override,
+) {
   return ComposerSettings(
     voiceId: override.voiceId ?? base.voiceId,
     model: override.model ?? base.model,
@@ -266,7 +273,9 @@ TtsRequest _requestFromPart(_ComposerPart part) {
     language: settings.language,
     prompt: settings.prompt,
     output: _mergeOutput(
-        settings.output, const Output(audioFormat: AudioFormat.wav)),
+      settings.output,
+      const Output(audioFormat: AudioFormat.wav),
+    ),
     seed: settings.seed,
   );
 }
@@ -297,7 +306,8 @@ _ParsedWav _parseWav(Uint8List data) {
       final bitsPerSample = view.getUint16(chunkDataOffset + 14, Endian.little);
       if (audioFormat != 1 || channels != 1 || bitsPerSample != 16) {
         throw ArgumentError(
-            'only mono 16-bit PCM WAV is supported for composed speech');
+          'only mono 16-bit PCM WAV is supported for composed speech',
+        );
       }
       spec = _WavSpec(sampleRate, channels, bitsPerSample);
     } else if (chunkId == 'data') {
@@ -374,5 +384,6 @@ bool _validSecondsLiteral(String value) {
     return false;
   }
   return pieces.every(
-      (piece) => piece.codeUnits.every((code) => code >= 48 && code <= 57));
+    (piece) => piece.codeUnits.every((code) => code >= 48 && code <= 57),
+  );
 }

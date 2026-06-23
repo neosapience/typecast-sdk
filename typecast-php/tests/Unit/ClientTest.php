@@ -7,6 +7,7 @@ namespace Neosapience\Typecast\Tests\Unit;
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use Neosapience\Typecast\Exceptions\BadRequestException;
 use Neosapience\Typecast\Exceptions\InternalServerException;
@@ -41,14 +42,22 @@ class ClientTest extends TestCase
 
     public function testTextToSpeech(): void
     {
+        $history = [];
         $mock = new MockHandler([
             new Response(200, [
                 'Content-Type' => 'audio/wav',
                 'X-Audio-Duration' => '1.5',
             ], 'fake-audio-data'),
         ]);
+        $handler = HandlerStack::create($mock);
+        $handler->push(Middleware::history($history));
+        $httpClient = new Client(['handler' => $handler, 'http_errors' => false]);
 
-        $client = $this->createClient($mock);
+        $client = new TypecastClient(
+            apiKey: 'test-api-key',
+            baseUrl: 'https://api.typecast.ai',
+            httpClient: $httpClient,
+        );
 
         $request = new TTSRequest(
             voiceId: 'tc_123',
@@ -61,6 +70,8 @@ class ClientTest extends TestCase
         $this->assertSame('fake-audio-data', $response->audioData);
         $this->assertSame(1.5, $response->duration);
         $this->assertSame('wav', $response->format);
+        $this->assertStringContainsString('typecast-php/', $history[0]['request']->getHeaderLine('User-Agent'));
+        $this->assertStringContainsString('sdk_env=php', $history[0]['request']->getHeaderLine('User-Agent'));
     }
 
     public function testTextToSpeechMp3(): void

@@ -1,5 +1,6 @@
 require "json"
 require "net/http"
+require "rbconfig"
 require "securerandom"
 require "uri"
 
@@ -7,6 +8,7 @@ require "typecast/errors"
 require "typecast/composer"
 require "typecast/models"
 require "typecast/timestamps"
+require "typecast/version"
 
 module Typecast
   class Client
@@ -157,7 +159,34 @@ module Typecast
     end
 
     def auth_headers
-      api_key.empty? ? {} : { "X-API-KEY" => api_key }
+      headers = { "User-Agent" => user_agent }
+      headers["X-API-KEY"] = api_key unless api_key.empty?
+      headers
+    end
+
+    def user_agent
+      base = default_base_url? ? "default" : "custom"
+      timeout = @read_timeout == 30 ? "default" : "#{@read_timeout}s"
+      "typecast-ruby/#{VERSION} Ruby/#{RUBY_VERSION} net-http " \
+        "(base=#{base}; timeout=#{timeout}; os=#{os_name}; arch=#{arch_name}; sdk_env=ruby; platform=server)"
+    end
+
+    def os_name
+      host_os = RbConfig::CONFIG["host_os"].to_s.downcase
+      return "macos" if host_os.include?("darwin")
+      return "windows" if host_os.match?(/mswin|mingw|cygwin/)
+      return "linux" if host_os.include?("linux")
+
+      "unknown"
+    end
+
+    def arch_name
+      host_cpu = RbConfig::CONFIG["host_cpu"].to_s.downcase
+      return "arm64" if host_cpu.match?(/arm64|aarch64/)
+      return "x64" if host_cpu.match?(/x86_64|amd64/)
+      return "x86" if host_cpu.match?(/i386|i686|x86/)
+
+      "unknown"
     end
 
     def validate_api_key!
