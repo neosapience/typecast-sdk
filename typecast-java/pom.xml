@@ -6,7 +6,7 @@
 
     <groupId>com.neosapience</groupId>
     <artifactId>typecast-java</artifactId>
-    <version>1.2.5</version>
+    <version>1.2.6</version>
     <packaging>jar</packaging>
 
     <name>Typecast Java SDK</name>

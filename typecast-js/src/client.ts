@@ -15,7 +15,7 @@ import {
 } from './types/QuickCloning';
 import { SpeechComposer } from './composer';
 
-const SDK_VERSION = '0.4.5';
+const SDK_VERSION = '0.4.6';
 const DEFAULT_BASE_HOST = 'https://api.typecast.ai';
 
 export class TypecastClient {
