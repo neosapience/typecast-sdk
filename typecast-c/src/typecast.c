@@ -243,6 +243,53 @@ static struct curl_slist* append_api_key_header(struct curl_slist* headers, cons
     return result;
 }
 
+static const char* os_name(void) {
+#if defined(__APPLE__)
+    return "macos";
+#elif defined(_WIN32)
+    return "windows";
+#elif defined(__linux__)
+    return "linux";
+#else
+    return "unknown";
+#endif
+}
+
+static const char* arch_name(void) {
+#if defined(__aarch64__) || defined(_M_ARM64)
+    return "arm64";
+#elif defined(__x86_64__) || defined(_M_X64)
+    return "x64";
+#elif defined(__i386__) || defined(_M_IX86)
+    return "x86";
+#elif defined(__arm__) || defined(_M_ARM)
+    return "arm";
+#else
+    return "unknown";
+#endif
+}
+
+static struct curl_slist* append_user_agent_header(struct curl_slist* headers, const TypecastClient* client, long timeout_secs) {
+    const char* base = (client && client->host && strcmp(client->host, "https://api.typecast.ai") == 0) ? "default" : "custom";
+    char header[256];
+    snprintf(
+        header,
+        sizeof(header),
+        "User-Agent: typecast-c/%s C/unknown libcurl (base=%s; timeout=%lds; os=%s; arch=%s; sdk_env=c; platform=server)",
+        TYPECAST_VERSION,
+        base,
+        timeout_secs,
+        os_name(),
+        arch_name()
+    );
+    return curl_slist_append(headers, header);
+}
+
+static struct curl_slist* append_common_headers(struct curl_slist* headers, const TypecastClient* client, long timeout_secs) {
+    headers = append_api_key_header(headers, client ? client->api_key : NULL);
+    return append_user_agent_header(headers, client, timeout_secs);
+}
+
 static void set_error(TypecastClient* client, TypecastErrorCode code, const char* message) {
     if (!client) return;
     
@@ -654,7 +701,7 @@ TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
     
     struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json");
-    headers = append_api_key_header(headers, client->api_key);
+    headers = append_common_headers(headers, client, 60L);
     
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -1505,7 +1552,7 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_stream(
 
     struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json");
-    headers = append_api_key_header(headers, client->api_key);
+    headers = append_common_headers(headers, client, 60L);
 
     StreamCallbackCtx ctx;
     ctx.cb = on_chunk;
@@ -1606,7 +1653,7 @@ TYPECAST_API TypecastVoicesResponse* typecast_get_voices(
     curl_easy_reset(curl);
     
     struct curl_slist* headers = NULL;
-    headers = append_api_key_header(headers, client->api_key);
+    headers = append_common_headers(headers, client, 30L);
     
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -1711,7 +1758,7 @@ TYPECAST_API TypecastVoice* typecast_get_voice(
     curl_easy_reset(curl);
     
     struct curl_slist* headers = NULL;
-    headers = append_api_key_header(headers, client->api_key);
+    headers = append_common_headers(headers, client, 30L);
     
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -1831,7 +1878,7 @@ TYPECAST_API TypecastSubscription* typecast_get_my_subscription(
     curl_easy_reset(curl);
 
     struct curl_slist* headers = NULL;
-    headers = append_api_key_header(headers, client->api_key);
+    headers = append_common_headers(headers, client, 30L);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -2663,7 +2710,7 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps(
 
     struct curl_slist* headers = NULL;
     headers = curl_slist_append(headers, "Content-Type: application/json");
-    headers = append_api_key_header(headers, client->api_key);
+    headers = append_common_headers(headers, client, 60L);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -3052,7 +3099,7 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
 
     /* ---- Auth header ---- */
     struct curl_slist* headers = NULL;
-    headers = append_api_key_header(headers, client->api_key);
+    headers = append_common_headers(headers, client, 120L);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -3155,7 +3202,7 @@ TYPECAST_API TypecastErrorCode typecast_delete_voice(
     curl_easy_reset(curl);
 
     struct curl_slist* headers = NULL;
-    headers = append_api_key_header(headers, client->api_key);
+    headers = append_common_headers(headers, client, 30L);
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);

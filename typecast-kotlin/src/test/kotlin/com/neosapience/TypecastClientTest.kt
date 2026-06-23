@@ -9,12 +9,14 @@ import com.neosapience.exceptions.RateLimitException
 import com.neosapience.exceptions.UnauthorizedException
 import com.neosapience.exceptions.UnprocessableEntityException
 import com.neosapience.models.*
+import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.util.concurrent.TimeUnit
 
 /**
  * Unit tests for TypecastClient using MockWebServer.
@@ -129,7 +131,42 @@ class TypecastClientTest {
         assertEquals("POST", recordedRequest.method)
         assertEquals("/v1/text-to-speech", recordedRequest.path)
         assertEquals("test-api-key", recordedRequest.getHeader("X-API-KEY"))
+        assertTrue(recordedRequest.getHeader("User-Agent")!!.contains("typecast-kotlin/"))
+        assertTrue(recordedRequest.getHeader("User-Agent")!!.contains("sdk_env=kotlin"))
         assertTrue(recordedRequest.body.readUtf8().contains("tc_test_voice"))
+    }
+
+    @Test
+    @DisplayName("User-Agent helpers should cover platform metadata variants")
+    fun userAgent_platformMetadataVariants() {
+        assertEquals("macos", TypecastClient.normalizeOsName("Mac OS X"))
+        assertEquals("windows", TypecastClient.normalizeOsName("Windows 11"))
+        assertEquals("linux", TypecastClient.normalizeOsName("Linux"))
+        assertEquals("unknown", TypecastClient.normalizeOsName("Solaris"))
+
+        assertEquals("arm64", TypecastClient.normalizeArchName("aarch64"))
+        assertEquals("arm64", TypecastClient.normalizeArchName("arm64"))
+        assertEquals("x64", TypecastClient.normalizeArchName("x86_64"))
+        assertEquals("x64", TypecastClient.normalizeArchName("amd64"))
+        assertEquals("x86", TypecastClient.normalizeArchName("x86"))
+        assertEquals("x86", TypecastClient.normalizeArchName("i386"))
+        assertEquals("x86", TypecastClient.normalizeArchName("i686"))
+        assertEquals("arm", TypecastClient.normalizeArchName("armv7"))
+        assertEquals("unknown", TypecastClient.normalizeArchName("mips"))
+
+        TypecastClient.builder().apiKey("key").build().use { defaultClient ->
+            assertTrue(defaultClient.buildUserAgent().contains("base=default"))
+        }
+        TypecastClient.builder()
+            .apiKey("key")
+            .baseUrl("https://proxy.example")
+            .httpClient(OkHttpClient.Builder().readTimeout(5, TimeUnit.SECONDS).build())
+            .build()
+            .use { customClient ->
+                val userAgent = customClient.buildUserAgent()
+                assertTrue(userAgent.contains("base=custom"))
+                assertTrue(userAgent.contains("timeout=5000ms"))
+            }
     }
 
     @Test

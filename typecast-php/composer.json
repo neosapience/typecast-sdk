@@ -2,6 +2,7 @@
     "name": "neosapience/typecast-php",
     "description": "Official PHP SDK for Typecast Text-to-Speech API",
     "type": "library",
+    "version": "0.1.6",
     "license": "MIT",
     "require": {
         "php": "^8.1",

@@ -55,10 +55,51 @@ class TypecastClient private constructor(
         }
     }
 
+    private fun Request.Builder.addUserAgentHeader(): Request.Builder = apply {
+        addHeader("User-Agent", buildUserAgent())
+    }
+
+    internal fun buildUserAgent(): String {
+        val base = if (baseUrl.equals(DEFAULT_BASE_URL, ignoreCase = true)) "default" else "custom"
+        val timeout = if (httpClient.readTimeoutMillis == 60_000) "default" else "${httpClient.readTimeoutMillis}ms"
+        return "typecast-kotlin/${SDK_VERSION} Kotlin/${KotlinVersion.CURRENT} OkHttp/4.x " +
+            "(base=$base; timeout=$timeout; os=${osName()}; arch=${archName()}; sdk_env=kotlin; platform=server)"
+    }
+
     companion object {
         private const val DEFAULT_BASE_URL = "https://api.typecast.ai"
+        private const val SDK_VERSION = "1.2.6"
         private const val API_KEY_HEADER = "X-API-KEY"
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
+
+        private fun osName(): String {
+            return normalizeOsName(System.getProperty("os.name", ""))
+        }
+
+        internal fun normalizeOsName(osName: String): String {
+            val os = osName.lowercase()
+            return when {
+                os.contains("mac") -> "macos"
+                os.contains("win") -> "windows"
+                os.contains("linux") -> "linux"
+                else -> "unknown"
+            }
+        }
+
+        private fun archName(): String {
+            return normalizeArchName(System.getProperty("os.arch", ""))
+        }
+
+        internal fun normalizeArchName(osArch: String): String {
+            val arch = osArch.lowercase()
+            return when {
+                arch == "aarch64" || arch == "arm64" -> "arm64"
+                arch == "x86_64" || arch == "amd64" -> "x64"
+                arch == "x86" || arch == "i386" || arch == "i686" -> "x86"
+                arch.startsWith("arm") -> "arm"
+                else -> "unknown"
+            }
+        }
         
         /**
          * Creates a TypecastClient with API key from environment.
@@ -101,6 +142,7 @@ class TypecastClient private constructor(
         val httpRequest = Request.Builder()
             .url(url)
             .addAuthHeader()
+            .addUserAgentHeader()
             .addHeader("Content-Type", "application/json")
             .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
@@ -176,6 +218,7 @@ class TypecastClient private constructor(
         val httpRequest = Request.Builder()
             .url(url)
             .addAuthHeader()
+            .addUserAgentHeader()
             .addHeader("Content-Type", "application/json")
             .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
@@ -223,6 +266,7 @@ class TypecastClient private constructor(
         val httpRequest = Request.Builder()
             .url(urlBuilder.build())
             .addAuthHeader()
+            .addUserAgentHeader()
             .addHeader("Content-Type", "application/json")
             .post(jsonBody.toRequestBody(JSON_MEDIA_TYPE))
             .build()
@@ -246,6 +290,7 @@ class TypecastClient private constructor(
         val httpRequest = Request.Builder()
             .url(urlBuilder.build())
             .addAuthHeader()
+            .addUserAgentHeader()
             .addHeader("Content-Type", "application/json")
             .get()
             .build()
@@ -270,6 +315,7 @@ class TypecastClient private constructor(
         val httpRequest = Request.Builder()
             .url(urlBuilder.build())
             .addAuthHeader()
+            .addUserAgentHeader()
             .addHeader("Content-Type", "application/json")
             .get()
             .build()
@@ -301,6 +347,7 @@ class TypecastClient private constructor(
         val httpRequest = Request.Builder()
             .url(urlBuilder.build())
             .addAuthHeader()
+            .addUserAgentHeader()
             .addHeader("Content-Type", "application/json")
             .get()
             .build()
@@ -321,6 +368,7 @@ class TypecastClient private constructor(
         val httpRequest = Request.Builder()
             .url(url)
             .addAuthHeader()
+            .addUserAgentHeader()
             .addHeader("Content-Type", "application/json")
             .get()
             .build()
@@ -340,6 +388,7 @@ class TypecastClient private constructor(
         val httpRequest = Request.Builder()
             .url(url)
             .addAuthHeader()
+            .addUserAgentHeader()
             .addHeader("Content-Type", "application/json")
             .get()
             .build()
@@ -430,6 +479,7 @@ class TypecastClient private constructor(
         val httpRequest = Request.Builder()
             .url("$baseUrl/v1/voices/clone")
             .addAuthHeader()
+            .addUserAgentHeader()
             .post(body)
             .build()
 
@@ -464,6 +514,7 @@ class TypecastClient private constructor(
         val httpRequest = Request.Builder()
             .url("$baseUrl/v1/voices/$voiceId")
             .addAuthHeader()
+            .addUserAgentHeader()
             .delete()
             .build()
 

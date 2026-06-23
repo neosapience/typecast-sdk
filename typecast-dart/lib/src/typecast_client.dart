@@ -10,6 +10,7 @@ import 'timestamps.dart';
 
 class TypecastClient {
   static const defaultBaseUrl = 'https://api.typecast.ai';
+  static const _sdkVersion = '0.1.6';
 
   TypecastClient({
     String? apiKey,
@@ -170,7 +171,10 @@ class TypecastClient {
     );
   }
 
-  Map<String, String> _headers() => apiKey.isEmpty ? {} : {'X-API-KEY': apiKey};
+  Map<String, String> _headers() => {
+        if (apiKey.isNotEmpty) 'X-API-KEY': apiKey,
+        'User-Agent': _userAgent(),
+      };
 
   Map<String, String> _jsonHeaders() => {
         ..._headers(),
@@ -187,6 +191,47 @@ class TypecastClient {
 
   static bool _isDefaultBaseUrl(String baseUrl) =>
       _normalizeBaseUrl(baseUrl).toLowerCase() == defaultBaseUrl;
+
+  String _userAgent() {
+    final base = _isDefaultBaseUrl(baseUrl) ? 'default' : 'custom';
+    final timeout = requestTimeout == const Duration(seconds: 30)
+        ? 'default'
+        : '${requestTimeout.inMilliseconds}ms';
+    return 'typecast-dart/$_sdkVersion Dart/${Platform.version.split(' ').first} '
+        'http (runtime=dart; base=$base; timeout=$timeout; os=${_osName()}; '
+        'arch=${_archName()}; sdk_env=dart; platform=server)';
+  }
+
+  static String _osName() {
+    switch (Platform.operatingSystem.toLowerCase()) {
+      case 'macos':
+        return 'macos';
+      case 'windows':
+        return 'windows';
+      case 'linux':
+        return 'linux';
+      case 'ios':
+        return 'ios';
+      case 'android':
+        return 'android';
+      default:
+        return 'unknown';
+    }
+  }
+
+  static String _archName() {
+    final version = Platform.version.toLowerCase();
+    if (version.contains('arm64') || version.contains('aarch64')) {
+      return 'arm64';
+    }
+    if (version.contains('x64') || version.contains('x86_64')) {
+      return 'x64';
+    }
+    if (version.contains('ia32') || version.contains('x86')) {
+      return 'x86';
+    }
+    return 'unknown';
+  }
 }
 
 void _raiseForStatus(http.Response response) {

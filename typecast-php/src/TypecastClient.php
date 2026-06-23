@@ -35,6 +35,7 @@ use Neosapience\Typecast\Models\VoicesV2Filter;
 class TypecastClient
 {
     private const DEFAULT_BASE_URL = 'https://api.typecast.ai';
+    private const SDK_VERSION = '0.1.6';
 
     private ClientInterface $httpClient;
 
@@ -65,9 +66,9 @@ class TypecastClient
     public function textToSpeech(TTSRequest $request): TTSResponse
     {
         try {
-            $response = $this->httpClient->request('POST', '/v1/text-to-speech', [
+            $response = $this->httpClient->request('POST', '/v1/text-to-speech', $this->requestOptions([
                 'json' => $request->toArray(),
-            ]);
+            ]));
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
             throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
         }
@@ -152,9 +153,9 @@ class TypecastClient
         }
 
         try {
-            $response = $this->httpClient->request('POST', $uri, [
+            $response = $this->httpClient->request('POST', $uri, $this->requestOptions([
                 'json' => $request->toArray(),
-            ]);
+            ]));
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
             throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
         }
@@ -181,10 +182,10 @@ class TypecastClient
     public function textToSpeechStream(TTSRequestStream $request, callable $onChunk): void
     {
         try {
-            $response = $this->httpClient->request('POST', '/v1/text-to-speech/stream', [
+            $response = $this->httpClient->request('POST', '/v1/text-to-speech/stream', $this->requestOptions([
                 'json' => $request->toArray(),
                 'stream' => true,
-            ]);
+            ]));
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
             throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
         }
@@ -211,7 +212,7 @@ class TypecastClient
     public function getMySubscription(): SubscriptionResponse
     {
         try {
-            $response = $this->httpClient->request('GET', '/v1/users/me/subscription');
+            $response = $this->httpClient->request('GET', '/v1/users/me/subscription', $this->requestOptions());
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
             throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
         }
@@ -244,9 +245,9 @@ class TypecastClient
         }
 
         try {
-            $response = $this->httpClient->request('GET', '/v1/voices', [
+            $response = $this->httpClient->request('GET', '/v1/voices', $this->requestOptions([
                 'query' => $query,
-            ]);
+            ]));
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
             throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
         }
@@ -279,9 +280,9 @@ class TypecastClient
         }
 
         try {
-            $response = $this->httpClient->request('GET', '/v2/voices', [
+            $response = $this->httpClient->request('GET', '/v2/voices', $this->requestOptions([
                 'query' => $query,
-            ]);
+            ]));
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
             throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
         }
@@ -317,9 +318,9 @@ class TypecastClient
         }
 
         try {
-            $response = $this->httpClient->request('GET', '/v2/voices', [
+            $response = $this->httpClient->request('GET', '/v2/voices', $this->requestOptions([
                 'query' => $query,
-            ]);
+            ]));
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
             throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
         }
@@ -373,7 +374,7 @@ class TypecastClient
         }
 
         try {
-            $response = $this->httpClient->request('POST', '/v1/voices/clone', [
+            $response = $this->httpClient->request('POST', '/v1/voices/clone', $this->requestOptions([
                 'multipart' => [
                     ['name' => 'name',  'contents' => $name],
                     ['name' => 'model', 'contents' => $model],
@@ -384,8 +385,7 @@ class TypecastClient
                         'headers'  => ['Content-Type' => self::guessAudioMime($filename)],
                     ],
                 ],
-                'headers' => $this->authHeaders(),
-            ]);
+            ]));
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
             throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
         }
@@ -410,9 +410,7 @@ class TypecastClient
     public function deleteVoice(string $voiceId): void
     {
         try {
-            $response = $this->httpClient->request('DELETE', '/v1/voices/' . $voiceId, [
-                'headers' => $this->authHeaders(),
-            ]);
+            $response = $this->httpClient->request('DELETE', '/v1/voices/' . $voiceId, $this->requestOptions());
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
             throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
         }
@@ -443,7 +441,58 @@ class TypecastClient
     private function authHeaders(): array
     {
         $apiKey = trim((string) $this->apiKey);
-        return $apiKey === '' ? [] : ['X-API-KEY' => $apiKey];
+        $headers = ['User-Agent' => $this->userAgent()];
+        if ($apiKey !== '') {
+            $headers['X-API-KEY'] = $apiKey;
+        }
+        return $headers;
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private function requestOptions(array $options = []): array
+    {
+        /** @var array<string, string> $existingHeaders */
+        $existingHeaders = $options['headers'] ?? [];
+        $options['headers'] = $this->authHeaders() + $existingHeaders;
+        return $options;
+    }
+
+    private function userAgent(): string
+    {
+        $base = strcasecmp(rtrim(trim($this->baseUrl), '/'), self::DEFAULT_BASE_URL) === 0 ? 'default' : 'custom';
+        return sprintf(
+            'typecast-php/%s PHP/%s Guzzle (base=%s; os=%s; arch=%s; sdk_env=php; platform=server)',
+            self::SDK_VERSION,
+            PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION,
+            $base,
+            $this->osName(),
+            $this->archName(),
+        );
+    }
+
+    private function osName(): string
+    {
+        return match (PHP_OS_FAMILY) {
+            'Darwin' => 'macos',
+            'Windows' => 'windows',
+            'Linux' => 'linux',
+            default => 'unknown',
+        };
+    }
+
+    private function archName(): string
+    {
+        $machine = strtolower(php_uname('m'));
+        return match (true) {
+            in_array($machine, ['arm64', 'aarch64'], true) => 'arm64',
+            in_array($machine, ['x86_64', 'amd64'], true) => 'x64',
+            in_array($machine, ['i386', 'i686', 'x86'], true) => 'x86',
+            str_starts_with($machine, 'arm') => 'arm',
+            default => 'unknown',
+        };
     }
 
     /**

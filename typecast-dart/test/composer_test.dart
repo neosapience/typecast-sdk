@@ -70,8 +70,11 @@ void main() {
     );
     expect(
       () => client.composeSpeech().pause(0).generate(),
-      throwsA(predicate((e) =>
-          e.toString().contains('pause seconds must be greater than 0'))),
+      throwsA(
+        predicate(
+          (e) => e.toString().contains('pause seconds must be greater than 0'),
+        ),
+      ),
     );
   });
 
@@ -88,17 +91,20 @@ void main() {
     final badWavClient = TypecastClient(
       apiKey: 'key',
       baseUrl: 'https://api.test',
-      httpClient: MockClient((_) async => http.Response.bytes(
-            utf8.encode('not wav'),
-            200,
-            headers: {'content-type': 'audio/wav'},
-          )),
+      httpClient: MockClient(
+        (_) async => http.Response.bytes(
+          utf8.encode('not wav'),
+          200,
+          headers: {'content-type': 'audio/wav'},
+        ),
+      ),
     );
     expect(
       () => badWavClient
           .composeSpeech()
-          .defaults(const ComposerSettings(
-              voiceId: 'voice-a', model: TtsModel.ssfmV30))
+          .defaults(
+            const ComposerSettings(voiceId: 'voice-a', model: TtsModel.ssfmV30),
+          )
           .say('Hello')
           .generate(),
       throwsA(predicate((e) => e.toString().contains('unsupported WAV data'))),
@@ -111,17 +117,20 @@ void main() {
     final mismatchClient = TypecastClient(
       apiKey: 'key',
       baseUrl: 'https://api.test',
-      httpClient: MockClient((_) async => http.Response.bytes(
-            mismatchResponses.removeAt(0),
-            200,
-            headers: {'content-type': 'audio/wav'},
-          )),
+      httpClient: MockClient(
+        (_) async => http.Response.bytes(
+          mismatchResponses.removeAt(0),
+          200,
+          headers: {'content-type': 'audio/wav'},
+        ),
+      ),
     );
     expect(
       () => mismatchClient
           .composeSpeech()
-          .defaults(const ComposerSettings(
-              voiceId: 'voice-a', model: TtsModel.ssfmV30))
+          .defaults(
+            const ComposerSettings(voiceId: 'voice-a', model: TtsModel.ssfmV30),
+          )
           .say('one<|0.001s|>two')
           .generate(),
       throwsA(predicate((e) => e.toString().contains('same PCM format'))),
@@ -143,15 +152,22 @@ void main() {
     expect(
       () => mp3Client
           .composeSpeech()
-          .defaults(const ComposerSettings(
-            voiceId: 'voice-a',
-            model: TtsModel.ssfmV30,
-            output: Output(audioFormat: AudioFormat.mp3),
-          ))
+          .defaults(
+            const ComposerSettings(
+              voiceId: 'voice-a',
+              model: TtsModel.ssfmV30,
+              output: Output(audioFormat: AudioFormat.mp3),
+            ),
+          )
           .say('Hello')
           .generate(),
-      throwsA(predicate((e) =>
-          e.toString().contains('MP3 conversion is app-level responsibility'))),
+      throwsA(
+        predicate(
+          (e) => e.toString().contains(
+                'MP3 conversion is app-level responsibility',
+              ),
+        ),
+      ),
     );
     await Future<void>.delayed(Duration.zero);
     expect(body?['output']['audio_format'], 'wav');

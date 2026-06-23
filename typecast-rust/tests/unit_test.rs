@@ -400,7 +400,9 @@ fn output_stream_builder_clamps_values() {
 
     // Ensure volume is NOT serialized and target_lufs is supported for OutputStream.
     let json = serde_json::to_string(
-        &OutputStream::new().audio_format(AudioFormat::Wav).target_lufs(-14.0),
+        &OutputStream::new()
+            .audio_format(AudioFormat::Wav)
+            .target_lufs(-14.0),
     )
     .unwrap();
     let value: serde_json::Value = serde_json::from_str(&json).unwrap();

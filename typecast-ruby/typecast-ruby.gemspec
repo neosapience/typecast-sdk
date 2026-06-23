@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name = "typecast-ruby"
-  spec.version = "0.1.4"
+  spec.version = "0.1.5"
   spec.authors = ["Neosapience"]
   spec.email = ["support@neosapience.com"]
   spec.summary = "Official Ruby SDK for the Typecast Text-to-Speech API"
