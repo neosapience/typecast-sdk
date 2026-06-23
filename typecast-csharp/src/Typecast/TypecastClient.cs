@@ -1,4 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -83,8 +85,25 @@ public class TypecastClient : IDisposable
             ? "default"
             : "custom";
         var timeout = config.TimeoutSeconds == 30 ? "default" : $"{config.TimeoutSeconds}s";
-        return $"typecast-csharp/{version} dotnet/{Environment.Version.Major}.{Environment.Version.Minor} HttpClient (tfm={TargetFramework}; base={baseKind}; timeout={timeout})";
+        return $"typecast-csharp/{version} dotnet/{Environment.Version.Major}.{Environment.Version.Minor} HttpClient (tfm={TargetFramework}; base={baseKind}; timeout={timeout}; os={OSName}; arch={ArchitectureName}; sdk_env=dotnet; platform=server)";
     }
+
+    [ExcludeFromCodeCoverage]
+    private static string OSName =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "macos" :
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "windows" :
+        RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "linux" :
+        "unknown";
+
+    [ExcludeFromCodeCoverage]
+    private static string ArchitectureName => RuntimeInformation.ProcessArchitecture switch
+    {
+        Architecture.X64 => "x64",
+        Architecture.X86 => "x86",
+        Architecture.Arm64 => "arm64",
+        Architecture.Arm => "arm",
+        _ => RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()
+    };
 
     private static string TargetFramework
     {

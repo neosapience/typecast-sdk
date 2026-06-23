@@ -70,7 +70,9 @@ public class TypecastClientTests : IDisposable
         // Assert
         httpClient.DefaultRequestHeaders.Should().NotContain(h => h.Key == "X-API-KEY");
         httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().StartWith("typecast-csharp/");
-        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().Contain("(tfm=net8.0; base=custom; timeout=default)");
+        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().Contain("(tfm=net8.0; base=custom; timeout=default; os=");
+        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().Contain("; arch=");
+        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().Contain("; sdk_env=dotnet; platform=server)");
     }
 
     [Fact]
@@ -90,7 +92,9 @@ public class TypecastClientTests : IDisposable
 
         // Assert
         httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().StartWith("typecast-csharp/");
-        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().Contain("(tfm=net8.0; base=default; timeout=45s)");
+        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().Contain("(tfm=net8.0; base=default; timeout=45s; os=");
+        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().Contain("; arch=");
+        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().Contain("; sdk_env=dotnet; platform=server)");
     }
 
     [Fact]

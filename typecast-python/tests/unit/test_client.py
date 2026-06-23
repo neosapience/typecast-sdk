@@ -108,7 +108,10 @@ class TestSyncClient:
         user_agent = client.session.headers["User-Agent"]
         assert user_agent.startswith("typecast-python/")
         assert "requests/" in user_agent
-        assert "(mode=sync; base=custom; transport=rest)" in user_agent
+        assert "mode=sync; base=custom; transport=rest" in user_agent
+        assert "os=" in user_agent
+        assert "arch=" in user_agent
+        assert "sdk_env=python; platform=server" in user_agent
 
     def _mock_response(
         self,

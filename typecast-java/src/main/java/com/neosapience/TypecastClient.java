@@ -180,7 +180,11 @@ public class TypecastClient {
                 + " Java/" + majorJavaVersion
                 + " JVM/" + majorJavaVersion
                 + " OkHttp/" + okhttpVersion
-                + " (base=" + base + "; timeout=30-60-60)";
+                + " (base=" + base
+                + "; timeout=30-60-60"
+                + "; os=" + normalizedOs(System.getProperty("os.name", "unknown"))
+                + "; arch=" + normalizedArch(System.getProperty("os.arch", "unknown"))
+                + "; sdk_env=java; platform=server)";
     }
 
     static String versionOrFallback(String version, String fallback) {
@@ -193,6 +197,34 @@ public class TypecastClient {
             return parts[1];
         }
         return parts[0];
+    }
+
+    static String normalizedOs(String osName) {
+        String normalized = osName == null ? "" : osName.toLowerCase();
+        if (normalized.contains("mac") || normalized.contains("darwin")) {
+            return "macos";
+        }
+        if (normalized.contains("win")) {
+            return "windows";
+        }
+        if (normalized.contains("linux")) {
+            return "linux";
+        }
+        return normalized.isEmpty() ? "unknown" : normalized.replaceAll("\\s+", "-");
+    }
+
+    static String normalizedArch(String archName) {
+        String normalized = archName == null ? "" : archName.toLowerCase();
+        if ("x86_64".equals(normalized) || "amd64".equals(normalized)) {
+            return "x64";
+        }
+        if ("aarch64".equals(normalized) || "arm64".equals(normalized)) {
+            return "arm64";
+        }
+        if ("x86".equals(normalized) || "i386".equals(normalized) || "i686".equals(normalized)) {
+            return "x86";
+        }
+        return normalized.isEmpty() ? "unknown" : normalized;
     }
 
     /**

@@ -125,8 +125,32 @@ func TestSetUserAgent_DefaultBaseAndCustomTimeout(t *testing.T) {
 	if !strings.HasPrefix(got, "typecast-go/dev Go/") {
 		t.Fatalf("unexpected user agent prefix: %q", got)
 	}
-	if !strings.Contains(got, " net-http (base=default; timeout=7s)") {
+	if !strings.Contains(got, " net-http (base=default; timeout=7s; os=") ||
+		!strings.Contains(got, "; arch=") ||
+		!strings.Contains(got, "; sdk_env=go; platform=server)") {
 		t.Fatalf("unexpected user agent metadata: %q", got)
+	}
+}
+
+func TestUserAgentContextNormalization(t *testing.T) {
+	cases := []struct {
+		got  string
+		want string
+	}{
+		{normalizedOS("darwin"), "macos"},
+		{normalizedOS("windows"), "windows"},
+		{normalizedOS("linux"), "linux"},
+		{normalizedOS(""), "unknown"},
+		{normalizedArch("amd64"), "x64"},
+		{normalizedArch("386"), "x86"},
+		{normalizedArch("arm64"), "arm64"},
+		{normalizedArch("ppc64le"), "ppc64le"},
+		{normalizedArch(""), "unknown"},
+	}
+	for _, tc := range cases {
+		if tc.got != tc.want {
+			t.Fatalf("got %q, want %q", tc.got, tc.want)
+		}
 	}
 }
 
@@ -197,7 +221,7 @@ func TestTextToSpeech_HappyPathWAV(t *testing.T) {
 		if r.Header.Get("Content-Type") != "application/json" {
 			t.Errorf("missing content type")
 		}
-		if got := r.Header.Get("User-Agent"); !strings.HasPrefix(got, "typecast-go/dev Go/") || !strings.Contains(got, " net-http (base=custom; timeout=default)") {
+		if got := r.Header.Get("User-Agent"); !strings.HasPrefix(got, "typecast-go/dev Go/") || !strings.Contains(got, " net-http (base=custom; timeout=default; os=") || !strings.Contains(got, "; sdk_env=go; platform=server)") {
 			t.Errorf("unexpected user agent %q", got)
 		}
 		var body TTSRequest

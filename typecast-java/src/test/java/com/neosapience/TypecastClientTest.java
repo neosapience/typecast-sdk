@@ -120,7 +120,9 @@ class TypecastClientTest {
         assertNotNull(userAgent);
         assertTrue(userAgent.startsWith("typecast-java/"));
         assertTrue(userAgent.contains(" OkHttp/"));
-        assertTrue(userAgent.endsWith(" (base=custom; timeout=30-60-60)"));
+        assertTrue(userAgent.contains(" (base=custom; timeout=30-60-60; os="));
+        assertTrue(userAgent.contains("; arch="));
+        assertTrue(userAgent.endsWith("; sdk_env=java; platform=server)"));
         assertTrue(recordedRequest.getBody().readUtf8().contains("\"voice_id\":\"tc_test\""));
     }
 

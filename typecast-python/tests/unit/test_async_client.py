@@ -316,7 +316,10 @@ class TestAsyncContextManager:
             user_agent = client.session._default_headers["User-Agent"]
             assert user_agent.startswith("typecast-python/")
             assert "aiohttp/" in user_agent
-            assert "(mode=async; base=custom; transport=rest)" in user_agent
+            assert "mode=async; base=custom; transport=rest" in user_agent
+            assert "os=" in user_agent
+            assert "arch=" in user_agent
+            assert "sdk_env=python; platform=server" in user_agent
 
     async def test_aexit_without_session_is_noop(self):
         """Calling __aexit__ without ever calling __aenter__ should not

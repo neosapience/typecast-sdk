@@ -50,7 +50,22 @@ export class TypecastClient {
   private static buildUserAgent(baseHost: string): string {
     const nodeVersion = process.versions.node.split('.').slice(0, 2).join('.');
     const base = baseHost.toLowerCase() === DEFAULT_BASE_HOST ? 'default' : 'custom';
-    return `typecast-js/${SDK_VERSION} Node/${nodeVersion} fetch (runtime=node; base=${base})`;
+    const os = TypecastClient.normalizeOS(process.platform);
+    const arch = TypecastClient.normalizeArch(process.arch);
+    return `typecast-js/${SDK_VERSION} Node/${nodeVersion} fetch (runtime=node; base=${base}; os=${os}; arch=${arch}; sdk_env=node; platform=server)`;
+  }
+
+  private static normalizeOS(os: string): string {
+    if (os === 'darwin') return 'macos';
+    if (os === 'win32') return 'windows';
+    return os || 'unknown';
+  }
+
+  private static normalizeArch(arch: string): string {
+    if (arch === 'x64') return 'x64';
+    if (arch === 'arm64') return 'arm64';
+    if (arch === 'ia32') return 'x86';
+    return arch || 'unknown';
   }
 
   /**

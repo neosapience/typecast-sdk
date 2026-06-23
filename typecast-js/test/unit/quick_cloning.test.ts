@@ -131,7 +131,7 @@ describe('TypecastClient.cloneVoice', () => {
     expect(init.headers).toHaveProperty('X-API-KEY', 'test-api-key');
     expect(init.headers).toHaveProperty(
       'User-Agent',
-      expect.stringMatching(/^typecast-js\/0\.4\.5 Node\/\d+\.\d+ fetch \(runtime=node; base=custom\)$/),
+      expect.stringMatching(/^typecast-js\/0\.4\.5 Node\/\d+\.\d+ fetch \(runtime=node; base=custom; os=[a-z0-9_-]+; arch=[a-z0-9_-]+; sdk_env=node; platform=server\)$/),
     );
     expect(init.body).toBeInstanceOf(FormData);
     const form = init.body;

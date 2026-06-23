@@ -108,13 +108,45 @@ func (c *Client) setUserAgent(headers http.Header) {
 	headers.Set(
 		"User-Agent",
 		fmt.Sprintf(
-			"typecast-go/%s Go/%s net-http (base=%s; timeout=%s)",
+			"typecast-go/%s Go/%s net-http (base=%s; timeout=%s; os=%s; arch=%s; sdk_env=go; platform=server)",
 			SDKVersion,
 			strings.TrimPrefix(runtime.Version(), "go"),
 			base,
 			timeout,
+			normalizedOS(runtime.GOOS),
+			normalizedArch(runtime.GOARCH),
 		),
 	)
+}
+
+func normalizedOS(os string) string {
+	switch os {
+	case "darwin":
+		return "macos"
+	case "windows":
+		return "windows"
+	default:
+		if os == "" {
+			return "unknown"
+		}
+		return os
+	}
+}
+
+func normalizedArch(arch string) string {
+	switch arch {
+	case "amd64":
+		return "x64"
+	case "386":
+		return "x86"
+	case "arm64":
+		return "arm64"
+	default:
+		if arch == "" {
+			return "unknown"
+		}
+		return arch
+	}
 }
 
 func isDefaultBaseURL(baseURL string) bool {

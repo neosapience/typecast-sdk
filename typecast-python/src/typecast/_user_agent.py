@@ -15,6 +15,24 @@ def _package_version(package_name: str) -> str:
         return "dev"
 
 
+def _os_name() -> str:
+    system = platform.system().lower()
+    if system == "darwin":
+        return "macos"
+    if system.startswith("windows"):
+        return "windows"
+    return system or "unknown"
+
+
+def _arch_name() -> str:
+    machine = platform.machine().lower()
+    if machine in {"x86_64", "amd64"}:
+        return "x64"
+    if machine in {"aarch64", "arm64"}:
+        return "arm64"
+    return machine or "unknown"
+
+
 def build_user_agent(
     *,
     mode: str,
@@ -29,7 +47,8 @@ def build_user_agent(
         f"Python/{sys.version_info.major}.{sys.version_info.minor} "
         f"{platform.python_implementation()}/{platform.python_version()} "
         f"{http_library} "
-        f"(mode={mode}; base={base}; transport={transport})"
+        f"(mode={mode}; base={base}; transport={transport}; "
+        f"os={_os_name()}; arch={_arch_name()}; sdk_env=python; platform=server)"
     )
 
 
