@@ -274,6 +274,16 @@ pub const VoiceV2 = struct {
     use_cases: ?[]const []const u8 = null,
 };
 
+/// Recommended voice result.
+///
+/// Recommendation results include only voice_id, voice_name, and score.
+/// Use getVoiceV2 or getVoicesV2 when detailed voice metadata is needed.
+pub const RecommendedVoice = struct {
+    voice_id: []const u8,
+    voice_name: []const u8,
+    score: f64,
+};
+
 pub const VoicesV2Filter = struct {
     model: ?TtsModel = null,
     gender: ?Gender = null,

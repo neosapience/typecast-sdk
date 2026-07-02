@@ -139,6 +139,21 @@ public class CoverageGapModelTests
         voice.UseCases!.Should().Contain("narration");
     }
 
+    [Fact]
+    public void RecommendedVoice_DefaultProperties_ShouldRoundTrip()
+    {
+        var voice = new RecommendedVoice
+        {
+            VoiceId = "v1",
+            VoiceName = "Voice One",
+            Score = 0.91,
+        };
+
+        voice.VoiceId.Should().Be("v1");
+        voice.VoiceName.Should().Be("Voice One");
+        voice.Score.Should().Be(0.91);
+    }
+
     // ----- TypecastException: 504 status branch -----
 
     [Fact]

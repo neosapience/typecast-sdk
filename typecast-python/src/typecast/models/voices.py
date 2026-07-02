@@ -68,6 +68,19 @@ class VoiceV2Response(BaseModel):
     use_cases: Optional[list[str]] = None
 
 
+class RecommendedVoice(BaseModel):
+    """Recommended voice result.
+
+    Recommendation results only include the matched voice ID, voice name, and
+    similarity score. Use ``voice_v2`` or ``voices_v2`` to fetch detailed voice
+    metadata for a returned ``voice_id``.
+    """
+
+    voice_id: str
+    voice_name: str
+    score: float
+
+
 class VoicesV2Filter(BaseModel):
     """Filter options for V2 voices endpoint"""
 

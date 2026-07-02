@@ -568,6 +568,7 @@ static void test_client_get_error_null(void) {
 static void test_voice_free_null(void) {
     typecast_voice_free(NULL);
     typecast_voices_response_free(NULL);
+    typecast_recommended_voices_response_free(NULL);
     typecast_tts_response_free(NULL);
 }
 
@@ -1434,6 +1435,135 @@ static void test_voices_filter_single_use_case(void) {
 }
 
 /* ============================================
+ * Recommend voices
+ * ============================================ */
+
+static const char* RECOMMENDED_VOICES_JSON =
+"[{"
+  "\"voice_id\":\"tc_rec\","
+  "\"voice_name\":\"Warm Narrator\","
+  "\"score\":0.97"
+"},"
+"{"
+  "\"voice_id\":\"tc_sparse\","
+  "\"voice_name\":\"Sparse\""
+"},"
+"42]";
+
+static void test_recommend_voices_happy(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL, RECOMMENDED_VOICES_JSON);
+
+    TypecastRecommendedVoicesResponse* r = typecast_recommend_voices(c, "warm narrator", 2);
+    ASSERT_NOT_NULL(r);
+    ASSERT_EQ(r->count, 3);
+    ASSERT_STREQ(r->voices[0].voice_id, "tc_rec");
+    ASSERT_STREQ(r->voices[0].voice_name, "Warm Narrator");
+    ASSERT(r->voices[0].score > 0.96 && r->voices[0].score < 0.98);
+    ASSERT_STREQ(r->voices[1].voice_id, "tc_sparse");
+    ASSERT_STREQ(r->voices[1].voice_name, "Sparse");
+    ASSERT_EQ((int)r->voices[1].score, 0);
+    ASSERT_NULL(r->voices[2].voice_id);
+    ASSERT_NULL(r->voices[2].voice_name);
+    ASSERT(strstr(g_server.last_path, "/v1/voices/recommendations") != NULL);
+    ASSERT(strstr(g_server.last_path, "query=warm%20narrator") != NULL);
+    ASSERT(strstr(g_server.last_path, "count=2") != NULL);
+
+    typecast_recommended_voices_response_free(r);
+    typecast_client_destroy(c);
+}
+
+static void test_recommend_voices_default_count(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL, "[]");
+
+    TypecastRecommendedVoicesResponse* r = typecast_recommend_voices(c, "calm", 0);
+    ASSERT_NOT_NULL(r);
+    ASSERT_EQ(r->count, 0);
+    ASSERT(strstr(g_server.last_path, "count=5") != NULL);
+
+    typecast_recommended_voices_response_free(r);
+    typecast_client_destroy(c);
+}
+
+static void test_recommend_voices_null_args(void) {
+    TypecastClient* c = new_client();
+    ASSERT_NULL(typecast_recommend_voices(NULL, "voice", 1));
+    ASSERT_NULL(typecast_recommend_voices(c, NULL, 1));
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_INVALID_PARAM);
+    typecast_client_destroy(c);
+}
+
+static void test_recommend_voices_invalid_count(void) {
+    TypecastClient* c = new_client();
+    ASSERT_NULL(typecast_recommend_voices(c, "voice", 11));
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_INVALID_PARAM);
+    typecast_client_destroy(c);
+}
+
+static void test_recommend_voices_empty_query(void) {
+    TypecastClient* c = new_client();
+    ASSERT_NULL(typecast_recommend_voices(c, "   ", 1));
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_INVALID_PARAM);
+    typecast_client_destroy(c);
+}
+
+static void test_recommend_voices_url_too_long(void) {
+    TypecastClient* c = new_client();
+    char query[2000];
+    memset(query, 'a', sizeof(query) - 1);
+    query[sizeof(query) - 1] = '\0';
+
+    ASSERT_NULL(typecast_recommend_voices(c, query, 1));
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_INVALID_PARAM);
+    typecast_client_destroy(c);
+}
+
+static void test_recommend_voices_http_error(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(401, NULL, "{}");
+    TypecastRecommendedVoicesResponse* r = typecast_recommend_voices(c, "voice", 1);
+    ASSERT_NULL(r);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_UNAUTHORIZED);
+    typecast_client_destroy(c);
+}
+
+static void test_recommend_voices_invalid_json(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL, "not-json[");
+    TypecastRecommendedVoicesResponse* r = typecast_recommend_voices(c, "voice", 1);
+    ASSERT_NULL(r);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_JSON_PARSE);
+    typecast_client_destroy(c);
+}
+
+static void test_recommend_voices_not_array(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL, "{\"oops\":1}");
+    TypecastRecommendedVoicesResponse* r = typecast_recommend_voices(c, "voice", 1);
+    ASSERT_NULL(r);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_JSON_PARSE);
+    typecast_client_destroy(c);
+}
+
+static void test_recommend_voices_network_error(void) {
+    TypecastClient* c = typecast_client_create_with_host("key", "http://127.0.0.1:1");
+    ASSERT_NOT_NULL(c);
+    TypecastRecommendedVoicesResponse* r = typecast_recommend_voices(c, "voice", 1);
+    ASSERT_NULL(r);
+    const TypecastError* e = typecast_client_get_error(c);
+    ASSERT_EQ(e->code, TYPECAST_ERROR_NETWORK);
+    typecast_client_destroy(c);
+}
+
+/* ============================================
  * get_voice (single voice)
  * ============================================ */
 
@@ -1842,6 +1972,18 @@ int main(void) {
     RUN(voices_filter_single_gender);
     RUN(voices_filter_single_age);
     RUN(voices_filter_single_use_case);
+
+    /* Recommend voices */
+    RUN(recommend_voices_happy);
+    RUN(recommend_voices_default_count);
+    RUN(recommend_voices_null_args);
+    RUN(recommend_voices_invalid_count);
+    RUN(recommend_voices_empty_query);
+    RUN(recommend_voices_url_too_long);
+    RUN(recommend_voices_http_error);
+    RUN(recommend_voices_invalid_json);
+    RUN(recommend_voices_not_array);
+    RUN(recommend_voices_network_error);
 
     /* get_voice */
     RUN(get_voice_happy);

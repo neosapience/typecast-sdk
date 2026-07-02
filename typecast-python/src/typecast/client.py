@@ -26,6 +26,7 @@ from .models import (
     CustomVoice,
     LanguageCode,
     Output,
+    RecommendedVoice,
     SubscriptionResponse,
     TTSModel,
     TTSPrompt,
@@ -486,3 +487,25 @@ class Typecast:
             self._handle_error(response.status_code, response.text)
 
         return VoiceV2Response.model_validate(response.json())
+
+    def recommend_voices(self, query: str, count: int = 5) -> list[RecommendedVoice]:
+        """Recommend voices from a text description.
+
+        Recommendation results only include ``voice_id``, ``voice_name``, and
+        ``score``. Use ``voice_v2`` or ``voices_v2`` to fetch detailed metadata
+        for returned voice IDs.
+
+        Args:
+            query: Text description of the desired voice.
+            count: Number of recommendations to return, from 1 to 10. Defaults to 5.
+        """
+        if count < 1 or count > 10:
+            raise ValueError("count must be between 1 and 10")
+
+        response = self.session.get(
+            f"{self.host}/v1/voices/recommendations",
+            params={"query": query, "count": count},
+        )
+        if response.status_code != 200:
+            self._handle_error(response.status_code, response.text)
+        return [RecommendedVoice.model_validate(item) for item in response.json()]

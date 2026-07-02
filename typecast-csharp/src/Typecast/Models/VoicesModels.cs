@@ -96,6 +96,35 @@ public class VoiceV2Response
 }
 
 /// <summary>
+/// Voice recommendation result.
+/// </summary>
+/// <remarks>
+/// Recommendation results only include the matched voice ID, voice name, and
+/// similarity score. Use <c>GetVoiceV2</c> or <c>GetVoicesV2</c> to fetch
+/// detailed voice metadata for a returned voice ID.
+/// </remarks>
+public class RecommendedVoice
+{
+    /// <summary>
+    /// The unique voice identifier.
+    /// </summary>
+    [JsonPropertyName("voice_id")]
+    public string VoiceId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The display name of the voice.
+    /// </summary>
+    [JsonPropertyName("voice_name")]
+    public string VoiceName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Similarity score for the text query.
+    /// </summary>
+    [JsonPropertyName("score")]
+    public double Score { get; set; }
+}
+
+/// <summary>
 /// Filter options for V2 voices API.
 /// </summary>
 public class VoicesV2Filter

@@ -91,6 +91,18 @@ module Typecast
       voices.first
     end
 
+    # Recommends voices from a text description.
+    #
+    # Results only include voice_id, voice_name, and score. Use get_voice_v2 or
+    # get_voices_v2 to fetch detailed voice metadata for returned voice IDs.
+    def recommend_voices(query, count: 5)
+      raise ArgumentError, "count must be between 1 and 10" unless (1..10).cover?(count)
+
+      JSON.parse(request_json(:get, "/v1/voices/recommendations", nil, { query: query, count: count }).body).map do |item|
+        Models::RecommendedVoice.from_h(item)
+      end
+    end
+
     def clone_voice(audio:, filename:, name:, model:)
       validate_clone_inputs(audio, name)
       response = request_multipart("/v1/voices/clone", audio: audio, filename: filename, fields: { name: name, model: model })

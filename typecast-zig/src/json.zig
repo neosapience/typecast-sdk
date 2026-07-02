@@ -206,6 +206,15 @@ fn getInteger(obj: std.json.ObjectMap, key: []const u8) !i64 {
     };
 }
 
+fn getFloat(obj: std.json.ObjectMap, key: []const u8) !f64 {
+    const val = obj.get(key) orelse return error.JsonParseError;
+    return switch (val) {
+        .float => |n| n,
+        .integer => |n| @floatFromInt(n),
+        else => error.JsonParseError,
+    };
+}
+
 fn getObject(obj: std.json.ObjectMap, key: []const u8) !std.json.ObjectMap {
     const val = obj.get(key) orelse return error.JsonParseError;
     return switch (val) {
@@ -377,6 +386,50 @@ pub fn parseVoicesV2(allocator: std.mem.Allocator, data: []const u8) ![]models.V
             .gender = gender,
             .age = age,
             .use_cases = use_cases,
+        };
+        initialized = i + 1;
+    }
+
+    return voices;
+}
+
+/// Parse an array of RecommendedVoice from JSON bytes. Caller owns returned slice.
+pub fn parseRecommendedVoices(allocator: std.mem.Allocator, data: []const u8) ![]models.RecommendedVoice {
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, data, .{});
+    defer parsed.deinit();
+    const items = switch (parsed.value) {
+        .array => |a| a.items,
+        else => return error.JsonParseError,
+    };
+
+    var voices = try allocator.alloc(models.RecommendedVoice, items.len);
+    var initialized: usize = 0;
+    errdefer {
+        for (voices[0..initialized]) |v| {
+            allocator.free(v.voice_id);
+            allocator.free(v.voice_name);
+        }
+        allocator.free(voices);
+    }
+
+    for (items, 0..) |item, i| {
+        const obj = switch (item) {
+            .object => |o| o,
+            else => return error.JsonParseError,
+        };
+
+        const voice_id_str = try getString(obj, "voice_id");
+        const voice_name_str = try getString(obj, "voice_name");
+        const score = try getFloat(obj, "score");
+
+        const voice_id = try allocator.dupe(u8, voice_id_str);
+        errdefer allocator.free(voice_id);
+        const voice_name = try allocator.dupe(u8, voice_name_str);
+
+        voices[i] = .{
+            .voice_id = voice_id,
+            .voice_name = voice_name,
+            .score = score,
         };
         initialized = i + 1;
     }

@@ -597,6 +597,74 @@ class TypecastClientTest {
         }
     }
 
+    @Test
+    @DisplayName("recommendVoices should return scored voice recommendations")
+    fun recommendVoices_success() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""[{"voice_id":"tc_rec","voice_name":"Recommended","score":0.97}]""")
+        )
+
+        val voices = client.recommendVoices("warm narrator", 2)
+
+        assertEquals(1, voices.size)
+        assertEquals("tc_rec", voices.single().voiceId)
+        assertEquals("Recommended", voices.single().voiceName)
+        assertEquals(0.97, voices.single().score)
+        assertEquals(
+            "/v1/voices/recommendations?query=warm%20narrator&count=2",
+            mockServer.takeRequest().path
+        )
+    }
+
+    @Test
+    @DisplayName("recommendVoices should default count and validate range")
+    fun recommendVoices_defaultCountAndValidation() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("[]")
+        )
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("[]")
+        )
+
+        assertTrue(client.recommendVoices("voice", 0).isEmpty())
+        assertEquals("/v1/voices/recommendations?query=voice&count=5", mockServer.takeRequest().path)
+        assertTrue(client.recommendVoices("voice").isEmpty())
+        assertEquals("/v1/voices/recommendations?query=voice&count=5", mockServer.takeRequest().path)
+        assertThrows(IllegalArgumentException::class.java) {
+            client.recommendVoices("  ", 1)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            client.recommendVoices("voice", -1)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            client.recommendVoices("voice", 11)
+        }
+    }
+
+    @Test
+    @DisplayName("recommendVoices should propagate API errors")
+    fun recommendVoices_error() {
+        mockServer.enqueue(
+            MockResponse()
+                .setResponseCode(401)
+                .setHeader("Content-Type", "application/json")
+                .setBody("""{"detail":"Invalid API key"}""")
+        )
+
+        assertThrows(UnauthorizedException::class.java) {
+            client.recommendVoices("voice", 1)
+        }
+    }
+
     // ==================== Subscription Tests ====================
 
     @Test

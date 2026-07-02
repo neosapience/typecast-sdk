@@ -4,6 +4,9 @@ pub const json_helpers = @import("json.zig");
 pub const timestamps = @import("timestamps.zig");
 pub const composer = @import("composer.zig");
 
+// Re-export recommendation types at the top level for convenience.
+pub const RecommendedVoice = models.RecommendedVoice;
+
 // Re-export quick-cloning types at the top level for convenience.
 pub const CustomVoice = models.CustomVoice;
 pub const GenerateToFileRequest = models.GenerateToFileRequest;

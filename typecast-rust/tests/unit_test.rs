@@ -1483,6 +1483,68 @@ async fn get_voice_v2_propagates_404() {
 }
 
 // ---------------------------------------------------------------------------
+// client.rs - recommend_voices
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn recommend_voices_returns_scored_results() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/v1/voices/recommendations")
+        .match_query(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::UrlEncoded("query".into(), "warm narrator".into()),
+            mockito::Matcher::UrlEncoded("count".into(), "2".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"[{"voice_id":"tc_a","voice_name":"Alice","score":0.97}]"#)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let voices = client
+        .recommend_voices("warm narrator", Some(2))
+        .await
+        .unwrap();
+    assert_eq!(voices.len(), 1);
+    assert_eq!(voices[0].voice_id, "tc_a");
+    assert_eq!(voices[0].score, 0.97);
+}
+
+#[tokio::test]
+async fn recommend_voices_defaults_count_to_five() {
+    let mut server = Server::new_async().await;
+    let _m = server
+        .mock("GET", "/v1/voices/recommendations")
+        .match_query(mockito::Matcher::UrlEncoded("count".into(), "5".into()))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body("[]")
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let voices = client.recommend_voices("voice", None).await.unwrap();
+    assert!(voices.is_empty());
+}
+
+#[tokio::test]
+async fn recommend_voices_rejects_invalid_count() {
+    let server = Server::new_async().await;
+    let client = make_client(&server);
+    let err = client
+        .recommend_voices("voice", Some(11))
+        .await
+        .unwrap_err();
+    match err {
+        TypecastError::ValidationError { detail } => {
+            assert_eq!(detail, "count must be between 1 and 10")
+        }
+        other => panic!("expected validation error, got {other:?}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // client.rs - urlencoding helper
 // ---------------------------------------------------------------------------
 

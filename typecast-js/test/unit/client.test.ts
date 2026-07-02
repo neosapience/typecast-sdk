@@ -510,6 +510,44 @@ describe('TypecastClient', () => {
         statusCode: 404,
       });
     });
+
+    it('recommendVoices sends query and count, then returns scored voice ids', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve([
+            { voice_id: 'tc_v2_001', voice_name: 'V2 Voice', score: 0.98 },
+          ]),
+      });
+
+      const recommendations = await client.recommendVoices('warm narrator', 2);
+
+      expect(recommendations).toEqual([
+        { voice_id: 'tc_v2_001', voice_name: 'V2 Voice', score: 0.98 },
+      ]);
+      const [calledUrl] = mockFetch.mock.calls[0];
+      const url = new URL(calledUrl as string);
+      expect(url.pathname).toBe('/v1/voices/recommendations');
+      expect(url.searchParams.get('query')).toBe('warm narrator');
+      expect(url.searchParams.get('count')).toBe('2');
+    });
+
+    it('recommendVoices defaults count to 5 and validates the range', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve([]),
+      });
+
+      await client.recommendVoices('voice');
+
+      const [calledUrl] = mockFetch.mock.calls[0];
+      expect(new URL(calledUrl as string).searchParams.get('count')).toBe('5');
+      await expect(client.recommendVoices('voice', 11)).rejects.toThrow(
+        'count must be between 1 and 10',
+      );
+    });
   });
 
   describe('subscription', () => {

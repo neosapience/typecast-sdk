@@ -84,6 +84,26 @@ public struct VoiceV2: Codable, Sendable {
     }
 }
 
+/// Voice recommendation result.
+///
+/// Recommendation results only include the matched voice ID, voice name, and
+/// similarity score. Use `getVoice(voiceId:)` or `getVoices(filter:)` to fetch
+/// detailed voice metadata for a returned voice ID.
+public struct RecommendedVoice: Codable, Sendable {
+    /// Unique voice identifier
+    public let voiceId: String
+    /// Human-readable name of the voice
+    public let voiceName: String
+    /// Similarity score for the text query
+    public let score: Double
+
+    enum CodingKeys: String, CodingKey {
+        case voiceId = "voice_id"
+        case voiceName = "voice_name"
+        case score
+    }
+}
+
 // MARK: - Voice Filter
 
 /// Filter options for V2 voices endpoint

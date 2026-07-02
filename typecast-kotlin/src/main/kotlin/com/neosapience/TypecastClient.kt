@@ -377,6 +377,37 @@ class TypecastClient private constructor(
     }
 
     /**
+     * Recommends voices from a text description.
+     *
+     * Results only include voiceId, voiceName, and score. Use [getVoiceV2] or
+     * [getVoicesV2] to fetch detailed voice metadata for returned voice IDs.
+     *
+     * @param query Text description of the desired voice
+     * @param count Number of recommendations to return, from 1 to 10. Defaults to 5.
+     * @return list of recommended voices with similarity scores
+     */
+    fun recommendVoices(query: String, count: Int = 5): List<RecommendedVoice> {
+        require(query.isNotBlank()) { "query must not be blank" }
+        val resolvedCount = if (count == 0) 5 else count
+        require(resolvedCount in 1..10) { "count must be between 1 and 10" }
+
+        val url = "$baseUrl/v1/voices/recommendations".toHttpUrl().newBuilder()
+            .addQueryParameter("query", query)
+            .addQueryParameter("count", resolvedCount.toString())
+            .build()
+
+        val httpRequest = Request.Builder()
+            .url(url)
+            .addAuthHeader()
+            .addUserAgentHeader()
+            .addHeader("Content-Type", "application/json")
+            .get()
+            .build()
+
+        return executeRequest(httpRequest)
+    }
+
+    /**
      * Gets the authenticated user's subscription information.
      *
      * @return the user's current subscription, including plan, credits, and limits

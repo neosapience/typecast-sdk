@@ -439,6 +439,110 @@ public class TypecastClientTests : IDisposable
     }
 
     [Fact]
+    public async Task RecommendVoicesAsync_ShouldReturnRecommendations()
+    {
+        // Arrange
+        var jsonResponse = @"[
+            {
+                ""voice_id"": ""voice_1"",
+                ""voice_name"": ""Warm Narrator"",
+                ""score"": 0.97
+            }
+        ]";
+
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
+        };
+
+        HttpRequestMessage? capturedRequest = null;
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) => capturedRequest = req)
+            .ReturnsAsync(response);
+
+        // Act
+        var result = await _client.RecommendVoicesAsync("warm narrator", 2);
+
+        // Assert
+        result.Should().HaveCount(1);
+        result[0].VoiceId.Should().Be("voice_1");
+        result[0].VoiceName.Should().Be("Warm Narrator");
+        result[0].Score.Should().Be(0.97);
+        capturedRequest.Should().NotBeNull();
+        capturedRequest!.RequestUri!.AbsolutePath.Should().Be("/v1/voices/recommendations");
+        capturedRequest.RequestUri.Query.Should().Contain("query=warm%20narrator");
+        capturedRequest.RequestUri.Query.Should().Contain("count=2");
+    }
+
+    [Fact]
+    public async Task RecommendVoicesAsync_ShouldDefaultCountToFive()
+    {
+        // Arrange
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("[]", Encoding.UTF8, "application/json")
+        };
+
+        HttpRequestMessage? capturedRequest = null;
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .Callback<HttpRequestMessage, CancellationToken>((req, _) => capturedRequest = req)
+            .ReturnsAsync(response);
+
+        // Act
+        await _client.RecommendVoicesAsync("calm voice");
+
+        // Assert
+        capturedRequest.Should().NotBeNull();
+        capturedRequest!.RequestUri!.Query.Should().Contain("count=5");
+    }
+
+    [Fact]
+    public async Task RecommendVoicesAsync_WithInvalidCount_ShouldThrow()
+    {
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _client.RecommendVoicesAsync("voice", 0));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _client.RecommendVoicesAsync("voice", 11));
+    }
+
+    [Fact]
+    public async Task RecommendVoicesAsync_WithBlankQuery_ShouldThrow()
+    {
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(() => _client.RecommendVoicesAsync("  ", 1));
+    }
+
+    [Fact]
+    public async Task RecommendVoicesAsync_WithError_ShouldThrowCorrectException()
+    {
+        // Arrange
+        var response = new HttpResponseMessage(HttpStatusCode.Unauthorized)
+        {
+            Content = new StringContent("Invalid API key")
+        };
+
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedException>(() => _client.RecommendVoicesAsync("voice", 1));
+    }
+
+    [Fact]
     public async Task Request_ShouldIncludeApiKeyHeader()
     {
         // Arrange
@@ -708,6 +812,27 @@ public class TypecastClientTests : IDisposable
 
         var voice = _client.GetVoiceV2("v1");
         voice.VoiceId.Should().Be("v1");
+    }
+
+    [Fact]
+    public void RecommendVoices_Sync_ShouldReturnList()
+    {
+        var json = "[{\"voice_id\":\"v1\",\"voice_name\":\"V1\",\"score\":0.8}]";
+        var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+        _mockHandler
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.IsAny<HttpRequestMessage>(),
+                ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(response);
+
+        var voices = _client.RecommendVoices("voice", 1);
+        voices.Should().HaveCount(1);
+        voices[0].VoiceId.Should().Be("v1");
     }
 
     [Fact]

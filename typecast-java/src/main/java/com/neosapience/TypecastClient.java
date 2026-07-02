@@ -831,6 +831,64 @@ public class TypecastClient {
     }
 
     /**
+     * Recommends voices from a text description.
+     *
+     * <p>Results only include {@code voiceId}, {@code voiceName}, and
+     * {@code score}. Use {@link #getVoiceV2(String)} or {@link #getVoicesV2()}
+     * to fetch detailed voice metadata for returned voice IDs.</p>
+     *
+     * @param query text description of the desired voice
+     * @param count number of recommendations to return, from 1 to 10. Defaults to 5 when 0.
+     * @return recommended voices with similarity scores
+     * @throws IllegalArgumentException if count is outside 1..10
+     * @throws TypecastException if the API call fails
+     */
+    public List<RecommendedVoice> recommendVoices(String query, int count) {
+        if (query == null || query.trim().isEmpty()) {
+            throw new IllegalArgumentException("query is required");
+        }
+        int resolvedCount = count == 0 ? 5 : count;
+        if (resolvedCount < 1 || resolvedCount > 10) {
+            throw new IllegalArgumentException("count must be between 1 and 10");
+        }
+
+        HttpUrl url = HttpUrl.parse(baseUrl + "/v1/voices/recommendations").newBuilder()
+                .addQueryParameter("query", query)
+                .addQueryParameter("count", Integer.toString(resolvedCount))
+                .build();
+
+        Request httpRequest = addAuthHeader(new Request.Builder()
+                .url(url)
+                .addHeader("Content-Type", CONTENT_TYPE_JSON)
+                .get()
+                .build());
+
+        try (Response response = httpClient.newCall(httpRequest).execute()) {
+            String responseBody = response.body().string();
+
+            if (!response.isSuccessful()) {
+                throw createException(response.code(), responseBody);
+            }
+
+            Type listType = new TypeToken<List<RecommendedVoice>>(){}.getType();
+            return gson.fromJson(responseBody, listType);
+        } catch (IOException e) {
+            throw new TypecastException("Failed to make API request", e);
+        }
+    }
+
+    /**
+     * Recommends voices from a text description using the default count of 5.
+     *
+     * @param query text description of the desired voice
+     * @return recommended voices with similarity scores
+     * @throws TypecastException if the API call fails
+     */
+    public List<RecommendedVoice> recommendVoices(String query) {
+        return recommendVoices(query, 5);
+    }
+
+    /**
      * Gets the authenticated user's subscription information.
      *
      * <p>Calls {@code GET /v1/users/me/subscription} and returns the current

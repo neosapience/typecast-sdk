@@ -347,6 +347,30 @@ class VoiceV2 {
   final List<String> useCases;
 }
 
+class RecommendedVoice {
+  /// Voice recommendation result.
+  ///
+  /// Recommendation results only include the matched voice ID, voice name, and
+  /// similarity score. Use getVoiceV2 or getVoicesV2 to fetch detailed voice
+  /// metadata for a returned voice ID.
+  const RecommendedVoice({
+    required this.voiceId,
+    required this.voiceName,
+    required this.score,
+  });
+
+  factory RecommendedVoice.fromJson(Map<String, dynamic> json) =>
+      RecommendedVoice(
+        voiceId: json['voice_id'] as String? ?? '',
+        voiceName: json['voice_name'] as String? ?? '',
+        score: (json['score'] as num?)?.toDouble() ?? 0,
+      );
+
+  final String voiceId;
+  final String voiceName;
+  final double score;
+}
+
 class VoicesV2Filter {
   const VoicesV2Filter({this.model, this.gender, this.age, this.useCases});
 

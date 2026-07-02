@@ -648,6 +648,28 @@ class CoverageTest {
         assertThrows(UnauthorizedException.class, () -> client.getVoiceV2("tc"));
     }
 
+    @Test
+    void recommendVoices_ioException() throws IOException {
+        mockServer.shutdown();
+        assertThrows(TypecastException.class, () -> client.recommendVoices("voice", 1));
+    }
+
+    @Test
+    void recommendedVoice_gettersSettersAndCtor() {
+        RecommendedVoice voice = new RecommendedVoice("v1", "Voice 1", 0.5);
+        assertEquals("v1", voice.getVoiceId());
+        assertEquals("Voice 1", voice.getVoiceName());
+        assertEquals(0.5, voice.getScore(), 0.001);
+
+        RecommendedVoice empty = new RecommendedVoice();
+        empty.setVoiceId("v2");
+        empty.setVoiceName("Voice 2");
+        empty.setScore(0.75);
+        assertEquals("v2", empty.getVoiceId());
+        assertEquals("Voice 2", empty.getVoiceName());
+        assertEquals(0.75, empty.getScore(), 0.001);
+    }
+
     // ==================== Models: TTSRequest setters & toString ====================
 
     @Test

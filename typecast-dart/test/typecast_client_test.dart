@@ -197,6 +197,29 @@ void main() {
       expect(voice.voiceName, 'Voice');
     });
 
+    test('recommendVoices sends query and parses scored results', () async {
+      final client = TypecastClient(
+        apiKey: 'key',
+        baseUrl: 'https://api.test',
+        httpClient: MockClient((request) async {
+          expect(request.url.path, '/v1/voices/recommendations');
+          expect(request.url.queryParameters['query'], 'warm narrator');
+          expect(request.url.queryParameters['count'], '2');
+          return http.Response(
+            jsonEncode([
+              {'voice_id': 'tc_123', 'voice_name': 'Voice', 'score': 0.97},
+            ]),
+            200,
+          );
+        }),
+      );
+
+      final voices = await client.recommendVoices('warm narrator', count: 2);
+
+      expect(voices.single.voiceId, 'tc_123');
+      expect(voices.single.score, 0.97);
+    });
+
     test('cloneVoice validates size and posts multipart', () async {
       final client = TypecastClient(
         apiKey: 'key',

@@ -18,6 +18,7 @@ use Neosapience\Typecast\Models\CustomVoice;
 use Neosapience\Typecast\Models\Output;
 use Neosapience\Typecast\Models\PresetPrompt;
 use Neosapience\Typecast\Models\Prompt;
+use Neosapience\Typecast\Models\RecommendedVoice;
 use Neosapience\Typecast\Models\SmartPrompt;
 use Neosapience\Typecast\Models\SubscriptionResponse;
 use Neosapience\Typecast\Models\TTSRequest;
@@ -338,6 +339,43 @@ class TypecastClient
         }
 
         return VoiceV2::fromArray($items[0]);
+    }
+
+    /**
+     * Recommend voices from a text description.
+     *
+     * Results only include voiceId, voiceName, and score. Use getVoiceV2() or
+     * getVoicesV2() to fetch detailed voice metadata for returned voice IDs.
+     *
+     * @return RecommendedVoice[]
+     * @throws TypecastException
+     */
+    public function recommendVoices(string $query, int $count = 5): array
+    {
+        if ($count < 1 || $count > 10) {
+            throw new \InvalidArgumentException('count must be between 1 and 10');
+        }
+
+        try {
+            $response = $this->httpClient->request('GET', '/v1/voices/recommendations', $this->requestOptions([
+                'query' => ['query' => $query, 'count' => $count],
+            ]));
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
+
+        $statusCode = $response->getStatusCode();
+        if ($statusCode !== 200) {
+            $this->handleError($statusCode, (string) $response->getBody());
+        }
+
+        /** @var array<int, array<string, mixed>> $items */
+        $items = $this->decodeJson((string) $response->getBody());
+
+        return array_map(
+            static fn(array $item): RecommendedVoice => RecommendedVoice::fromArray($item),
+            $items,
+        );
     }
 
     /**

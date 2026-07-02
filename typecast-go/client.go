@@ -354,6 +354,42 @@ func (c *Client) GetVoiceV2(ctx context.Context, voiceID string) (*VoiceV2, erro
 	return &voice, nil
 }
 
+// RecommendVoices recommends voices from a text description.
+//
+// Results only contain VoiceID, VoiceName, and Score. Use GetVoiceV2 or
+// GetVoicesV2 when you need detailed metadata for the returned voice IDs.
+// count must be between 1 and 10 and defaults to 5 when zero.
+func (c *Client) RecommendVoices(ctx context.Context, query string, count int) ([]RecommendedVoice, error) {
+	if count == 0 {
+		count = 5
+	}
+	if count < 1 || count > 10 {
+		return nil, fmt.Errorf("count must be between 1 and 10")
+	}
+
+	params := url.Values{}
+	params.Set("query", query)
+	params.Set("count", strconv.Itoa(count))
+	path := "/v1/voices/recommendations?" + params.Encode()
+
+	resp, err := c.doRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+
+	var voices []RecommendedVoice
+	if err := json.NewDecoder(resp.Body).Decode(&voices); err != nil {
+		return nil, fmt.Errorf("failed to decode voice recommendations response: %w", err)
+	}
+
+	return voices, nil
+}
+
 // GetMySubscription retrieves the authenticated user's subscription details
 func (c *Client) GetMySubscription(ctx context.Context) (*SubscriptionResponse, error) {
 	resp, err := c.doRequest(ctx, http.MethodGet, "/v1/users/me/subscription", nil)

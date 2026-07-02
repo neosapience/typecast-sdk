@@ -67,6 +67,22 @@ export interface VoiceV2Response {
 }
 
 /**
+ * Recommended voice result.
+ *
+ * Recommendation results only include the matched voice ID, voice name, and
+ * similarity score. Use getVoiceV2() or getVoicesV2() to fetch detailed voice
+ * metadata for a returned voice_id.
+ */
+export interface RecommendedVoice {
+  /** Unique voice identifier */
+  voice_id: string;
+  /** Human-readable name of the voice */
+  voice_name: string;
+  /** Similarity score for the text query */
+  score: number;
+}
+
+/**
  * Filter options for V2 voices endpoint
  */
 export interface VoicesV2Filter {

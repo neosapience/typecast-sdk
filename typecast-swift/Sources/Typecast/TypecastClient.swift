@@ -306,6 +306,29 @@ public final class TypecastClient: Sendable {
     return try handleResponse(data: data, response: response)
   }
 
+  /// Recommend voices from a text description.
+  ///
+  /// Results only include `voiceId`, `voiceName`, and `score`. Use
+  /// `getVoice(voiceId:)` or `getVoices(filter:)` to fetch detailed voice
+  /// metadata for returned voice IDs.
+  /// - Parameters:
+  ///   - query: Text description of the desired voice.
+  ///   - count: Number of recommendations to return, from 1 to 10. Defaults to 5.
+  /// - Returns: Recommended voices with similarity scores.
+  public func recommendVoices(query: String, count: Int = 5) async throws -> [RecommendedVoice] {
+    guard (1...10).contains(count) else {
+      throw TypecastError.badRequest("count must be between 1 and 10")
+    }
+    let url = try buildURL(
+      path: "/v1/voices/recommendations",
+      queryParams: ["query": query, "count": String(count)]
+    )
+    let request = createRequest(url: url)
+
+    let (data, response) = try await session.data(for: request)
+    return try handleResponse(data: data, response: response)
+  }
+
   // MARK: - Subscription
 
   /// Get the authenticated user's subscription
