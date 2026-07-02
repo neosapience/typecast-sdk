@@ -1,5 +1,6 @@
 """Unit tests for AsyncTypecast using aioresponses."""
 
+import aiohttp
 import pytest
 from aioresponses import aioresponses
 
@@ -515,3 +516,25 @@ class TestAsyncSubscription:
         client = AsyncTypecast(host=HOST, api_key="key")
         with pytest.raises(TypecastError, match="session not initialized"):
             await client.get_my_subscription()
+
+
+@pytest.mark.asyncio
+async def test_external_session_is_not_recreated():
+    """An injected external aiohttp.ClientSession is not replaced by __aenter__."""
+    external = aiohttp.ClientSession()
+    try:
+        async with AsyncTypecast(host=HOST, api_key="key", session=external) as client:
+            assert client.session is external
+        assert not external.closed
+    finally:
+        if not external.closed:
+            await external.close()
+
+
+@pytest.mark.asyncio
+async def test_owned_session_is_closed_on_exit():
+    """An owned session is closed by __aexit__."""
+    async with AsyncTypecast(host=HOST, api_key="key") as client:
+        session = client.session
+        assert session is not None
+    assert session.closed

@@ -63,35 +63,51 @@ class AsyncTypecast:
         ...         f.write(response.audio_data)
     """
 
-    def __init__(self, host: Optional[str] = None, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        host: Optional[str] = None,
+        api_key: Optional[str] = None,
+        session: Optional[aiohttp.ClientSession] = None,
+    ):
         """Initialize the async Typecast client.
 
         Args:
             host: API host URL. Defaults to TYPECAST_API_HOST env var
                 or 'https://api.typecast.ai'.
             api_key: API key for authentication. Defaults to TYPECAST_API_KEY env var.
+            session: Optional externally-managed aiohttp.ClientSession. When provided,
+                __aenter__ will not create a new session and __aexit__ will not close it
+                (the caller owns its lifecycle). The caller is responsible for auth
+                until per-request header injection lands in a follow-up.
 
         Raises:
-            ValueError: If no API key is provided and TYPECAST_API_KEY is not set.
+            ValueError: If no API key is provided and TYPECAST_API_KEY is not set
+                for the default host.
         """
         self.host = conf.get_host(host)
         self.api_key = conf.get_api_key(api_key)
         if not self.api_key and conf.is_default_host(self.host):
             raise ValueError("API key is required for the default Typecast API host")
-        self.session: Optional[aiohttp.ClientSession] = None
+        self._owns_session = session is None
+        self.session: Optional[aiohttp.ClientSession] = session
 
     async def __aenter__(self):
-        # Auth header at session scope; per-request Content-Type is set by aiohttp
-        # (json= auto-sets application/json, data=FormData() auto-sets multipart).
-        headers = {"User-Agent": aiohttp_user_agent(self.host)}
-        if self.api_key:
-            headers["X-API-KEY"] = self.api_key
-        self.session = aiohttp.ClientSession(headers=headers)
+        # When an external session is injected, do not create a new one.
+        # Per-request auth headers are added in a follow-up.
+        if self.session is None:
+            headers = {"User-Agent": aiohttp_user_agent(self.host)}
+            if self.api_key:
+                headers["X-API-KEY"] = self.api_key
+            self.session = aiohttp.ClientSession(headers=headers)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session:
-            await self.session.close()
+        # Only close sessions we created. External sessions are caller-owned.
+        if self._owns_session:
+            if self.session:
+                await self.session.close()
+        else:
+            self.session = None
 
     def _handle_error(self, status_code: int, response_text: str):
         """Handle HTTP error responses with specific exception types."""
