@@ -1,3 +1,4 @@
+import requests
 import pytest
 from pydantic import ValidationError
 
@@ -10,6 +11,8 @@ from typecast.models import (
     TTSRequestStream,
     TTSResponse,
 )
+
+HOST = "https://api.typecast.ai"
 
 
 @pytest.fixture
@@ -80,6 +83,7 @@ class TestMockTTS:
         mock_post.assert_called_once_with(
             f"{typecast_client.host}/v1/text-to-speech",
             json=request.model_dump(exclude_none=True),
+            headers=None,
         )
         assert isinstance(response, TTSResponse)
         assert response.audio_data == b"mock_audio_data"
@@ -249,14 +253,16 @@ class TestSyncClient:
         voices = client.voices()
         assert len(voices) == 1
         assert voices[0].voice_id == "v1"
-        get_mock.assert_called_once_with(f"{client.host}/v1/voices", params={})
+        get_mock.assert_called_once_with(
+            f"{client.host}/v1/voices", params={}, headers=None
+        )
 
     def test_voices_with_model_filter(self, client, mocker):
         mock_resp = self._mock_response(mocker, json_data=[])
         get_mock = mocker.patch.object(client.session, "get", return_value=mock_resp)
         client.voices(model="ssfm-v21")
         get_mock.assert_called_once_with(
-            f"{client.host}/v1/voices", params={"model": "ssfm-v21"}
+            f"{client.host}/v1/voices", params={"model": "ssfm-v21"}, headers=None
         )
 
     def test_voices_error_path(self, client, mocker):
@@ -309,7 +315,9 @@ class TestSyncClient:
         mock_resp = self._mock_response(mocker, json_data=[])
         get_mock = mocker.patch.object(client.session, "get", return_value=mock_resp)
         client.voices_v2()
-        get_mock.assert_called_once_with(f"{client.host}/v2/voices", params={})
+        get_mock.assert_called_once_with(
+            f"{client.host}/v2/voices", params={}, headers=None
+        )
 
     def test_voices_v2_with_filter(self, client, mocker):
         from typecast.models.voices import VoicesV2Filter
@@ -460,6 +468,7 @@ class TestSyncStream:
             json=stream_request.model_dump(exclude_none=True),
             stream=True,
             timeout=(10, 300),
+            headers=None,
         )
         mock_resp.iter_content.assert_called_once_with(chunk_size=4096)
         mock_resp.close.assert_called_once()
@@ -543,7 +552,9 @@ class TestSyncSubscription:
 
         sub = client.get_my_subscription()
 
-        get_mock.assert_called_once_with(f"{client.host}/v1/users/me/subscription")
+        get_mock.assert_called_once_with(
+            f"{client.host}/v1/users/me/subscription", headers=None
+        )
         assert sub.plan == PlanTier.PLUS
         assert sub.credits.plan_credits == 100000
         assert sub.credits.used_credits == 1234
@@ -567,3 +578,65 @@ class TestSyncSubscription:
         mocker.patch.object(client.session, "get", return_value=mock_resp)
         with pytest.raises(exc_class):
             client.get_my_subscription()
+
+
+class TestExternalSessionInjection:
+    """External requests.Session injection (A4): parity with AsyncTypecast."""
+
+    def test_external_session_not_recreated(self):
+        """An injected external requests.Session is used as-is."""
+        external = requests.Session()
+        try:
+            client = Typecast(host=HOST, api_key="key", session=external)
+            assert client.session is external
+        finally:
+            external.close()
+
+    def test_external_session_not_closed_by_client(self):
+        """The client does not close an externally-provided session.
+
+        requests.Session has no ``.closed`` flag (unlike aiohttp.ClientSession),
+        so we spy on ``close()`` and assert the client never invokes it. The sync
+        client has no ``__del__``/``close()``/context-manager, so an external
+        session is never closed by it.
+        """
+        from unittest.mock import MagicMock
+
+        external = requests.Session()
+        close_spy = MagicMock(wraps=external.close)
+        external.close = close_spy  # type: ignore[method-assign]
+        client = Typecast(host=HOST, api_key="key", session=external)
+        del client
+        close_spy.assert_not_called()
+        external.close()
+
+    def test_external_session_sends_per_request_auth_header(self):
+        """External session: each request carries X-API-KEY per-request."""
+        from unittest.mock import MagicMock
+
+        from typecast.models import TTSModel
+
+        external = requests.Session()
+        client = Typecast(host=HOST, api_key="key", session=external)
+        # Swap to a mock to capture the per-request headers kwarg. _owns_session
+        # is already False (external session injected at construction).
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.content = b"RIFF\x00\x00\x00\x00WAVEfmt " + b"\x00" * 100
+        mock_response.headers = {"X-Audio-Duration": "1.0", "Content-Type": "audio/wav"}
+        client.session = MagicMock()
+        client.session.post.return_value = mock_response
+
+        request = TTSRequest(
+            text="hi",
+            voice_id="tc_62a8975e695ad26f7fb514d1",
+            model=TTSModel.SSFM_V21,
+        )
+        client.text_to_speech(request)
+
+        client.session.post.assert_called_once()
+        kwargs = client.session.post.call_args.kwargs
+        headers = kwargs.get("headers") or {}
+        assert headers.get("X-API-KEY") == "key", "per-request X-API-KEY missing"
+        assert headers.get("User-Agent"), "per-request User-Agent missing"
+        external.close()
