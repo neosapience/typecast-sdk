@@ -566,3 +566,24 @@ async def test_external_session_sends_per_request_auth_header():
     finally:
         if not external.closed:
             await external.close()
+
+
+@pytest.mark.asyncio
+async def test_external_session_without_api_key_omits_x_api_key_header():
+    """External session + non-default host + no api_key: per-request headers omit X-API-KEY.
+
+    Covers the falsy branch of ``if self.api_key:`` in ``_request_headers()``
+    for the external-session path (``self._owns_session`` is False).
+    """
+    external = aiohttp.ClientSession()
+    try:
+        async with AsyncTypecast(
+            host="https://custom.example.com", api_key=None, session=external
+        ) as client:
+            headers = client._request_headers()
+            assert headers is not None, "external session should return per-request headers"
+            assert "X-API-KEY" not in headers
+            assert headers.get("User-Agent"), "User-Agent should be present"
+    finally:
+        if not external.closed:
+            await external.close()

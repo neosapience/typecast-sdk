@@ -640,3 +640,63 @@ class TestExternalSessionInjection:
         assert headers.get("X-API-KEY") == "key", "per-request X-API-KEY missing"
         assert headers.get("User-Agent"), "per-request User-Agent missing"
         external.close()
+
+    def test_external_session_without_api_key_omits_x_api_key_header(self):
+        """Sync: external session + non-default host + no api_key omits X-API-KEY.
+
+        Covers the falsy branch of ``if self.api_key:`` in the sync
+        ``_request_headers()`` for the external-session path
+        (``self._owns_session`` is False). A non-default host is required
+        because ``__init__`` raises ``ValueError`` when ``api_key`` is None
+        and the host is the default ``api.typecast.ai``.
+        """
+        external = requests.Session()
+        try:
+            client = Typecast(
+                host="https://custom.example.com", api_key=None, session=external
+            )
+            headers = client._request_headers()
+            assert headers is not None
+            assert "X-API-KEY" not in headers
+            assert headers.get("User-Agent")
+        finally:
+            external.close()
+
+    def test_clone_voice_external_session_merges_per_request_headers(self):
+        """Sync: clone_voice with external session merges per-request auth into multipart headers.
+
+        Covers the ``if per_request: headers.update(per_request)`` branch in
+        ``clone_voice`` — only reachable when the session is external (so
+        ``_request_headers()`` returns a dict, not ``None``). The owned-session
+        path returns ``None`` and skips the merge.
+        """
+        from unittest.mock import MagicMock
+
+        external = requests.Session()
+        client = Typecast(
+            host="https://custom.example.com", api_key="key", session=external
+        )
+        # Swap to a mock to capture the per-request headers kwarg. _owns_session
+        # is already False (external session injected at construction).
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "voice_id": "uc_test",
+            "name": "demo",
+            "model": "ssfm-v21",
+        }
+        mock_response.text = "{}"
+        client.session = MagicMock()
+        client.session.post.return_value = mock_response
+
+        client.clone_voice(audio=b"\x00" * 1024, name="demo", model="ssfm-v21")
+
+        client.session.post.assert_called_once()
+        kwargs = client.session.post.call_args.kwargs
+        headers = kwargs.get("headers") or {}
+        # Per-request auth merged into the multipart headers.
+        assert headers.get("X-API-KEY") == "key"
+        # Content-Type must be None so requests auto-generates the multipart boundary.
+        assert "Content-Type" in headers
+        assert headers["Content-Type"] is None
+        external.close()
