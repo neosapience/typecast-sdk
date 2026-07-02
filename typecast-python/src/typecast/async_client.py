@@ -29,6 +29,7 @@ from .models import (
     CustomVoice,
     LanguageCode,
     Output,
+    RecommendedVoice,
     SubscriptionResponse,
     TTSModel,
     TTSPrompt,
@@ -482,3 +483,28 @@ class AsyncTypecast:
 
             data = await response.json()
             return VoiceV2Response.model_validate(data)
+
+    async def recommend_voices(
+        self, query: str, count: int = 5
+    ) -> list[RecommendedVoice]:
+        """Recommend voices from a text description.
+
+        Recommendation results only include ``voice_id``, ``voice_name``, and
+        ``score``. Use ``voice_v2`` or ``voices_v2`` to fetch detailed metadata
+        for returned voice IDs.
+        """
+        if count < 1 or count > 10:
+            raise ValueError("count must be between 1 and 10")
+        if not self.session:
+            raise TypecastError("Client session not initialized. Use async with.")
+
+        async with self.session.get(
+            f"{self.host}/v1/voices/recommendations",
+            params={"query": query, "count": count},
+        ) as response:
+            if response.status != 200:
+                error_text = await response.text()
+                self._handle_error(response.status, error_text)
+
+            data = await response.json()
+            return [RecommendedVoice.model_validate(item) for item in data]

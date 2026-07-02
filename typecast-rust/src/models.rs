@@ -619,6 +619,21 @@ pub struct VoiceV2 {
     pub use_cases: Option<Vec<String>>,
 }
 
+/// Voice recommendation result.
+///
+/// Recommendation results only include the matched voice ID, voice name, and
+/// similarity score. Use `get_voice_v2` or `get_voices_v2` to fetch detailed
+/// voice metadata for a returned `voice_id`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecommendedVoice {
+    /// Unique voice identifier
+    pub voice_id: String,
+    /// Human-readable name of the voice
+    pub voice_name: String,
+    /// Similarity score for the text query
+    pub score: f64,
+}
+
 /// Filter options for V2 voices endpoint
 #[derive(Debug, Clone, Default)]
 pub struct VoicesV2Filter {

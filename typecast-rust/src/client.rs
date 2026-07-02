@@ -5,7 +5,7 @@
 use crate::composer::SpeechComposer;
 use crate::errors::{Result, TypecastError};
 use crate::models::{
-    Age, AudioFormat, CustomVoice, ErrorResponse, Gender, GenerateToFileRequest,
+    Age, AudioFormat, CustomVoice, ErrorResponse, Gender, GenerateToFileRequest, RecommendedVoice,
     SubscriptionResponse, TTSModel, TTSRequest, TTSRequestStream, TTSResponse, UseCase, VoiceV2,
     VoicesV2Filter, CLONING_MAX_FILE_SIZE, NAME_MAX_LENGTH, NAME_MIN_LENGTH,
 };
@@ -493,6 +493,41 @@ impl TypecastClient {
 
         let voice: VoiceV2 = response.json().await?;
         Ok(voice)
+    }
+
+    /// Recommend voices from a text description.
+    ///
+    /// Results only contain `voice_id`, `voice_name`, and `score`. Use
+    /// `get_voice_v2` or `get_voices_v2` when you need detailed metadata for
+    /// the returned voice IDs.
+    pub async fn recommend_voices(
+        &self,
+        query: &str,
+        count: Option<u8>,
+    ) -> Result<Vec<RecommendedVoice>> {
+        let count = count.unwrap_or(5);
+        if !(1..=10).contains(&count) {
+            return Err(TypecastError::ValidationError {
+                detail: "count must be between 1 and 10".to_string(),
+            });
+        }
+
+        let url = self.build_url(
+            "/v1/voices/recommendations",
+            Some(vec![
+                ("query", query.to_string()),
+                ("count", count.to_string()),
+            ]),
+        );
+
+        let response = self.client.get(&url).send().await?;
+
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+
+        let voices: Vec<RecommendedVoice> = response.json().await?;
+        Ok(voices)
     }
 
     /// Convert text to speech with word- and/or character-level timestamps.

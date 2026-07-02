@@ -333,6 +333,20 @@ type VoiceV2 struct {
 	UseCases []string `json:"use_cases,omitempty"`
 }
 
+// RecommendedVoice is a single voice recommendation result.
+//
+// Recommendation results only include the matched voice ID, voice name, and
+// similarity score. Use GetVoiceV2 or GetVoicesV2 to fetch detailed voice
+// metadata for a returned VoiceID.
+type RecommendedVoice struct {
+	// VoiceID is the unique voice identifier
+	VoiceID string `json:"voice_id"`
+	// VoiceName is the human-readable name
+	VoiceName string `json:"voice_name"`
+	// Score is the similarity score for the text query
+	Score float64 `json:"score"`
+}
+
 // VoicesV2Filter represents filter options for V2 voices endpoint
 type VoicesV2Filter struct {
 	// Model filters by TTS model

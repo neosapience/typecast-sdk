@@ -426,6 +426,65 @@ test "getVoiceV2 returns single voice" {
     try std.testing.expectEqual(@as(usize, 1), voice.models.len);
 }
 
+test "recommendVoices returns scored voice ids" {
+    var mock = try MockServer.init();
+    mock.response_status = 200;
+    mock.response_body =
+        \\[{"voice_id":"v1","voice_name":"Alice","score":0.97}]
+    ;
+    mock.response_content_type = "application/json";
+    try mock.start();
+    defer mock.deinit();
+
+    var url_buf: [64]u8 = undefined;
+    const base_url = try baseUrlSlice(&url_buf, mock.getPort());
+
+    var client = Client.init(std.testing.allocator, .{
+        .api_key = "test-key",
+        .base_url = base_url,
+    });
+    defer client.deinit();
+
+    const voices = try client.recommendVoices("warm narrator", 2);
+    defer {
+        for (voices) |v| {
+            std.testing.allocator.free(v.voice_id);
+            std.testing.allocator.free(v.voice_name);
+        }
+        std.testing.allocator.free(voices);
+    }
+
+    try std.testing.expect(std.mem.indexOf(u8, mock.capturedRequest(), "GET /v1/voices/recommendations?query=warm%20narrator&count=2 ") != null);
+    try std.testing.expectEqual(@as(usize, 1), voices.len);
+    try std.testing.expectEqualStrings("v1", voices[0].voice_id);
+    try std.testing.expectEqualStrings("Alice", voices[0].voice_name);
+    try std.testing.expectApproxEqAbs(@as(f64, 0.97), voices[0].score, 0.0001);
+}
+
+test "recommendVoices defaults count and validates range" {
+    var mock = try MockServer.init();
+    mock.response_status = 200;
+    mock.response_body = "[]";
+    mock.response_content_type = "application/json";
+    try mock.start();
+    defer mock.deinit();
+
+    var url_buf: [64]u8 = undefined;
+    const base_url = try baseUrlSlice(&url_buf, mock.getPort());
+
+    var client = Client.init(std.testing.allocator, .{
+        .api_key = "test-key",
+        .base_url = base_url,
+    });
+    defer client.deinit();
+
+    const voices = try client.recommendVoices("voice", 0);
+    defer std.testing.allocator.free(voices);
+
+    try std.testing.expect(std.mem.indexOf(u8, mock.capturedRequest(), "GET /v1/voices/recommendations?query=voice&count=5 ") != null);
+    try std.testing.expectError(error.InvalidCount, client.recommendVoices("voice", 11));
+}
+
 // ── Error-path tests ─────────────────────────────────────────────────
 
 fn expectHttpError(comptime expected_error: anytype, port: u16) !void {

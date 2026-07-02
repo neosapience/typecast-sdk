@@ -134,6 +134,63 @@ final class TypecastClientVoicesTests: TypecastClientMockTestCase {
         }
     }
 
+    // MARK: - recommendVoices
+
+    func testRecommendVoicesSuccess() async throws {
+        MockURLProtocol.requestHandler = { req in
+            XCTAssertEqual(req.url?.path, "/v1/voices/recommendations")
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            let queryItems = components?.queryItems ?? []
+            XCTAssertEqual(queryItems.first(where: { $0.name == "query" })?.value, "warm narrator")
+            XCTAssertEqual(queryItems.first(where: { $0.name == "count" })?.value, "2")
+            let body = """
+            [
+              {"voice_id":"tc_1","voice_name":"Warm Narrator","score":0.97}
+            ]
+            """.data(using: .utf8)
+            return (self.httpResponse(url: req.url!, status: 200), body)
+        }
+
+        let voices = try await client.recommendVoices(query: "warm narrator", count: 2)
+        XCTAssertEqual(voices.count, 1)
+        XCTAssertEqual(voices[0].voiceId, "tc_1")
+        XCTAssertEqual(voices[0].voiceName, "Warm Narrator")
+        XCTAssertEqual(voices[0].score, 0.97)
+    }
+
+    func testRecommendVoicesDefaultsCountToFive() async throws {
+        MockURLProtocol.requestHandler = { req in
+            XCTAssertEqual(req.url?.path, "/v1/voices/recommendations")
+            let components = URLComponents(url: req.url!, resolvingAgainstBaseURL: false)
+            let queryItems = components?.queryItems ?? []
+            XCTAssertEqual(queryItems.first(where: { $0.name == "count" })?.value, "5")
+            return (self.httpResponse(url: req.url!, status: 200), "[]".data(using: .utf8))
+        }
+
+        let voices = try await client.recommendVoices(query: "calm voice")
+        XCTAssertTrue(voices.isEmpty)
+    }
+
+    func testRecommendVoicesRejectsInvalidCountBeforeRequest() async {
+        MockURLProtocol.requestHandler = { _ in
+            XCTFail("recommendVoices should validate count before requesting")
+            return (self.httpResponse(url: URL(string: self.baseURL)!, status: 200), Data())
+        }
+
+        do {
+            _ = try await client.recommendVoices(query: "voice", count: 0)
+            XCTFail("expected count validation error")
+        } catch let error as TypecastError {
+            guard case .badRequest(let message) = error else {
+                XCTFail("wrong case: \(error)")
+                return
+            }
+            XCTAssertEqual(message, "count must be between 1 and 10")
+        } catch {
+            XCTFail("unexpected error type: \(error)")
+        }
+    }
+
     // MARK: - getVoicesV1 (deprecated)
 
     @available(*, deprecated)

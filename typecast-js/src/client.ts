@@ -1,6 +1,6 @@
 import { ClientConfig, GenerateToFileRequest, TTSRequest, TTSResponse, TTSRequestStream, ApiErrorResponse } from './types';
 import { SubscriptionResponse } from './types/Subscription';
-import { VoicesResponse, VoiceV2Response, VoicesV2Filter } from './types/Voices';
+import { VoicesResponse, VoiceV2Response, VoicesV2Filter, RecommendedVoice } from './types/Voices';
 import { TypecastAPIError } from './errors';
 import {
   TTSRequestWithTimestamps,
@@ -315,6 +315,27 @@ export class TypecastClient {
       { headers: this.headers }
     );
     return this.handleResponse<VoiceV2Response>(response);
+  }
+
+  /**
+   * Recommend voices from a text description.
+   *
+   * Results only contain voice_id, voice_name, and similarity score. Use
+   * getVoiceV2() or getVoicesV2() when you need detailed metadata for the
+   * returned voice IDs.
+   *
+   * @param query - Text description of the desired voice
+   * @param count - Number of recommendations to return, from 1 to 10. Defaults to 5.
+   */
+  async recommendVoices(query: string, count = 5): Promise<RecommendedVoice[]> {
+    if (count < 1 || count > 10) {
+      throw new RangeError('count must be between 1 and 10');
+    }
+    const response = await fetch(
+      this.buildUrl('/v1/voices/recommendations', { query, count }),
+      { headers: this.headers }
+    );
+    return this.handleResponse<RecommendedVoice[]>(response);
   }
 
   /**

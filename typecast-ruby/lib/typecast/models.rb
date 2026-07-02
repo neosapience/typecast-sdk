@@ -179,6 +179,27 @@ module Typecast
       end
     end
 
+    class RecommendedVoice
+      attr_reader :voice_id, :voice_name, :score
+
+      # Recommendation results only include the matched voice ID, voice name,
+      # and similarity score. Use get_voice_v2 or get_voices_v2 to fetch
+      # detailed voice metadata for a returned voice_id.
+      def self.from_h(hash)
+        new(
+          voice_id: hash.fetch("voice_id", ""),
+          voice_name: hash.fetch("voice_name", ""),
+          score: hash.fetch("score", 0).to_f
+        )
+      end
+
+      def initialize(voice_id:, voice_name:, score:)
+        @voice_id = voice_id
+        @voice_name = voice_name
+        @score = score
+      end
+    end
+
     class VoicesV2Filter
       attr_reader :model, :gender, :age, :use_cases
 

@@ -398,6 +398,27 @@ typedef struct {
     size_t count;
 } TypecastVoicesResponse;
 
+/**
+ * Recommended voice result.
+ *
+ * Recommendation results include only voice_id, voice_name, and score.
+ * Use typecast_get_voice or typecast_get_voices when detailed voice
+ * metadata is needed.
+ */
+typedef struct {
+    char* voice_id;
+    char* voice_name;
+    double score;
+} TypecastRecommendedVoice;
+
+/**
+ * Recommended voices response
+ */
+typedef struct {
+    TypecastRecommendedVoice* voices;
+    size_t count;
+} TypecastRecommendedVoicesResponse;
+
 /* ============================================
  * Voices Filter (for V2 API)
  * ============================================ */
@@ -735,11 +756,37 @@ TYPECAST_API TypecastVoice* typecast_get_voice(
 );
 
 /**
+ * Recommend voices for a text query.
+ *
+ * Recommendation results include only voice_id, voice_name, and score.
+ * Use typecast_get_voice or typecast_get_voices when detailed voice
+ * metadata is needed.
+ *
+ * @param client Pointer to TypecastClient
+ * @param query Text query used to search similar voices
+ * @param count Number of results to return (1-10, default 5 when 0)
+ * @return Pointer to RecommendedVoicesResponse, or NULL on failure
+ *         (must be freed with typecast_recommended_voices_response_free)
+ */
+TYPECAST_API TypecastRecommendedVoicesResponse* typecast_recommend_voices(
+    TypecastClient* client,
+    const char* query,
+    int count
+);
+
+/**
  * Free voices response
  *
  * @param response Pointer to VoicesResponse
  */
 TYPECAST_API void typecast_voices_response_free(TypecastVoicesResponse* response);
+
+/**
+ * Free recommended voices response
+ *
+ * @param response Pointer to RecommendedVoicesResponse
+ */
+TYPECAST_API void typecast_recommended_voices_response_free(TypecastRecommendedVoicesResponse* response);
 
 /**
  * Free single voice
@@ -943,9 +990,9 @@ TYPECAST_API const char* typecast_error_message(TypecastErrorCode code);
 
 #ifdef TYPECAST_CPP_WRAPPER
 
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
 #include <stdexcept>
 #include <fstream>
 #include <algorithm>
@@ -1021,6 +1068,12 @@ struct Voice {
     std::string voiceId;
     std::string voiceName;
     std::vector<std::string> emotions;
+};
+
+struct RecommendedVoice {
+    std::string voiceId;
+    std::string voiceName;
+    double score = 0.0;
 };
 
 class TypecastException : public std::runtime_error {
@@ -1169,6 +1222,33 @@ public:
         }
 
         typecast_voices_response_free(resp);
+        return result;
+    }
+
+    std::vector<RecommendedVoice> recommendVoices(const std::string& query, int count = 5) {
+        TypecastRecommendedVoicesResponse* resp = typecast_recommend_voices(
+            client_,
+            query.c_str(),
+            count
+        );
+        if (!resp) {
+            const TypecastError* err = typecast_client_get_error(client_);
+            throw TypecastException(err->code, err->message ? err->message : "Unknown error");
+        }
+        std::unique_ptr<TypecastRecommendedVoicesResponse, decltype(&typecast_recommended_voices_response_free)>
+            managed_resp(resp, typecast_recommended_voices_response_free);
+
+        std::vector<RecommendedVoice> result;
+        result.reserve(resp->count);
+
+        for (size_t i = 0; i < resp->count; i++) {
+            RecommendedVoice v;
+            v.voiceId = resp->voices[i].voice_id ? resp->voices[i].voice_id : "";
+            v.voiceName = resp->voices[i].voice_name ? resp->voices[i].voice_name : "";
+            v.score = resp->voices[i].score;
+            result.push_back(std::move(v));
+        }
+
         return result;
     }
 

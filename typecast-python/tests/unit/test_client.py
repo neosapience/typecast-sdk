@@ -349,6 +349,46 @@ class TestSyncClient:
         with pytest.raises(NotFoundError):
             client.voice_v2("missing")
 
+    def test_recommend_voices_success(self, client, mocker):
+        mock_resp = self._mock_response(
+            mocker,
+            json_data=[
+                {"voice_id": "v1", "voice_name": "Voice 1", "score": 0.97},
+            ],
+        )
+        get_mock = mocker.patch.object(client.session, "get", return_value=mock_resp)
+
+        voices = client.recommend_voices("warm narrator", count=2)
+
+        assert len(voices) == 1
+        assert voices[0].voice_id == "v1"
+        assert voices[0].score == 0.97
+        get_mock.assert_called_once_with(
+            f"{client.host}/v1/voices/recommendations",
+            params={"query": "warm narrator", "count": 2},
+        )
+
+    def test_recommend_voices_default_count(self, client, mocker):
+        mock_resp = self._mock_response(mocker, json_data=[])
+        get_mock = mocker.patch.object(client.session, "get", return_value=mock_resp)
+
+        client.recommend_voices("voice")
+
+        assert get_mock.call_args.kwargs["params"]["count"] == 5
+
+    def test_recommend_voices_invalid_count(self, client):
+        with pytest.raises(ValueError, match="count must be between 1 and 10"):
+            client.recommend_voices("voice", count=11)
+
+    def test_recommend_voices_error(self, client, mocker):
+        from typecast.exceptions import UnauthorizedError
+
+        mock_resp = self._mock_response(mocker, status_code=401, text="no key")
+        mocker.patch.object(client.session, "get", return_value=mock_resp)
+
+        with pytest.raises(UnauthorizedError):
+            client.recommend_voices("voice")
+
 
 class TestOutputStreamModel:
     def test_defaults(self):

@@ -743,6 +743,90 @@ func TestGetVoiceV2_RequestError(t *testing.T) {
 	}
 }
 
+// ---------- RecommendVoices ----------
+
+func TestRecommendVoices_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/voices/recommendations" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		q := r.URL.Query()
+		if q.Get("query") != "warm narrator" || q.Get("count") != "2" {
+			t.Errorf("unexpected query: %s", r.URL.RawQuery)
+		}
+		json.NewEncoder(w).Encode([]RecommendedVoice{
+			{VoiceID: "v1", VoiceName: "Voice 1", Score: 0.97},
+		})
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv, "k")
+	voices, err := c.RecommendVoices(context.Background(), "warm narrator", 2)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if len(voices) != 1 || voices[0].VoiceID != "v1" || voices[0].Score != 0.97 {
+		t.Errorf("unexpected voices: %+v", voices)
+	}
+}
+
+func TestRecommendVoices_DefaultCount(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("count"); got != "5" {
+			t.Errorf("expected default count 5, got %q", got)
+		}
+		json.NewEncoder(w).Encode([]RecommendedVoice{})
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv, "k")
+	if _, err := c.RecommendVoices(context.Background(), "voice", 0); err != nil {
+		t.Fatalf("err: %v", err)
+	}
+}
+
+func TestRecommendVoices_InvalidCount(t *testing.T) {
+	c := NewClient(&ClientConfig{APIKey: "k", BaseURL: "http://x"})
+	if _, err := c.RecommendVoices(context.Background(), "voice", 11); err == nil {
+		t.Fatal("expected invalid count error")
+	}
+}
+
+func TestRecommendVoices_DefaultHostWithoutAPIKeyReturnsError(t *testing.T) {
+	c := NewClient(&ClientConfig{BaseURL: DefaultBaseURL})
+	_, err := c.RecommendVoices(context.Background(), "voice", 1)
+	if err == nil || !strings.Contains(err.Error(), "API key is required") {
+		t.Fatalf("expected missing api key error, got %v", err)
+	}
+}
+
+func TestRecommendVoices_Error(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(ErrorResponse{Detail: "no key"})
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv, "k")
+	_, err := c.RecommendVoices(context.Background(), "voice", 1)
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || !apiErr.IsUnauthorized() {
+		t.Fatalf("expected 401 APIError, got %v", err)
+	}
+}
+
+func TestRecommendVoices_DecodeError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("not json"))
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv, "k")
+	if _, err := c.RecommendVoices(context.Background(), "voice", 1); err == nil {
+		t.Fatal("expected decode error")
+	}
+}
+
 // ---------- GetVoices (V1) ----------
 
 func TestGetVoices_NoModel(t *testing.T) {

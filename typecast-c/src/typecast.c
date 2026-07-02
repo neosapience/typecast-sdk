@@ -1807,6 +1807,146 @@ TYPECAST_API TypecastVoice* typecast_get_voice(
     return voice;
 }
 
+TYPECAST_API TypecastRecommendedVoicesResponse* typecast_recommend_voices(
+    TypecastClient* client,
+    const char* query,
+    int count
+) {
+    if (!client || is_blank_string(query)) {
+        if (client) set_error(client, TYPECAST_ERROR_INVALID_PARAM, "query is required");
+        return NULL;
+    }
+
+    int resolved_count = count == 0 ? 5 : count;
+    if (resolved_count < 1 || resolved_count > 10) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "count must be between 1 and 10");
+        return NULL;
+    }
+
+    clear_error(client);
+
+    CURL* curl = client->curl;
+    curl_easy_reset(curl);
+
+    char* encoded_query = curl_easy_escape(curl, query, 0);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="curl_easy_escape OOM; cannot be simulated without a libcurl malloc shim" */
+    if (!encoded_query) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to encode query");
+        return NULL;
+    }
+    /* LCOV_EXCL_STOP */
+
+    char url[1024];
+    int url_len = snprintf(
+        url,
+        sizeof(url),
+        "%s/v1/voices/recommendations?query=%s&count=%d",
+        client->host,
+        encoded_query,
+        resolved_count
+    );
+    if (url_len < 0 || (size_t)url_len >= sizeof(url)) {
+        curl_free(encoded_query);
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "request URL is too long");
+        return NULL;
+    }
+    curl_free(encoded_query);
+
+    ResponseBuffer response_buf = {0};
+
+    struct curl_slist* headers = NULL;
+    headers = append_common_headers(headers, client, 30L);
+
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_buf);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+
+    CURLcode res = curl_easy_perform(curl);
+    curl_slist_free_all(headers);
+
+    if (res != CURLE_OK) {
+        set_error(client, TYPECAST_ERROR_NETWORK, curl_easy_strerror(res));
+        if (response_buf.data) free(response_buf.data);
+        return NULL;
+    }
+
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+    if (http_code != 200) {
+        TypecastErrorCode err_code = http_status_to_error(http_code);
+        set_error(client, err_code, typecast_error_message(err_code));
+        if (response_buf.data) free(response_buf.data);
+        return NULL;
+    }
+
+    cJSON* json = cJSON_Parse((const char*)response_buf.data);
+    free(response_buf.data);
+
+    if (!json) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Failed to parse response");
+        return NULL;
+    }
+
+    if (!cJSON_IsArray(json)) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Expected array response");
+        cJSON_Delete(json);
+        return NULL;
+    }
+
+    TypecastRecommendedVoicesResponse* resp =
+        (TypecastRecommendedVoicesResponse*)calloc(1, sizeof(TypecastRecommendedVoicesResponse));
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="calloc OOM; cannot be triggered deterministically" */
+    if (!resp) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate response");
+        cJSON_Delete(json);
+        return NULL;
+    }
+    /* LCOV_EXCL_STOP */
+
+    resp->count = cJSON_GetArraySize(json);
+    if (resp->count > 0) {
+        resp->voices = (TypecastRecommendedVoice*)calloc(resp->count, sizeof(TypecastRecommendedVoice));
+        /* LCOV_EXCL_START */
+        /* category=unreachable reason="calloc OOM; cannot be triggered deterministically" */
+        if (!resp->voices) {
+            set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate voices array");
+            free(resp);
+            cJSON_Delete(json);
+            return NULL;
+        }
+        /* LCOV_EXCL_STOP */
+    }
+
+    for (size_t i = 0; i < resp->count; i++) {
+        cJSON* voice_json = cJSON_GetArrayItem(json, (int)i);
+        if (!cJSON_IsObject(voice_json)) continue;
+
+        cJSON* voice_id = cJSON_GetObjectItem(voice_json, "voice_id");
+        if (cJSON_IsString(voice_id)) {
+            resp->voices[i].voice_id = strdup_safe(voice_id->valuestring);
+        }
+
+        cJSON* voice_name = cJSON_GetObjectItem(voice_json, "voice_name");
+        if (cJSON_IsString(voice_name)) {
+            resp->voices[i].voice_name = strdup_safe(voice_name->valuestring);
+        }
+
+        cJSON* score = cJSON_GetObjectItem(voice_json, "score");
+        if (cJSON_IsNumber(score)) {
+            resp->voices[i].score = score->valuedouble;
+        }
+    }
+
+    cJSON_Delete(json);
+    return resp;
+}
+
 TYPECAST_API void typecast_voices_response_free(TypecastVoicesResponse* response) {
     if (!response) return;
     
@@ -1829,6 +1969,18 @@ TYPECAST_API void typecast_voices_response_free(TypecastVoicesResponse* response
         if (voice->use_cases) free(voice->use_cases);
     }
     
+    if (response->voices) free(response->voices);
+    free(response);
+}
+
+TYPECAST_API void typecast_recommended_voices_response_free(TypecastRecommendedVoicesResponse* response) {
+    if (!response) return;
+
+    for (size_t i = 0; i < response->count; i++) {
+        if (response->voices[i].voice_id) free(response->voices[i].voice_id);
+        if (response->voices[i].voice_name) free(response->voices[i].voice_name);
+    }
+
     if (response->voices) free(response->voices);
     free(response);
 }

@@ -326,6 +326,26 @@ pub const Client = struct {
         return result;
     }
 
+    /// GET /v1/voices/recommendations
+    ///
+    /// Recommendation results include only voice_id, voice_name, and score.
+    /// Use getVoiceV2 or getVoicesV2 when detailed voice metadata is needed.
+    pub fn recommendVoices(self: *Client, query: []const u8, count: u8) ![]models.RecommendedVoice {
+        const resolved_count = if (count == 0) 5 else count;
+        if (resolved_count > 10) return error.InvalidCount;
+
+        var query_buf: [2048]u8 = undefined;
+        var stream = std.io.fixedBufferStream(&query_buf);
+        const writer = stream.writer();
+        writer.writeAll("query=") catch return error.QueryTooLong;
+        percentEncode(writer, query) catch return error.QueryTooLong;
+        writer.print("&count={d}", .{resolved_count}) catch return error.QueryTooLong;
+
+        const body = try self.doGet("/v1/voices/recommendations", query_buf[0..stream.pos]);
+        defer self.allocator.free(body);
+        return json_helpers.parseRecommendedVoices(self.allocator, body);
+    }
+
     /// POST /v1/voices/clone — upload audio and create a custom voice.
     ///
     /// - `audio`    : raw audio bytes (WAV or MP3, max 25 MB)

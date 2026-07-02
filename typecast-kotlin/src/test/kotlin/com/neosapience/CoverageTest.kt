@@ -217,6 +217,22 @@ class CoverageTest {
         assertTrue(ex.message!!.contains("not-json"))
     }
 
+    @Test
+    fun recommendVoices_ioException() {
+        mockServer.shutdown()
+        assertThrows(Exception::class.java) {
+            client.recommendVoices("voice", 1)
+        }
+    }
+
+    @Test
+    fun recommendedVoice_constructorAndProperties() {
+        val voice = RecommendedVoice("v1", "Voice One", 0.91)
+        assertEquals("v1", voice.voiceId)
+        assertEquals("Voice One", voice.voiceName)
+        assertEquals(0.91, voice.score)
+    }
+
     // ==================== textToSpeech edge branches ====================
 
     @Test

@@ -435,6 +435,36 @@ public class TypecastClient : IDisposable
         return GetVoiceV2Async(voiceId).GetAwaiter().GetResult();
     }
 
+    /// <summary>
+    /// Recommends voices from a text description.
+    /// </summary>
+    /// <remarks>
+    /// Results only include <c>VoiceId</c>, <c>VoiceName</c>, and <c>Score</c>.
+    /// Use <see cref="GetVoiceV2(string)"/> or <see cref="GetVoicesV2(VoicesV2Filter?)"/>
+    /// to fetch detailed voice metadata for returned voice IDs.
+    /// </remarks>
+    /// <param name="query">Text description of the desired voice.</param>
+    /// <param name="count">Number of recommendations to return, from 1 to 10. Defaults to 5.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Recommended voices with similarity scores.</returns>
+    public async Task<List<RecommendedVoice>> RecommendVoicesAsync(string query, int count = 5, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(query)) throw new ArgumentException("Query is required", nameof(query));
+        if (count < 1 || count > 10) throw new ArgumentOutOfRangeException(nameof(count), "count must be between 1 and 10");
+
+        var url = $"{_apiHost}/v1/voices/recommendations?query={Uri.EscapeDataString(query)}&count={count}";
+        using var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        return await HandleJsonResponseAsync<List<RecommendedVoice>>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Recommends voices from a text description synchronously.
+    /// </summary>
+    public List<RecommendedVoice> RecommendVoices(string query, int count = 5)
+    {
+        return RecommendVoicesAsync(query, count).GetAwaiter().GetResult();
+    }
+
     #endregion
 
     #region Subscription

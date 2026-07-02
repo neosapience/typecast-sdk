@@ -127,6 +127,32 @@ class TypecastClient {
     return VoiceV2.fromJson((jsonDecode(response.body) as Map).cast());
   }
 
+  /// Recommends voices from a text description.
+  ///
+  /// Results only include voiceId, voiceName, and score. Use getVoiceV2 or
+  /// getVoicesV2 to fetch detailed voice metadata for returned voice IDs.
+  Future<List<RecommendedVoice>> recommendVoices(
+    String query, {
+    int count = 5,
+  }) async {
+    if (count < 1 || count > 10) {
+      throw ArgumentError('count must be between 1 and 10');
+    }
+    final response = await _httpClient
+        .get(
+          _url('/v1/voices/recommendations', {
+            'query': query,
+            'count': count.toString(),
+          }),
+          headers: _headers(),
+        )
+        .timeout(requestTimeout);
+    _raiseForStatus(response);
+    return (jsonDecode(response.body) as List)
+        .map((item) => RecommendedVoice.fromJson((item as Map).cast()))
+        .toList();
+  }
+
   Future<CustomVoice> cloneVoice({
     required List<int> audio,
     required String filename,

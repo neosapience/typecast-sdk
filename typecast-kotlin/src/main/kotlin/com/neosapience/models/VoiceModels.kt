@@ -58,6 +58,25 @@ data class VoiceV2Response(
 )
 
 /**
+ * Voice recommendation result.
+ *
+ * Recommendation results only include the matched voice ID, voice name, and
+ * similarity score. Use getVoiceV2 or getVoicesV2 to fetch detailed voice
+ * metadata for a returned voice ID.
+ */
+@Serializable
+data class RecommendedVoice(
+    @SerialName("voice_id")
+    val voiceId: String,
+
+    @SerialName("voice_name")
+    val voiceName: String,
+
+    @SerialName("score")
+    val score: Double
+)
+
+/**
  * Filter options for V2 voices endpoint.
  */
 data class VoicesV2Filter(

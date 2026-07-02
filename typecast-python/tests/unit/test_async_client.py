@@ -291,6 +291,51 @@ class TestAsyncVoiceV2:
             await client.voice_v2("v1")
 
 
+class TestAsyncRecommendVoices:
+    async def test_success(self):
+        with aioresponses() as m:
+            m.get(
+                f"{HOST}/v1/voices/recommendations?query=warm+narrator&count=2",
+                status=200,
+                payload=[
+                    {"voice_id": "v1", "voice_name": "Voice 1", "score": 0.97},
+                ],
+            )
+            async with AsyncTypecast(host=HOST, api_key="key") as client:
+                voices = await client.recommend_voices("warm narrator", count=2)
+                assert len(voices) == 1
+                assert voices[0].voice_id == "v1"
+                assert voices[0].score == 0.97
+
+    async def test_default_count_and_validation(self):
+        with aioresponses() as m:
+            m.get(
+                f"{HOST}/v1/voices/recommendations?query=voice&count=5",
+                status=200,
+                payload=[],
+            )
+            async with AsyncTypecast(host=HOST, api_key="key") as client:
+                await client.recommend_voices("voice")
+                with pytest.raises(ValueError, match="count must be between 1 and 10"):
+                    await client.recommend_voices("voice", count=11)
+
+    async def test_session_not_initialized(self):
+        client = AsyncTypecast(host=HOST, api_key="key")
+        with pytest.raises(TypecastError):
+            await client.recommend_voices("voice")
+
+    async def test_error(self):
+        with aioresponses() as m:
+            m.get(
+                f"{HOST}/v1/voices/recommendations?query=voice&count=5",
+                status=401,
+                body="no key",
+            )
+            async with AsyncTypecast(host=HOST, api_key="key") as client:
+                with pytest.raises(UnauthorizedError):
+                    await client.recommend_voices("voice")
+
+
 class TestAsyncContextManager:
     async def test_aexit_with_session(self):
         async with AsyncTypecast(host=HOST, api_key="key") as client:
