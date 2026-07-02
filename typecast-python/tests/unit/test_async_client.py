@@ -15,7 +15,7 @@ from typecast.exceptions import (
     UnauthorizedError,
     UnprocessableEntityError,
 )
-from typecast.models import Output, OutputStream, TTSRequest, TTSRequestStream
+from typecast.models import Output, OutputStream, TTSModel, TTSRequest, TTSRequestStream
 
 
 HOST = "https://dummy.example"
@@ -538,3 +538,31 @@ async def test_owned_session_is_closed_on_exit():
         session = client.session
         assert session is not None
     assert session.closed
+
+
+@pytest.mark.asyncio
+async def test_external_session_sends_per_request_auth_header():
+    """외부 세션일 때 각 요청에 X-API-KEY 헤더가 붙는다."""
+    external = aiohttp.ClientSession()
+    try:
+        with aioresponses() as m:
+            m.post(f"{HOST}/v1/text-to-speech", status=200, body=b"", repeat=True)
+            async with AsyncTypecast(host=HOST, api_key="key", session=external) as client:
+                request = TTSRequest(
+                    text="hi",
+                    voice_id="tc_62a8975e695ad26f7fb514d1",
+                    model=TTSModel.SSFM_V21,
+                )
+                await client.text_to_speech(request)
+            for (method, url), req_list in m.requests.items():
+                for req in req_list:
+                    headers = req.kwargs.get("headers") or {}
+                    assert headers.get("X-API-KEY") == "key", (
+                        f"per-request X-API-KEY missing on {method} {url}"
+                    )
+                    assert headers.get("User-Agent"), (
+                        f"per-request User-Agent missing on {method} {url}"
+                    )
+    finally:
+        if not external.closed:
+            await external.close()
