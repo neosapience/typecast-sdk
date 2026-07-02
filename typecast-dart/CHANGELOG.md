@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.7
+
+- Added the Recommend Voices API.
+
 ## 0.1.4
 
 - Added text pause parsing and multi-speaker speech composition helpers.
