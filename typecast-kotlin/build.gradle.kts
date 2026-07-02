@@ -14,7 +14,7 @@ jacoco {
 }
 
 group = "com.neosapience"
-version = "1.2.6"
+version = "1.2.7"
 
 repositories {
     mavenCentral()
