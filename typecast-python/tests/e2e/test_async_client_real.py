@@ -96,6 +96,7 @@ async def test_stream_with_external_session_real():
     try:
         async with AsyncTypecast(host=host, api_key=api_key, session=external) as client:
             voices = await client.voices(model="ssfm-v30")
+            assert len(voices) > 0, "voices list must not be empty"
             voice_id = voices[0].voice_id
             req = TTSRequestStream(
                 text="안녕하세요.",
