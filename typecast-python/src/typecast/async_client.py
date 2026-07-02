@@ -102,12 +102,10 @@ class AsyncTypecast:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        # Only close sessions we created. External sessions are caller-owned.
-        if self._owns_session:
-            if self.session:
-                await self.session.close()
-        else:
-            self.session = None
+        # Only close sessions we created. External sessions are caller-owned;
+        # leave the reference intact so the client can be re-entered.
+        if self.session and self._owns_session:
+            await self.session.close()
 
     def _handle_error(self, status_code: int, response_text: str):
         """Handle HTTP error responses with specific exception types."""

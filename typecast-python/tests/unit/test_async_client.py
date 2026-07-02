@@ -541,8 +541,25 @@ async def test_owned_session_is_closed_on_exit():
 
 
 @pytest.mark.asyncio
+async def test_external_session_can_reenter():
+    """An external-session client can be re-entered; re-entry reuses the injected session."""
+    external = aiohttp.ClientSession()
+    try:
+        client = AsyncTypecast(host=HOST, api_key="key", session=external)
+        async with client:
+            assert client.session is external
+        # Re-enter the same client; the injected session must be reused, not replaced.
+        async with client:
+            assert client.session is external
+        assert not external.closed
+    finally:
+        if not external.closed:
+            await external.close()
+
+
+@pytest.mark.asyncio
 async def test_external_session_sends_per_request_auth_header():
-    """외부 세션일 때 각 요청에 X-API-KEY 헤더가 붙는다."""
+    """When using an external session, each request carries the X-API-KEY header per-request."""
     external = aiohttp.ClientSession()
     try:
         with aioresponses() as m:

@@ -6,6 +6,7 @@ import pytest
 from typecast.async_client import AsyncTypecast
 from typecast.models import (
     LanguageCode,
+    OutputStream,
     TTSModel,
     TTSRequest,
     TTSRequestStream,
@@ -13,10 +14,8 @@ from typecast.models import (
     VoicesResponse,
 )
 
-# Dev API host. The dev key (TYPECAST_GLOBALAPI_KEY_HAMIN_DEV) is used for E2E
-# tests against the real dev environment. Voice IDs differ between dev and prod,
-# so tests targeting dev fetch a voice dynamically from the dev API.
-DEV_HOST = "https://api.icepeak.in"
+# Voice IDs differ between dev and prod, so the E2E test fetches a voice
+# dynamically from the configured API host.
 
 
 @pytest.mark.asyncio
@@ -87,30 +86,22 @@ class TestAsyncClient:
 
 @pytest.mark.e2e
 @pytest.mark.asyncio
-async def test_stream_with_external_session_real_dev():
-    """E2E: external-session streaming against the real dev API.
-
-    Verifies that streaming with an externally-injected aiohttp.ClientSession
-    works against the real dev API, and that the client does NOT close the
-    caller-owned session (the core A1/A3 behavior).
-    """
-    api_key = os.getenv("TYPECAST_GLOBALAPI_KEY_HAMIN_DEV")
+async def test_stream_with_external_session_real():
+    """E2E: external-session streaming against the real API."""
+    api_key = os.getenv("TYPECAST_API_KEY")
     if not api_key:
-        pytest.skip("TYPECAST_GLOBALAPI_KEY_HAMIN_DEV not set")
+        pytest.skip("TYPECAST_API_KEY not set")
+    host = os.getenv("TYPECAST_API_HOST", "https://api.typecast.ai")
     external = aiohttp.ClientSession()
     try:
-        async with AsyncTypecast(
-            host=DEV_HOST, api_key=api_key, session=external
-        ) as client:
-            # Voice IDs differ per environment; pick one available on dev.
+        async with AsyncTypecast(host=host, api_key=api_key, session=external) as client:
             voices = await client.voices(model="ssfm-v30")
-            assert voices, "no voices returned from dev API"
-            dev_voice_id = voices[0].voice_id
-
+            voice_id = voices[0].voice_id
             req = TTSRequestStream(
                 text="안녕하세요.",
-                voice_id=dev_voice_id,
+                voice_id=voice_id,
                 model=TTSModel.SSFM_V30,
+                output=OutputStream(audio_format="wav"),
             )
             chunks = [c async for c in client.text_to_speech_stream(req)]
         assert not external.closed, "external session must not be closed by the client"
