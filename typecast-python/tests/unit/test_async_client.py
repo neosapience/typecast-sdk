@@ -1,5 +1,6 @@
 """Unit tests for AsyncTypecast using aioresponses."""
 
+import aiohttp
 import pytest
 from aioresponses import aioresponses
 
@@ -14,7 +15,7 @@ from typecast.exceptions import (
     UnauthorizedError,
     UnprocessableEntityError,
 )
-from typecast.models import Output, OutputStream, TTSRequest, TTSRequestStream
+from typecast.models import Output, OutputStream, TTSModel, TTSRequest, TTSRequestStream
 
 
 HOST = "https://dummy.example"
@@ -515,3 +516,91 @@ class TestAsyncSubscription:
         client = AsyncTypecast(host=HOST, api_key="key")
         with pytest.raises(TypecastError, match="session not initialized"):
             await client.get_my_subscription()
+
+
+@pytest.mark.asyncio
+async def test_external_session_is_not_recreated():
+    """An injected external aiohttp.ClientSession is not replaced by __aenter__."""
+    external = aiohttp.ClientSession()
+    try:
+        async with AsyncTypecast(host=HOST, api_key="key", session=external) as client:
+            assert client.session is external
+        assert not external.closed
+    finally:
+        if not external.closed:
+            await external.close()
+
+
+@pytest.mark.asyncio
+async def test_owned_session_is_closed_on_exit():
+    """An owned session is closed by __aexit__."""
+    async with AsyncTypecast(host=HOST, api_key="key") as client:
+        session = client.session
+        assert session is not None
+    assert session.closed
+
+
+@pytest.mark.asyncio
+async def test_external_session_can_reenter():
+    """An external-session client can be re-entered; re-entry reuses the injected session."""
+    external = aiohttp.ClientSession()
+    try:
+        client = AsyncTypecast(host=HOST, api_key="key", session=external)
+        async with client:
+            assert client.session is external
+        # Re-enter the same client; the injected session must be reused, not replaced.
+        async with client:
+            assert client.session is external
+        assert not external.closed
+    finally:
+        if not external.closed:
+            await external.close()
+
+
+@pytest.mark.asyncio
+async def test_external_session_sends_per_request_auth_header():
+    """When using an external session, each request carries the X-API-KEY header per-request."""
+    external = aiohttp.ClientSession()
+    try:
+        with aioresponses() as m:
+            m.post(f"{HOST}/v1/text-to-speech", status=200, body=b"", repeat=True)
+            async with AsyncTypecast(host=HOST, api_key="key", session=external) as client:
+                request = TTSRequest(
+                    text="hi",
+                    voice_id="tc_62a8975e695ad26f7fb514d1",
+                    model=TTSModel.SSFM_V21,
+                )
+                await client.text_to_speech(request)
+            for (method, url), req_list in m.requests.items():
+                for req in req_list:
+                    headers = req.kwargs.get("headers") or {}
+                    assert headers.get("X-API-KEY") == "key", (
+                        f"per-request X-API-KEY missing on {method} {url}"
+                    )
+                    assert headers.get("User-Agent"), (
+                        f"per-request User-Agent missing on {method} {url}"
+                    )
+    finally:
+        if not external.closed:
+            await external.close()
+
+
+@pytest.mark.asyncio
+async def test_external_session_without_api_key_omits_x_api_key_header():
+    """External session + non-default host + no api_key: per-request headers omit X-API-KEY.
+
+    Covers the falsy branch of ``if self.api_key:`` in ``_request_headers()``
+    for the external-session path (``self._owns_session`` is False).
+    """
+    external = aiohttp.ClientSession()
+    try:
+        async with AsyncTypecast(
+            host="https://custom.example.com", api_key=None, session=external
+        ) as client:
+            headers = client._request_headers()
+            assert headers is not None, "external session should return per-request headers"
+            assert "X-API-KEY" not in headers
+            assert headers.get("User-Agent"), "User-Agent should be present"
+    finally:
+        if not external.closed:
+            await external.close()

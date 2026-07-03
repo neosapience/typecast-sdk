@@ -97,13 +97,22 @@ class Typecast:
         ...     f.write(response.audio_data)
     """
 
-    def __init__(self, host: Optional[str] = None, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        host: Optional[str] = None,
+        api_key: Optional[str] = None,
+        session: Optional[requests.Session] = None,
+    ):
         """Initialize the Typecast client.
 
         Args:
             host: API host URL. Defaults to TYPECAST_API_HOST env var
                 or 'https://api.typecast.ai'.
             api_key: API key for authentication. Defaults to TYPECAST_API_KEY env var.
+            session: Optional externally-managed requests.Session. When provided,
+                the client will not create a new session nor close it; auth headers
+                (`X-API-KEY`, `User-Agent`) are attached per-request via
+                `_request_headers()`.
 
         Raises:
             ValueError: If no API key is provided and TYPECAST_API_KEY is not set.
@@ -112,14 +121,18 @@ class Typecast:
         self.api_key = conf.get_api_key(api_key)
         if not self.api_key and conf.is_default_host(self.host):
             raise ValueError("API key is required for the default Typecast API host")
-        self.session = requests.Session()
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": requests_user_agent(self.host),
-        }
-        if self.api_key:
-            headers["X-API-KEY"] = self.api_key
-        self.session.headers.update(headers)
+        self._owns_session = session is None
+        if session is not None:
+            self.session = session
+        else:
+            self.session = requests.Session()
+            headers = {
+                "Content-Type": "application/json",
+                "User-Agent": requests_user_agent(self.host),
+            }
+            if self.api_key:
+                headers["X-API-KEY"] = self.api_key
+            self.session.headers.update(headers)
 
     def _handle_error(self, status_code: int, response_text: str):
         """Handle HTTP error responses with specific exception types."""
@@ -143,6 +156,20 @@ class Typecast:
                 status_code=status_code,
             )
 
+    def _request_headers(self) -> Optional[dict]:
+        """Headers to attach to each individual request.
+
+        For owned sessions, auth is set at session scope, so return None and let
+        requests use the session headers. For external sessions, the session has
+        no auth headers, so we attach X-API-KEY and User-Agent per-request.
+        """
+        if self._owns_session:
+            return None
+        headers = {"User-Agent": requests_user_agent(self.host)}
+        if self.api_key:
+            headers["X-API-KEY"] = self.api_key
+        return headers
+
     def text_to_speech(self, request: TTSRequest) -> TTSResponse:
         """Convert text to speech.
 
@@ -161,7 +188,9 @@ class Typecast:
         """
         endpoint = "/v1/text-to-speech"
         response = self.session.post(
-            f"{self.host}{endpoint}", json=request.model_dump(exclude_none=True)
+            f"{self.host}{endpoint}",
+            json=request.model_dump(exclude_none=True),
+            headers=self._request_headers(),
         )
         if response.status_code != 200:
             self._handle_error(response.status_code, response.text)
@@ -253,6 +282,7 @@ class Typecast:
             json=request.model_dump(exclude_none=True),
             stream=True,
             timeout=(10, 300),
+            headers=self._request_headers(),
         )
         if response.status_code != 200:
             error_text = response.text
@@ -300,6 +330,7 @@ class Typecast:
             json=request.model_dump(exclude_none=True),
             params=params,
             timeout=(10, 300),
+            headers=self._request_headers(),
         )
         if response.status_code != 200:
             self._handle_error(response.status_code, response.text)
@@ -336,12 +367,19 @@ class Typecast:
         }
         data = {"name": name, "model": model_str}
         # Remove the session-level Content-Type so requests can set the
-        # correct multipart/form-data boundary for this request.
+        # correct multipart/form-data boundary for this request. For external
+        # sessions, also attach the per-request auth headers (X-API-KEY,
+        # User-Agent); _request_headers() returns None for owned sessions, so
+        # owned-session behavior is unchanged.
+        headers = {"Content-Type": None}
+        per_request = self._request_headers()
+        if per_request:
+            headers.update(per_request)
         response = self.session.post(
             f"{self.host}/v1/voices/clone",
             files=files,
             data=data,
-            headers={"Content-Type": None},
+            headers=headers,
             timeout=(10, 300),
         )
         if response.status_code != 200:
@@ -362,6 +400,7 @@ class Typecast:
         response = self.session.delete(
             f"{self.host}/v1/voices/{quote(voice_id, safe='')}",
             timeout=(10, 60),
+            headers=self._request_headers(),
         )
         if response.status_code not in (200, 204):
             self._handle_error(response.status_code, response.text)
@@ -384,7 +423,9 @@ class Typecast:
         if model:
             params["model"] = model
 
-        response = self.session.get(f"{self.host}{endpoint}", params=params)
+        response = self.session.get(
+            f"{self.host}{endpoint}", params=params, headers=self._request_headers()
+        )
 
         if response.status_code != 200:
             self._handle_error(response.status_code, response.text)
@@ -407,7 +448,9 @@ class Typecast:
             This method is deprecated. Use voices_v2() for enhanced metadata.
         """
         endpoint = f"/v1/voices/{voice_id}"
-        response = self.session.get(f"{self.host}{endpoint}")
+        response = self.session.get(
+            f"{self.host}{endpoint}", headers=self._request_headers()
+        )
 
         if response.status_code != 200:
             self._handle_error(response.status_code, response.text)
@@ -441,7 +484,9 @@ class Typecast:
             for key, value in filter_dict.items():
                 params[key] = getattr(value, "value", value)
 
-        response = self.session.get(f"{self.host}{endpoint}", params=params)
+        response = self.session.get(
+            f"{self.host}{endpoint}", params=params, headers=self._request_headers()
+        )
 
         if response.status_code != 200:
             self._handle_error(response.status_code, response.text)
@@ -463,7 +508,9 @@ class Typecast:
             InternalServerError: On server-side failures.
         """
         endpoint = "/v1/users/me/subscription"
-        response = self.session.get(f"{self.host}{endpoint}")
+        response = self.session.get(
+            f"{self.host}{endpoint}", headers=self._request_headers()
+        )
         if response.status_code != 200:
             self._handle_error(response.status_code, response.text)
         return SubscriptionResponse.model_validate(response.json())
@@ -481,7 +528,9 @@ class Typecast:
             NotFoundError: If the voice ID does not exist.
         """
         endpoint = f"/v2/voices/{voice_id}"
-        response = self.session.get(f"{self.host}{endpoint}")
+        response = self.session.get(
+            f"{self.host}{endpoint}", headers=self._request_headers()
+        )
 
         if response.status_code != 200:
             self._handle_error(response.status_code, response.text)

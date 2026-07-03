@@ -63,34 +63,48 @@ class AsyncTypecast:
         ...         f.write(response.audio_data)
     """
 
-    def __init__(self, host: Optional[str] = None, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        host: Optional[str] = None,
+        api_key: Optional[str] = None,
+        session: Optional[aiohttp.ClientSession] = None,
+    ):
         """Initialize the async Typecast client.
 
         Args:
             host: API host URL. Defaults to TYPECAST_API_HOST env var
                 or 'https://api.typecast.ai'.
             api_key: API key for authentication. Defaults to TYPECAST_API_KEY env var.
+            session: Optional externally-managed aiohttp.ClientSession. When provided,
+                __aenter__ will not create a new session and __aexit__ will not close it
+                (the caller owns its lifecycle). Auth headers (`X-API-KEY`, `User-Agent`)
+                are attached per-request via `_request_headers()`.
 
         Raises:
-            ValueError: If no API key is provided and TYPECAST_API_KEY is not set.
+            ValueError: If no API key is provided and TYPECAST_API_KEY is not set
+                for the default host.
         """
         self.host = conf.get_host(host)
         self.api_key = conf.get_api_key(api_key)
         if not self.api_key and conf.is_default_host(self.host):
             raise ValueError("API key is required for the default Typecast API host")
-        self.session: Optional[aiohttp.ClientSession] = None
+        self._owns_session = session is None
+        self.session: Optional[aiohttp.ClientSession] = session
 
     async def __aenter__(self):
-        # Auth header at session scope; per-request Content-Type is set by aiohttp
-        # (json= auto-sets application/json, data=FormData() auto-sets multipart).
-        headers = {"User-Agent": aiohttp_user_agent(self.host)}
-        if self.api_key:
-            headers["X-API-KEY"] = self.api_key
-        self.session = aiohttp.ClientSession(headers=headers)
+        # When an external session is injected, do not create a new one.
+        # Per-request auth headers are attached via _request_headers() on each call.
+        if self.session is None:
+            headers = {"User-Agent": aiohttp_user_agent(self.host)}
+            if self.api_key:
+                headers["X-API-KEY"] = self.api_key
+            self.session = aiohttp.ClientSession(headers=headers)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session:
+        # Only close sessions we created. External sessions are caller-owned;
+        # leave the reference intact so the client can be re-entered.
+        if self.session and self._owns_session:
             await self.session.close()
 
     def _handle_error(self, status_code: int, response_text: str):
@@ -115,6 +129,20 @@ class AsyncTypecast:
                 status_code=status_code,
             )
 
+    def _request_headers(self) -> Optional[dict]:
+        """Headers to attach to each individual request.
+
+        For owned sessions, auth is set at session scope, so return None and let
+        aiohttp use the session headers. For external sessions, the session has
+        no auth headers, so we attach X-API-KEY and User-Agent per-request.
+        """
+        if self._owns_session:
+            return None
+        headers = {"User-Agent": aiohttp_user_agent(self.host)}
+        if self.api_key:
+            headers["X-API-KEY"] = self.api_key
+        return headers
+
     async def text_to_speech(self, request: TTSRequest) -> TTSResponse:
         """Convert text to speech asynchronously.
 
@@ -136,7 +164,9 @@ class AsyncTypecast:
             raise TypecastError("Client session not initialized. Use async with.")
         endpoint = "/v1/text-to-speech"
         async with self.session.post(
-            f"{self.host}{endpoint}", json=request.model_dump(exclude_none=True)
+            f"{self.host}{endpoint}",
+            json=request.model_dump(exclude_none=True),
+            headers=self._request_headers(),
         ) as response:
             if response.status != 200:
                 error_text = await response.text()
@@ -219,6 +249,7 @@ class AsyncTypecast:
             f"{self.host}{endpoint}",
             json=request.model_dump(exclude_none=True),
             timeout=stream_timeout,
+            headers=self._request_headers(),
         ) as response:
             if response.status != 200:
                 error_text = await response.text()
@@ -262,6 +293,7 @@ class AsyncTypecast:
             f"{self.host}{endpoint}",
             json=request.model_dump(exclude_none=True),
             params=params,
+            headers=self._request_headers(),
         ) as response:
             if response.status != 200:
                 text = await response.text()
@@ -311,6 +343,7 @@ class AsyncTypecast:
             f"{self.host}/v1/voices/clone",
             data=form,
             timeout=timeout,
+            headers=self._request_headers(),
         ) as response:
             if response.status != 200:
                 text = await response.text()
@@ -335,6 +368,7 @@ class AsyncTypecast:
         async with self.session.delete(
             f"{self.host}/v1/voices/{quote(voice_id, safe='')}",
             timeout=timeout,
+            headers=self._request_headers(),
         ) as response:
             if response.status not in (200, 204):
                 text = await response.text()
@@ -361,7 +395,9 @@ class AsyncTypecast:
             params["model"] = model
 
         async with self.session.get(
-            f"{self.host}{endpoint}", params=params
+            f"{self.host}{endpoint}",
+            params=params,
+            headers=self._request_headers(),
         ) as response:
             if response.status != 200:
                 error_text = await response.text()
@@ -389,7 +425,9 @@ class AsyncTypecast:
             raise TypecastError("Client session not initialized. Use async with.")
         endpoint = f"/v1/voices/{voice_id}"
 
-        async with self.session.get(f"{self.host}{endpoint}") as response:
+        async with self.session.get(
+            f"{self.host}{endpoint}", headers=self._request_headers()
+        ) as response:
             if response.status != 200:
                 error_text = await response.text()
                 self._handle_error(response.status, error_text)
@@ -426,7 +464,9 @@ class AsyncTypecast:
                 params[key] = getattr(value, "value", value)
 
         async with self.session.get(
-            f"{self.host}{endpoint}", params=params
+            f"{self.host}{endpoint}",
+            params=params,
+            headers=self._request_headers(),
         ) as response:
             if response.status != 200:
                 error_text = await response.text()
@@ -453,7 +493,9 @@ class AsyncTypecast:
         if not self.session:
             raise TypecastError("Client session not initialized. Use async with.")
         endpoint = "/v1/users/me/subscription"
-        async with self.session.get(f"{self.host}{endpoint}") as response:
+        async with self.session.get(
+            f"{self.host}{endpoint}", headers=self._request_headers()
+        ) as response:
             if response.status != 200:
                 error_text = await response.text()
                 self._handle_error(response.status, error_text)
@@ -476,7 +518,9 @@ class AsyncTypecast:
             raise TypecastError("Client session not initialized. Use async with.")
         endpoint = f"/v2/voices/{voice_id}"
 
-        async with self.session.get(f"{self.host}{endpoint}") as response:
+        async with self.session.get(
+            f"{self.host}{endpoint}", headers=self._request_headers()
+        ) as response:
             if response.status != 200:
                 error_text = await response.text()
                 self._handle_error(response.status, error_text)

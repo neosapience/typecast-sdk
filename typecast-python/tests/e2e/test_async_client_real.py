@@ -1,9 +1,21 @@
 import os
 
+import aiohttp
 import pytest
 
 from typecast.async_client import AsyncTypecast
-from typecast.models import LanguageCode, TTSRequest, TTSResponse, VoicesResponse
+from typecast.models import (
+    LanguageCode,
+    OutputStream,
+    TTSModel,
+    TTSRequest,
+    TTSRequestStream,
+    TTSResponse,
+    VoicesResponse,
+)
+
+# Voice IDs differ between dev and prod, so the E2E test fetches a voice
+# dynamically from the configured API host.
 
 
 @pytest.mark.asyncio
@@ -70,3 +82,32 @@ class TestAsyncClient:
             assert voice.voice_name
             assert voice.model
             assert voice.emotions
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_stream_with_external_session_real():
+    """E2E: external-session streaming against the real API."""
+    api_key = os.getenv("TYPECAST_API_KEY")
+    if not api_key:
+        pytest.skip("TYPECAST_API_KEY not set")
+    host = os.getenv("TYPECAST_API_HOST", "https://api.typecast.ai")
+    external = aiohttp.ClientSession()
+    try:
+        async with AsyncTypecast(host=host, api_key=api_key, session=external) as client:
+            voices = await client.voices(model="ssfm-v30")
+            assert len(voices) > 0, "voices list must not be empty"
+            voice_id = voices[0].voice_id
+            req = TTSRequestStream(
+                text="안녕하세요.",
+                voice_id=voice_id,
+                model=TTSModel.SSFM_V30,
+                output=OutputStream(audio_format="wav"),
+            )
+            chunks = [c async for c in client.text_to_speech_stream(req)]
+        assert not external.closed, "external session must not be closed by the client"
+        assert len(chunks) >= 1
+        assert chunks[0][:4] == b"RIFF", f"first chunk should be WAV, got {chunks[0][:4]!r}"
+    finally:
+        if not external.closed:
+            await external.close()

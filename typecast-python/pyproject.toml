@@ -98,6 +98,9 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "e2e: end-to-end tests against the real Typecast API (require credentials)",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
