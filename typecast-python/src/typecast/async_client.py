@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 from pathlib import Path
 from typing import AsyncIterator, BinaryIO, Optional, Union
@@ -208,7 +210,8 @@ class AsyncTypecast:
                 seed=seed,
             )
         )
-        await asyncio.to_thread(output_path.write_bytes, response.audio_data)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, output_path.write_bytes, response.audio_data)
         return response
 
     async def text_to_speech_stream(
@@ -255,7 +258,7 @@ class AsyncTypecast:
                 error_text = await response.text()
                 self._handle_error(response.status, error_text)
 
-            async for chunk in response.content.iter_chunked(chunk_size):
+            async for chunk in response.content.iter_chunked(chunk_size):  # pragma: no branch
                 yield chunk
 
     async def text_to_speech_with_timestamps(

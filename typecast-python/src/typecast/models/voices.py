@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -12,7 +14,7 @@ class VoicesResponse(BaseModel):
     voice_id: str
     voice_name: str
     model: str
-    emotions: list[str]
+    emotions: List[str]
 
 
 class GenderEnum(str, Enum):
@@ -54,7 +56,7 @@ class ModelInfo(BaseModel):
     """Model information with supported emotions"""
 
     version: TTSModel
-    emotions: list[str]
+    emotions: List[str]
 
 
 class VoiceV2Response(BaseModel):
@@ -62,10 +64,10 @@ class VoiceV2Response(BaseModel):
 
     voice_id: str
     voice_name: str
-    models: list[ModelInfo]
+    models: List[ModelInfo]
     gender: Optional[GenderEnum] = None
     age: Optional[AgeEnum] = None
-    use_cases: Optional[list[str]] = None
+    use_cases: Optional[List[str]] = None
 
 
 class RecommendedVoice(BaseModel):

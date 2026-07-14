@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 from typing import BinaryIO, Iterator, Optional, Union
 from urllib.parse import quote

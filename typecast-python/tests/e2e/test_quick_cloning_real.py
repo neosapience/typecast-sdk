@@ -13,8 +13,6 @@ from pathlib import Path
 
 import pytest
 
-from typecast.exceptions import BadRequestError, NotFoundError
-
 from typecast import Typecast
 from typecast.exceptions import BadRequestError, NotFoundError
 from typecast.models import TTSRequest, CustomVoice
