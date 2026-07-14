@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from enum import Enum
-from typing import Literal, Optional, Union
+from typing import List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -330,7 +332,7 @@ def _group_into_cues(
     word_mode=True: parts are joined with a single space.
     word_mode=False: parts are concatenated directly.
 
-    Returns list[(text, start, end)] tuples.
+    Returns List[(text, start, end)] tuples.
     """
     cues = []
     cur_text_parts = []
@@ -404,11 +406,11 @@ class TTSWithTimestampsResponse(BaseModel):
     audio: str = Field(description="Base64-encoded audio bytes.")
     audio_format: Literal["wav", "mp3"] = Field(description="Audio encoding format.")
     audio_duration: float = Field(description="Length of audio in seconds.")
-    words: Optional[list[AlignmentSegmentWord]] = Field(
+    words: Optional[List[AlignmentSegmentWord]] = Field(
         default=None,
         description="Word-level timestamps; null when granularity=char.",
     )
-    characters: Optional[list[AlignmentSegmentCharacter]] = Field(
+    characters: Optional[List[AlignmentSegmentCharacter]] = Field(
         default=None,
         description="Character-level timestamps; null when granularity=word.",
     )
