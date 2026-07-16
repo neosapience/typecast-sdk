@@ -1,9 +1,7 @@
 package typecast
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"fmt"
 	"math"
 	"strconv"
@@ -45,15 +43,14 @@ type composerPart struct {
 	settings ComposerSettings
 }
 
-type wavSpec struct {
-	sampleRate    uint32
-	channels      uint16
-	bitsPerSample uint16
+type composeTTSSegment struct {
+	Type string `json:"type"`
+	*TTSRequest
 }
 
-type parsedWAV struct {
-	spec    wavSpec
-	samples []int16
+type composePauseSegment struct {
+	Type            string  `json:"type"`
+	DurationSeconds float64 `json:"duration_seconds"`
 }
 
 func (c *Client) ComposeSpeech() *SpeechComposer {
@@ -107,44 +104,20 @@ func (c *SpeechComposer) Generate(ctx context.Context) (*TTSResponse, error) {
 		outputFormat = c.defaults.Output.AudioFormat
 	}
 
-	var spec *wavSpec
-	var outputSamples []int16
+	segments := make([]interface{}, 0, len(plan))
 	for _, part := range plan {
 		if part.kind == SpeechPartPause {
 			if !isValidPause(part.seconds) {
 				return nil, fmt.Errorf("pause seconds must be greater than 0")
 			}
-			if spec == nil {
-				return nil, fmt.Errorf("pause cannot be the first composed part")
-			}
-			outputSamples = append(outputSamples, make([]int16, secondsToSamples(part.seconds, spec.sampleRate))...)
+			segments = append(segments, composePauseSegment{Type: "pause", DurationSeconds: part.seconds})
 			continue
 		}
-
-		response, err := c.client.TextToSpeech(ctx, requestFromComposerPart(part))
-		if err != nil {
-			return nil, err
-		}
-		wav, err := parseComposerWAV(response.AudioData)
-		if err != nil {
-			return nil, err
-		}
-		if spec != nil && *spec != wav.spec {
-			return nil, fmt.Errorf("all composed WAV segments must use the same PCM format")
-		}
-		currentSpec := wav.spec
-		spec = &currentSpec
-		outputSamples = append(outputSamples, trimComposerSilence(wav.samples)...)
+		segments = append(segments, composeTTSSegment{Type: "tts", TTSRequest: requestFromComposerPart(part, outputFormat)})
 	}
-
-	if outputFormat == AudioFormatMP3 {
-		return nil, fmt.Errorf("ffmpeg is required to encode composed speech as mp3")
-	}
-	return &TTSResponse{
-		AudioData: encodeComposerWAV(outputSamples, *spec),
-		Duration:  float64(len(outputSamples)) / float64(spec.sampleRate),
-		Format:    AudioFormatWAV,
-	}, nil
+	return c.client.composeTextToSpeech(ctx, struct {
+		Segments []interface{} `json:"segments"`
+	}{segments})
 }
 
 func (c *SpeechComposer) buildPlan() ([]composerPart, error) {
@@ -269,8 +242,8 @@ func mergeComposerOutput(base, override *Output) *Output {
 	return &merged
 }
 
-func requestFromComposerPart(part composerPart) *TTSRequest {
-	output := mergeComposerOutput(part.settings.Output, &Output{AudioFormat: AudioFormatWAV})
+func requestFromComposerPart(part composerPart, format AudioFormat) *TTSRequest {
+	output := mergeComposerOutput(part.settings.Output, &Output{AudioFormat: format})
 	return &TTSRequest{
 		VoiceID:  part.settings.VoiceID,
 		Text:     part.text,
@@ -280,85 +253,6 @@ func requestFromComposerPart(part composerPart) *TTSRequest {
 		Output:   output,
 		Seed:     part.settings.Seed,
 	}
-}
-
-func parseComposerWAV(data []byte) (*parsedWAV, error) {
-	if len(data) < 12 || string(data[0:4]) != "RIFF" || string(data[8:12]) != "WAVE" {
-		return nil, fmt.Errorf("unsupported WAV data")
-	}
-	offset := 12
-	var spec *wavSpec
-	var samples []int16
-	for offset+8 <= len(data) {
-		chunkID := string(data[offset : offset+4])
-		chunkSize := int(binary.LittleEndian.Uint32(data[offset+4 : offset+8]))
-		chunkDataOffset := offset + 8
-		chunkEnd := chunkDataOffset + chunkSize
-		if chunkEnd > len(data) {
-			return nil, fmt.Errorf("unsupported WAV data")
-		}
-		switch chunkID {
-		case "fmt ":
-			if chunkSize < 16 {
-				return nil, fmt.Errorf("unsupported WAV data")
-			}
-			audioFormat := binary.LittleEndian.Uint16(data[chunkDataOffset:])
-			channels := binary.LittleEndian.Uint16(data[chunkDataOffset+2:])
-			sampleRate := binary.LittleEndian.Uint32(data[chunkDataOffset+4:])
-			bitsPerSample := binary.LittleEndian.Uint16(data[chunkDataOffset+14:])
-			if audioFormat != 1 || channels != 1 || bitsPerSample != 16 {
-				return nil, fmt.Errorf("only mono 16-bit PCM WAV is supported for composed speech")
-			}
-			spec = &wavSpec{sampleRate: sampleRate, channels: channels, bitsPerSample: bitsPerSample}
-		case "data":
-			samples = make([]int16, 0, chunkSize/2)
-			for index := chunkDataOffset; index+1 < chunkEnd; index += 2 {
-				samples = append(samples, int16(binary.LittleEndian.Uint16(data[index:])))
-			}
-		}
-		offset = chunkEnd + chunkSize%2
-	}
-	if spec == nil || samples == nil {
-		return nil, fmt.Errorf("unsupported WAV data")
-	}
-	return &parsedWAV{spec: *spec, samples: samples}, nil
-}
-
-func encodeComposerWAV(samples []int16, spec wavSpec) []byte {
-	var out bytes.Buffer
-	out.WriteString("RIFF")
-	_ = binary.Write(&out, binary.LittleEndian, uint32(36+len(samples)*2))
-	out.WriteString("WAVE")
-	out.WriteString("fmt ")
-	_ = binary.Write(&out, binary.LittleEndian, uint32(16))
-	_ = binary.Write(&out, binary.LittleEndian, uint16(1))
-	_ = binary.Write(&out, binary.LittleEndian, spec.channels)
-	_ = binary.Write(&out, binary.LittleEndian, spec.sampleRate)
-	_ = binary.Write(&out, binary.LittleEndian, spec.sampleRate*uint32(spec.channels)*2)
-	_ = binary.Write(&out, binary.LittleEndian, spec.channels*2)
-	_ = binary.Write(&out, binary.LittleEndian, spec.bitsPerSample)
-	out.WriteString("data")
-	_ = binary.Write(&out, binary.LittleEndian, uint32(len(samples)*2))
-	for _, sample := range samples {
-		_ = binary.Write(&out, binary.LittleEndian, sample)
-	}
-	return out.Bytes()
-}
-
-func trimComposerSilence(samples []int16) []int16 {
-	start := 0
-	end := len(samples)
-	for start < end && samples[start] == 0 {
-		start++
-	}
-	for end > start && samples[end-1] == 0 {
-		end--
-	}
-	return samples[start:end]
-}
-
-func secondsToSamples(seconds float64, sampleRate uint32) int {
-	return int(math.Round(seconds * float64(sampleRate)))
 }
 
 func isValidPause(seconds float64) bool {

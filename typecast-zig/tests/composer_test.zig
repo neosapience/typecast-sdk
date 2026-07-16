@@ -54,19 +54,3 @@ test "composer builds per-segment requests with WAV output" {
     try testing.expectEqual(@as(?i32, -2), requests.items[1].output.?.audio_pitch);
     try testing.expectEqual(@as(?f64, 1.1), requests.items[1].output.?.audio_tempo);
 }
-
-test "composeWav inserts silence between trimmed PCM segments" {
-    const allocator = testing.allocator;
-    const first = try composer.testWav(allocator, &.{ 0, 100, 0 }, 10);
-    defer allocator.free(first);
-    const second = try composer.testWav(allocator, &.{ 0, -200, 0 }, 10);
-    defer allocator.free(second);
-
-    const combined = try composer.composeWav(allocator, &.{ first, second }, &.{0.2});
-    defer allocator.free(combined);
-
-    const pcm = try composer.testReadPcm(allocator, combined);
-    defer allocator.free(pcm);
-
-    try testing.expectEqualSlices(i16, &.{ 100, 0, 0, -200 }, pcm);
-}

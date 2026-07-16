@@ -791,6 +791,55 @@ TYPECAST_API void typecast_tts_response_free(TypecastTTSResponse* response) {
     free(response);
 }
 
+static TypecastTTSResponse* post_compose_json(TypecastClient* client, cJSON* json, TypecastAudioFormat format) {
+    char* json_str = cJSON_PrintUnformatted(json);
+    if (!json_str) { set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to serialize JSON"); return NULL; }
+    char url[512];
+    snprintf(url, sizeof(url), "%s/v1/text-to-speech/compose", client->host);
+    ResponseBuffer response_buf = {0};
+    HeaderBuffer header_buf = {0};
+    CURL* curl = client->curl;
+    curl_easy_reset(curl);
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    headers = append_common_headers(headers, client, 60L);
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_str);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(json_str));
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_buf);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &header_buf);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    CURLcode result = curl_easy_perform(curl);
+    cJSON_free(json_str);
+    curl_slist_free_all(headers);
+    if (result != CURLE_OK) {
+        set_error(client, TYPECAST_ERROR_NETWORK, curl_easy_strerror(result));
+        free(response_buf.data); free(header_buf.data); return NULL;
+    }
+    long status = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+    if (status != 200) {
+        TypecastErrorCode code = http_status_to_error(status);
+        set_error(client, code, typecast_error_message(code));
+        free(response_buf.data); free(header_buf.data); return NULL;
+    }
+    TypecastTTSResponse* response = (TypecastTTSResponse*)calloc(1, sizeof(TypecastTTSResponse));
+    if (!response) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate response");
+        free(response_buf.data); free(header_buf.data); return NULL;
+    }
+    response->audio_data = response_buf.data;
+    response->audio_size = response_buf.size;
+    response->duration = parse_duration_header(header_buf.data);
+    response->format = format;
+    free(header_buf.data);
+    return response;
+}
+
 /* ============================================
  * Composed Speech API
  * ============================================ */
@@ -1098,228 +1147,69 @@ TYPECAST_API void typecast_speech_composer_segment_requests_free(TypecastTTSRequ
     free(requests);
 }
 
-static uint16_t read_u16_le(const uint8_t* p) {
-    return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
-}
-
-static uint32_t read_u32_le(const uint8_t* p) {
-    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
-}
-
-static void write_u16_le(uint8_t* p, uint16_t v) {
-    p[0] = (uint8_t)(v & 0xff);
-    p[1] = (uint8_t)((v >> 8) & 0xff);
-}
-
-static void write_u32_le(uint8_t* p, uint32_t v) {
-    p[0] = (uint8_t)(v & 0xff);
-    p[1] = (uint8_t)((v >> 8) & 0xff);
-    p[2] = (uint8_t)((v >> 16) & 0xff);
-    p[3] = (uint8_t)((v >> 24) & 0xff);
-}
-
-typedef struct {
-    uint32_t sample_rate;
-    size_t pcm_start;
-    size_t pcm_len;
-} WavInfo;
-
-static int parse_wav(const uint8_t* data, size_t size, WavInfo* info) {
-    if (!data || !info || size < 44) return 0;
-    if (memcmp(data, "RIFF", 4) != 0 || memcmp(data + 8, "WAVE", 4) != 0) return 0;
-    if (memcmp(data + 12, "fmt ", 4) != 0) return 0;
-    if (read_u16_le(data + 20) != 1 || read_u16_le(data + 22) != 1 || read_u16_le(data + 34) != 16) return 0;
-    size_t cursor = 36;
-    while (cursor + 8 <= size) {
-        uint32_t chunk_size = read_u32_le(data + cursor + 4);
-        size_t data_start = cursor + 8;
-        size_t data_end = data_start + chunk_size;
-        if (data_end > size) return 0;
-        if (memcmp(data + cursor, "data", 4) == 0) {
-            info->sample_rate = read_u32_le(data + 24);
-            info->pcm_start = data_start;
-            info->pcm_len = chunk_size;
-            return 1;
-        }
-        cursor = data_end;
-    }
-    return 0;
-}
-
-static int16_t read_sample(const uint8_t* bytes, size_t sample_index) {
-    return (int16_t)read_u16_le(bytes + sample_index * 2);
-}
-
-static void write_wav_header(uint8_t* out, uint32_t sample_rate, uint32_t data_len) {
-    memcpy(out, "RIFF", 4);
-    write_u32_le(out + 4, 36 + data_len);
-    memcpy(out + 8, "WAVE", 4);
-    memcpy(out + 12, "fmt ", 4);
-    write_u32_le(out + 16, 16);
-    write_u16_le(out + 20, 1);
-    write_u16_le(out + 22, 1);
-    write_u32_le(out + 24, sample_rate);
-    write_u32_le(out + 28, sample_rate * 2);
-    write_u16_le(out + 32, 2);
-    write_u16_le(out + 34, 16);
-    memcpy(out + 36, "data", 4);
-    write_u32_le(out + 40, data_len);
-}
-
-static TypecastTTSResponse* compose_wav_response(TypecastClient* client, TypecastTTSResponse** segments, size_t segment_count, const float* pauses, size_t pause_count) {
-    /* LCOV_EXCL_START */
-    if (segment_count == 0 || pause_count + 1 != segment_count) {
-        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Invalid composed speech parts");
-        return NULL;
-    }
-    /* LCOV_EXCL_STOP */
-
-    uint32_t sample_rate = 0;
-    size_t total_samples = 0;
-    size_t* start_samples = (size_t*)calloc(segment_count, sizeof(size_t));
-    size_t* end_samples = (size_t*)calloc(segment_count, sizeof(size_t));
-    WavInfo* infos = (WavInfo*)calloc(segment_count, sizeof(WavInfo));
-    /* LCOV_EXCL_START */
-    if (!start_samples || !end_samples || !infos) {
-        free(start_samples);
-        free(end_samples);
-        free(infos);
-        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate WAV composition buffers");
-        return NULL;
-    }
-    /* LCOV_EXCL_STOP */
-
-    for (size_t i = 0; i < segment_count; i++) {
-        if (!parse_wav(segments[i]->audio_data, segments[i]->audio_size, &infos[i])) {
-            free(start_samples);
-            free(end_samples);
-            free(infos);
-            set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Composed speech requires mono 16-bit PCM WAV segments");
-            return NULL;
-        }
-        if (i == 0) sample_rate = infos[i].sample_rate;
-        if (infos[i].sample_rate != sample_rate) {
-            free(start_samples);
-            free(end_samples);
-            free(infos);
-            set_error(client, TYPECAST_ERROR_INVALID_PARAM, "WAV segment sample rates must match");
-            return NULL;
-        }
-        size_t samples = infos[i].pcm_len / 2;
-        const uint8_t* pcm = segments[i]->audio_data + infos[i].pcm_start;
-        start_samples[i] = 0;
-        end_samples[i] = samples;
-        while (start_samples[i] < end_samples[i] && read_sample(pcm, start_samples[i]) == 0) start_samples[i]++;
-        while (end_samples[i] > start_samples[i] && read_sample(pcm, end_samples[i] - 1) == 0) end_samples[i]--;
-        total_samples += end_samples[i] - start_samples[i];
-        if (i < pause_count) total_samples += (size_t)(pauses[i] * (float)sample_rate + 0.5f);
-    }
-
-    TypecastTTSResponse* response = (TypecastTTSResponse*)calloc(1, sizeof(TypecastTTSResponse));
-    /* LCOV_EXCL_START */
-    if (!response) {
-        free(start_samples);
-        free(end_samples);
-        free(infos);
-        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate composed response");
-        return NULL;
-    }
-    /* LCOV_EXCL_STOP */
-    response->audio_size = 44 + total_samples * 2;
-    response->audio_data = (uint8_t*)calloc(1, response->audio_size);
-    /* LCOV_EXCL_START */
-    if (!response->audio_data) {
-        typecast_tts_response_free(response);
-        free(start_samples);
-        free(end_samples);
-        free(infos);
-        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate composed audio");
-        return NULL;
-    }
-    /* LCOV_EXCL_STOP */
-    response->format = TYPECAST_AUDIO_FORMAT_WAV;
-    response->duration = (float)total_samples / (float)sample_rate;
-    write_wav_header(response->audio_data, sample_rate, (uint32_t)(total_samples * 2));
-
-    size_t cursor = 44;
-    for (size_t i = 0; i < segment_count; i++) {
-        const uint8_t* pcm = segments[i]->audio_data + infos[i].pcm_start;
-        for (size_t sample = start_samples[i]; sample < end_samples[i]; sample++) {
-            memcpy(response->audio_data + cursor, pcm + sample * 2, 2);
-            cursor += 2;
-        }
-        if (i < pause_count) {
-            size_t pause_samples = (size_t)(pauses[i] * (float)sample_rate + 0.5f);
-            cursor += pause_samples * 2;
-        }
-    }
-
-    free(start_samples);
-    free(end_samples);
-    free(infos);
-    return response;
-}
-
 TYPECAST_API TypecastTTSResponse* typecast_speech_composer_generate(
     TypecastSpeechComposer* composer,
     TypecastAudioFormat output_format
 ) {
     if (!composer) return NULL;
-    if (output_format == TYPECAST_AUDIO_FORMAT_MP3) {
-        set_error(composer->client, TYPECAST_ERROR_INVALID_PARAM, "MP3 conversion is not available for composed speech in the C SDK");
-        return NULL;
+    cJSON* root = cJSON_CreateObject();
+    cJSON* segments = cJSON_AddArrayToObject(root, "segments");
+    int has_speech = 0;
+    for (size_t i = 0; i < composer->count; i++) {
+        if (composer->parts[i].kind == COMPOSER_PART_PAUSE) {
+            cJSON* pause = cJSON_CreateObject();
+            cJSON_AddStringToObject(pause, "type", "pause");
+            cJSON_AddNumberToObject(pause, "duration_seconds", composer->parts[i].pause_seconds);
+            cJSON_AddItemToArray(segments, pause);
+            continue;
+        }
+        TypecastComposerSettings merged = merge_composer_settings(composer->defaults, composer->parts[i].settings);
+        if (!merged.voice_id) {
+            cJSON_Delete(root);
+            set_error(composer->client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is required for composed speech");
+            return NULL;
+        }
+        TypecastSpeechPart* parsed = NULL;
+        size_t parsed_count = 0;
+        TypecastErrorCode err = typecast_parse_pause_markup(composer->parts[i].text, &parsed, &parsed_count);
+        if (err != TYPECAST_OK) {
+            cJSON_Delete(root);
+            set_error(composer->client, err, "Failed to parse composed speech");
+            return NULL;
+        }
+        for (size_t j = 0; j < parsed_count; j++) {
+            if (parsed[j].is_pause) {
+                cJSON* pause = cJSON_CreateObject();
+                cJSON_AddStringToObject(pause, "type", "pause");
+                cJSON_AddNumberToObject(pause, "duration_seconds", parsed[j].pause_seconds);
+                cJSON_AddItemToArray(segments, pause);
+                continue;
+            }
+            if (is_blank_string(parsed[j].text)) continue;
+            TypecastOutput output = composer_output_to_tts(merged.output);
+            output.audio_format = output_format;
+            TypecastTTSRequest request = {0};
+            request.text = parsed[j].text;
+            request.voice_id = merged.voice_id;
+            request.model = merged.use_model ? merged.model : TYPECAST_MODEL_SSFM_V30;
+            request.language = merged.language;
+            request.prompt = merged.prompt;
+            request.output = &output;
+            request.seed = merged.use_seed ? merged.seed : 0;
+            cJSON* speech = build_tts_request_json(&request);
+            cJSON_AddStringToObject(speech, "type", "tts");
+            cJSON_AddItemToArray(segments, speech);
+            has_speech = 1;
+        }
+        typecast_speech_parts_free(parsed, parsed_count);
     }
-
-    TypecastTTSRequest* requests = NULL;
-    size_t request_count = 0;
-    TypecastErrorCode err = typecast_speech_composer_segment_requests(composer, &requests, &request_count);
-    if (err != TYPECAST_OK) return NULL;
-    if (request_count == 0) {
-        typecast_speech_composer_segment_requests_free(requests, request_count);
+    if (!has_speech) {
+        cJSON_Delete(root);
         set_error(composer->client, TYPECAST_ERROR_INVALID_PARAM, "At least one speech segment is required");
         return NULL;
     }
-
-    TypecastTTSResponse** segments = (TypecastTTSResponse**)calloc(request_count, sizeof(TypecastTTSResponse*));
-    float* pauses = (float*)calloc(request_count > 1 ? request_count - 1 : 1, sizeof(float));
-    /* LCOV_EXCL_START */
-    if (!segments || !pauses) {
-        free(segments);
-        free(pauses);
-        typecast_speech_composer_segment_requests_free(requests, request_count);
-        set_error(composer->client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate composed speech buffers");
-        return NULL;
-    }
-    /* LCOV_EXCL_STOP */
-
-    size_t request_index = 0;
-    size_t pause_index = 0;
-    float pending_pause = 0.0f;
-    int has_audio = 0;
-    for (size_t i = 0; i < composer->count; i++) {
-        if (composer->parts[i].kind == COMPOSER_PART_PAUSE) {
-            pending_pause += composer->parts[i].pause_seconds;
-            continue;
-        }
-        if (has_audio) pauses[pause_index++] = pending_pause;
-        pending_pause = 0.0f;
-        segments[request_index] = typecast_text_to_speech(composer->client, &requests[request_index]);
-        if (!segments[request_index]) {
-            for (size_t j = 0; j < request_index; j++) typecast_tts_response_free(segments[j]);
-            free(segments);
-            free(pauses);
-            typecast_speech_composer_segment_requests_free(requests, request_count);
-            return NULL;
-        }
-        request_index++;
-        has_audio = 1;
-    }
-
-    TypecastTTSResponse* response = compose_wav_response(composer->client, segments, request_count, pauses, pause_index);
-    for (size_t i = 0; i < request_count; i++) typecast_tts_response_free(segments[i]);
-    free(segments);
-    free(pauses);
-    typecast_speech_composer_segment_requests_free(requests, request_count);
+    TypecastTTSResponse* response = post_compose_json(composer->client, root, output_format);
+    cJSON_Delete(root);
     return response;
 }
 

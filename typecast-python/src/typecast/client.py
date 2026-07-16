@@ -209,7 +209,22 @@ class Typecast:
         Text passed to ``say()`` may include pause markup such as ``<|0.3s|>``.
         ``pause(seconds)`` also uses seconds, e.g. ``0.3`` for 300 ms.
         """
-        return SpeechComposer(self.text_to_speech)
+        return SpeechComposer(self.compose_text_to_speech)
+
+    def compose_text_to_speech(self, segments: list[dict]) -> TTSResponse:
+        response = self.session.post(
+            f"{self.host}/v1/text-to-speech/compose",
+            json={"segments": segments},
+            headers=self._request_headers(),
+        )
+        if response.status_code != 200:
+            self._handle_error(response.status_code, response.text)
+        content_type = response.headers.get("Content-Type", "audio/wav")
+        return TTSResponse(
+            audio_data=response.content,
+            duration=response.headers.get("X-Audio-Duration", 0),
+            format="mp3" if "mp3" in content_type or "mpeg" in content_type else "wav",
+        )
 
     def generate_to_file(
         self,

@@ -181,12 +181,36 @@ public class TypecastClient : IDisposable
     /// Use <see cref="SpeechComposer.Defaults"/> for shared options, then chain
     /// <see cref="SpeechComposer.Say"/> and <see cref="SpeechComposer.Pause"/>.
     /// Each <c>Say</c> call may override voice, pitch, tempo, prompt, seed, and other
-    /// TTS options for that segment. Internal segment requests are generated as WAV
-    /// so the SDK can trim leading/trailing silence and concatenate PCM safely.
+    /// TTS options for that segment. All speech and pause segments are sent to the
+    /// Compose API in one request.
     /// </summary>
     public SpeechComposer ComposeSpeech()
     {
         return new SpeechComposer(this);
+    }
+
+    internal async Task<TTSResponse> ComposeTextToSpeechAsync(IReadOnlyList<ComposePart> parts, CancellationToken cancellationToken)
+    {
+        var segments = parts.Select(part =>
+        {
+            if (part.Request is null)
+                return (object)new Dictionary<string, object> { ["type"] = "pause", ["duration_seconds"] = part.PauseSeconds!.Value };
+            var segment = JsonSerializer.Deserialize<Dictionary<string, object>>(SerializeRequest(part.Request), JsonOptions)!;
+            segment["type"] = "tts";
+            return segment;
+        }).ToList();
+        using var content = new StringContent(JsonSerializer.Serialize(new { segments }, JsonOptions), Encoding.UTF8, "application/json");
+        using var response = await _httpClient.PostAsync($"{_apiHost}/v1/text-to-speech/compose", content, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+            throw TypecastException.FromStatusCode((int)response.StatusCode, await response.Content.ReadAsStringAsync().ConfigureAwait(false));
+        var audioData = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+        var duration = response.Headers.TryGetValues("x-audio-duration", out var values)
+            && double.TryParse(values.FirstOrDefault(), out var parsed) ? parsed : 0.0;
+        var contentType = response.Content.Headers.ContentType?.MediaType;
+        var format = contentType?.Contains("mp3") == true || contentType?.Contains("mpeg") == true
+            ? AudioFormat.Mp3
+            : AudioFormat.Wav;
+        return new TTSResponse(audioData, duration, format);
     }
 
     /// <summary>

@@ -13,7 +13,7 @@ import {
   guessAudioMime,
   validateCloneInputsAsync,
 } from './types/QuickCloning';
-import { SpeechComposer } from './composer';
+import { SpeechComposer, type ComposeSegment } from './composer';
 
 const SDK_VERSION = '0.4.6';
 const DEFAULT_BASE_HOST = 'https://api.typecast.ai';
@@ -152,7 +152,22 @@ export class TypecastClient {
    * `.pause(seconds)` also uses seconds, e.g. `0.3` for 300 ms.
    */
   composeSpeech(): SpeechComposer {
-    return new SpeechComposer((request) => this.textToSpeech(request));
+    return new SpeechComposer((segments) => this.composeTextToSpeech(segments));
+  }
+
+  async composeTextToSpeech(segments: ComposeSegment[]): Promise<TTSResponse> {
+    const response = await fetch(this.buildUrl('/v1/text-to-speech/compose'), {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ segments }),
+    });
+    if (!response.ok) return this.handleResponse<TTSResponse>(response);
+    const contentType = response.headers.get('content-type') || 'audio/wav';
+    return {
+      audioData: await response.arrayBuffer(),
+      duration: Number(response.headers.get('x-audio-duration') || 0),
+      format: contentType.includes('mp3') || contentType.includes('mpeg') ? 'mp3' : 'wav',
+    };
   }
 
   /**

@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import io
 import math
 import re
-import struct
-import wave
 from dataclasses import dataclass
 from typing import Callable, Literal, Optional, Union
 
@@ -32,19 +29,6 @@ class _SpeechPart:
 
 
 @dataclass(frozen=True)
-class _WavSpec:
-    sample_rate: int
-    channels: int
-    sample_width: int
-
-
-@dataclass(frozen=True)
-class _ParsedWav:
-    spec: _WavSpec
-    samples: list[int]
-
-
-@dataclass(frozen=True)
 class _ComposerSettings:
     voice_id: Optional[str] = None
     model: Optional[Union[TTSModel, str]] = None
@@ -55,8 +39,8 @@ class _ComposerSettings:
 
 
 class SpeechComposer:
-    def __init__(self, text_to_speech: Callable[[TTSRequest], TTSResponse]):
-        self._text_to_speech = text_to_speech
+    def __init__(self, compose: Callable[[list[dict]], TTSResponse]):
+        self._compose = compose
         self._defaults = _ComposerSettings()
         self._parts: list[Union[_SpeechPart, _PausePart]] = []
 
@@ -128,37 +112,18 @@ class SpeechComposer:
             self._defaults.output.audio_format if self._defaults.output else "wav"
         )
         if output_format not in ("wav", "mp3"):
-            raise ValueError(f"unsupported composed speech output format: {output_format}")
+            raise ValueError(
+                f"unsupported composed speech output format: {output_format}"
+            )
 
-        wav_spec: Optional[_WavSpec] = None
-        output_samples: list[int] = []
+        segments: list[dict] = []
         for part in plan:
             if isinstance(part, _PausePart):
-                if wav_spec is None:
-                    raise ValueError("pause cannot be the first composed part")
-                output_samples.extend(
-                    [0] * _seconds_to_samples(part.seconds, wav_spec.sample_rate)
-                )
+                segments.append({"type": "pause", "duration_seconds": part.seconds})
                 continue
-
-            request = _settings_to_request(part.text, part.settings)
-            response = self._text_to_speech(request)
-            wav = _parse_wav(response.audio_data)
-            if wav_spec is not None and wav.spec != wav_spec:
-                raise ValueError("all composed WAV segments must use the same PCM format")
-            wav_spec = wav.spec
-            output_samples.extend(_trim_silence(wav.samples))
-
-        final_spec = wav_spec
-        assert final_spec is not None
-        wav_bytes = _encode_wav(output_samples, final_spec)
-        if output_format == "mp3":
-            raise ValueError("ffmpeg is required to encode composed speech as mp3")
-        return TTSResponse(
-            audio_data=wav_bytes,
-            duration=len(output_samples) / final_spec.sample_rate,
-            format="wav",
-        )
+            request = _settings_to_request(part.text, part.settings, output_format)
+            segments.append({"type": "tts", **request.model_dump(exclude_none=True)})
+        return self._compose(segments)
 
     def _build_plan(self) -> list[Union[_SpeechPart, _PausePart]]:
         plan: list[Union[_SpeechPart, _PausePart]] = []
@@ -173,7 +138,9 @@ class SpeechComposer:
                 if not parsed.text.strip():
                     continue
                 if not part.settings.voice_id:
-                    raise ValueError("voice_id is required for composed speech segments")
+                    raise ValueError(
+                        "voice_id is required for composed speech segments"
+                    )
                 if not part.settings.model:
                     raise ValueError("model is required for composed speech segments")
                 plan.append(_SpeechPart(text=parsed.text, settings=part.settings))
@@ -207,69 +174,33 @@ def _merge_settings(
     )
 
 
-def _merge_output(base: Optional[Output], override: Optional[Output]) -> Optional[Output]:
+def _merge_output(
+    base: Optional[Output], override: Optional[Output]
+) -> Optional[Output]:
     if base is None and override is None:
         return None
-    data = base.model_dump(exclude_none=True, exclude_unset=True) if base is not None else {}
+    data = (
+        base.model_dump(exclude_none=True, exclude_unset=True)
+        if base is not None
+        else {}
+    )
     if override is not None:
         data.update(override.model_dump(exclude_none=True, exclude_unset=True))
     return Output(**data)
 
 
-def _settings_to_request(text: str, settings: _ComposerSettings) -> TTSRequest:
-    output = _merge_output(settings.output, Output(audio_format="wav"))
+def _settings_to_request(
+    text: str, settings: _ComposerSettings, output_format: str
+) -> TTSRequest:
+    output = _merge_output(settings.output, Output(audio_format=output_format))
     return TTSRequest(
         text=text,
         voice_id=settings.voice_id or "",
-        model=settings.model if isinstance(settings.model, TTSModel) else TTSModel(settings.model),
+        model=settings.model
+        if isinstance(settings.model, TTSModel)
+        else TTSModel(settings.model),
         language=settings.language,
         prompt=settings.prompt,
         output=output,
         seed=settings.seed,
     )
-
-
-def _parse_wav(data: bytes) -> _ParsedWav:
-    try:
-        with wave.open(io.BytesIO(data), "rb") as reader:
-            channels = reader.getnchannels()
-            sample_width = reader.getsampwidth()
-            sample_rate = reader.getframerate()
-            if channels != 1 or sample_width != 2:
-                raise ValueError("only mono 16-bit PCM WAV is supported for composed speech")
-            frames = reader.readframes(reader.getnframes())
-    except (EOFError, wave.Error) as exc:
-        raise ValueError("unsupported WAV data") from exc
-    samples = [
-        struct.unpack("<h", frames[offset : offset + 2])[0]
-        for offset in range(0, len(frames), 2)
-    ]
-    return _ParsedWav(
-        spec=_WavSpec(sample_rate=sample_rate, channels=channels, sample_width=sample_width),
-        samples=samples,
-    )
-
-
-def _encode_wav(samples: list[int], spec: _WavSpec) -> bytes:
-    payload = b"".join(struct.pack("<h", sample) for sample in samples)
-    out = io.BytesIO()
-    with wave.open(out, "wb") as writer:
-        writer.setnchannels(spec.channels)
-        writer.setsampwidth(spec.sample_width)
-        writer.setframerate(spec.sample_rate)
-        writer.writeframes(payload)
-    return out.getvalue()
-
-
-def _trim_silence(samples: list[int]) -> list[int]:
-    start = 0
-    end = len(samples)
-    while start < end and samples[start] == 0:
-        start += 1
-    while end > start and samples[end - 1] == 0:
-        end -= 1
-    return samples[start:end]
-
-
-def _seconds_to_samples(seconds: float, sample_rate: int) -> int:
-    return round(seconds * sample_rate)

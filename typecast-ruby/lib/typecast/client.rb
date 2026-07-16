@@ -34,7 +34,16 @@ module Typecast
     end
 
     def compose_speech
-      SpeechComposer.new(method(:text_to_speech))
+      SpeechComposer.new(method(:compose_text_to_speech))
+    end
+
+    def compose_text_to_speech(segments)
+      response = request_json(:post, "/v1/text-to-speech/compose", segments: segments)
+      Models::TTSResponse.new(
+        audio_data: response.body,
+        duration: response["X-Audio-Duration"].to_f,
+        format: response["Content-Type"].to_s.include?("mp3") || response["Content-Type"].to_s.include?("mpeg") ? Models::AUDIO_MP3 : Models::AUDIO_WAV
+      )
     end
 
     # Browse available API voices at https://typecast.ai/developers/api/voices.

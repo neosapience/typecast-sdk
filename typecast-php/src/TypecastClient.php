@@ -97,6 +97,20 @@ class TypecastClient
         return new SpeechComposer($this);
     }
 
+    /** @param array<int, array<string, mixed>> $segments */
+    public function composeTextToSpeech(array $segments): TTSResponse
+    {
+        try {
+            $response = $this->httpClient->request('POST', '/v1/text-to-speech/compose', $this->requestOptions(['json' => ['segments' => $segments]]));
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
+        if ($response->getStatusCode() !== 200) $this->handleError($response->getStatusCode(), (string) $response->getBody());
+        $contentType = $response->getHeaderLine('Content-Type') ?: 'audio/wav';
+        $format = str_contains($contentType, 'mp3') || str_contains($contentType, 'mpeg') ? 'mp3' : 'wav';
+        return new TTSResponse((string) $response->getBody(), (float) ($response->getHeaderLine('X-Audio-Duration') ?: '0'), $format);
+    }
+
     /**
      * Convert text to speech and save the audio bytes to a file.
      *

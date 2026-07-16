@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'models.dart';
 import 'typecast_client.dart';
 
@@ -82,49 +80,20 @@ class SpeechComposer {
     }
 
     final outputFormat = _defaults.output?.audioFormat ?? AudioFormat.wav;
-    _WavSpec? wavSpec;
-    final outputSamples = <int>[];
+    final segments = <Map<String, dynamic>>[];
     for (final part in plan) {
       if (part.kind == 'pause') {
         final seconds = part.seconds!;
         if (!_isValidPause(seconds)) {
           throw ArgumentError('pause seconds must be greater than 0');
         }
-        final spec = wavSpec;
-        if (spec == null) {
-          throw ArgumentError('pause cannot be the first composed part');
-        }
-        outputSamples.addAll(
-          List.filled(_secondsToSamples(seconds, spec.sampleRate), 0),
-        );
+        segments.add({'type': 'pause', 'duration_seconds': seconds});
         continue;
       }
-
-      final response = await _client.textToSpeech(_requestFromPart(part));
-      final wav = _parseWav(response.audioData);
-      if (wavSpec != null && wav.spec != wavSpec) {
-        throw ArgumentError(
-          'all composed WAV segments must use the same PCM format',
-        );
-      }
-      wavSpec = wav.spec;
-      outputSamples.addAll(_trimSilence(wav.samples));
+      segments.add(
+          {'type': 'tts', ..._requestFromPart(part, outputFormat).toJson()});
     }
-
-    final finalSpec = wavSpec;
-    if (finalSpec == null) {
-      throw ArgumentError('at least one speech segment is required');
-    }
-    if (outputFormat == AudioFormat.mp3) {
-      throw ArgumentError(
-        'MP3 conversion is app-level responsibility for composed speech',
-      );
-    }
-    return TtsResponse(
-      audioData: _encodeWav(outputSamples, finalSpec),
-      duration: outputSamples.length / finalSpec.sampleRate,
-      format: AudioFormat.wav,
-    );
+    return _client.composeTextToSpeech(segments);
   }
 
   List<_ComposerPart> _buildPlan() {
@@ -214,31 +183,6 @@ class _ComposerPart {
   final ComposerSettings settings;
 }
 
-class _WavSpec {
-  const _WavSpec(this.sampleRate, this.channels, this.bitsPerSample);
-
-  final int sampleRate;
-  final int channels;
-  final int bitsPerSample;
-
-  @override
-  bool operator ==(Object other) =>
-      other is _WavSpec &&
-      other.sampleRate == sampleRate &&
-      other.channels == channels &&
-      other.bitsPerSample == bitsPerSample;
-
-  @override
-  int get hashCode => Object.hash(sampleRate, channels, bitsPerSample);
-}
-
-class _ParsedWav {
-  const _ParsedWav(this.spec, this.samples);
-
-  final _WavSpec spec;
-  final List<int> samples;
-}
-
 ComposerSettings _mergeSettings(
   ComposerSettings base,
   ComposerSettings override,
@@ -264,7 +208,8 @@ Output? _mergeOutput(Output? base, Output? override) {
   );
 }
 
-TtsRequest _requestFromPart(_ComposerPart part) {
+TtsRequest _requestFromPart(_ComposerPart part,
+    [AudioFormat format = AudioFormat.wav]) {
   final settings = part.settings;
   return TtsRequest(
     voiceId: settings.voiceId!,
@@ -274,105 +219,11 @@ TtsRequest _requestFromPart(_ComposerPart part) {
     prompt: settings.prompt,
     output: _mergeOutput(
       settings.output,
-      const Output(audioFormat: AudioFormat.wav),
+      Output(audioFormat: format),
     ),
     seed: settings.seed,
   );
 }
-
-_ParsedWav _parseWav(Uint8List data) {
-  if (data.length < 12 ||
-      String.fromCharCodes(data.sublist(0, 4)) != 'RIFF' ||
-      String.fromCharCodes(data.sublist(8, 12)) != 'WAVE') {
-    throw ArgumentError('unsupported WAV data');
-  }
-  final view = ByteData.sublistView(data);
-  var offset = 12;
-  _WavSpec? spec;
-  List<int>? samples;
-  while (offset + 8 <= data.length) {
-    final chunkId = String.fromCharCodes(data.sublist(offset, offset + 4));
-    final chunkSize = view.getUint32(offset + 4, Endian.little);
-    final chunkDataOffset = offset + 8;
-    final chunkEnd = chunkDataOffset + chunkSize;
-    if (chunkEnd > data.length) {
-      throw ArgumentError('unsupported WAV data');
-    }
-    if (chunkId == 'fmt ') {
-      if (chunkSize < 16) throw ArgumentError('unsupported WAV data');
-      final audioFormat = view.getUint16(chunkDataOffset, Endian.little);
-      final channels = view.getUint16(chunkDataOffset + 2, Endian.little);
-      final sampleRate = view.getUint32(chunkDataOffset + 4, Endian.little);
-      final bitsPerSample = view.getUint16(chunkDataOffset + 14, Endian.little);
-      if (audioFormat != 1 || channels != 1 || bitsPerSample != 16) {
-        throw ArgumentError(
-          'only mono 16-bit PCM WAV is supported for composed speech',
-        );
-      }
-      spec = _WavSpec(sampleRate, channels, bitsPerSample);
-    } else if (chunkId == 'data') {
-      samples = [
-        for (var i = chunkDataOffset; i + 1 < chunkEnd; i += 2)
-          view.getInt16(i, Endian.little),
-      ];
-    }
-    offset = chunkEnd + (chunkSize % 2);
-  }
-  if (spec == null || samples == null) {
-    throw ArgumentError('unsupported WAV data');
-  }
-  return _ParsedWav(spec, samples);
-}
-
-Uint8List _encodeWav(List<int> samples, _WavSpec spec) {
-  final data = BytesBuilder();
-  void u16(int value) {
-    final bytes = ByteData(2)..setUint16(0, value, Endian.little);
-    data.add(bytes.buffer.asUint8List());
-  }
-
-  void u32(int value) {
-    final bytes = ByteData(4)..setUint32(0, value, Endian.little);
-    data.add(bytes.buffer.asUint8List());
-  }
-
-  void i16(int value) {
-    final bytes = ByteData(2)..setInt16(0, value, Endian.little);
-    data.add(bytes.buffer.asUint8List());
-  }
-
-  data.add('RIFF'.codeUnits);
-  u32(36 + samples.length * 2);
-  data.add('WAVEfmt '.codeUnits);
-  u32(16);
-  u16(1);
-  u16(spec.channels);
-  u32(spec.sampleRate);
-  u32(spec.sampleRate * spec.channels * 2);
-  u16(spec.channels * 2);
-  u16(spec.bitsPerSample);
-  data.add('data'.codeUnits);
-  u32(samples.length * 2);
-  for (final sample in samples) {
-    i16(sample);
-  }
-  return data.toBytes();
-}
-
-List<int> _trimSilence(List<int> samples) {
-  var start = 0;
-  var end = samples.length;
-  while (start < end && samples[start].abs() <= 0) {
-    start++;
-  }
-  while (end > start && samples[end - 1].abs() <= 0) {
-    end--;
-  }
-  return samples.sublist(start, end);
-}
-
-int _secondsToSamples(double seconds, int sampleRate) =>
-    (seconds * sampleRate).round();
 
 bool _isValidPause(double seconds) =>
     !seconds.isNaN && !seconds.isInfinite && seconds > 0;
