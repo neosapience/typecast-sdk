@@ -72,7 +72,7 @@ class TypecastClient private constructor(
 
     companion object {
         private const val DEFAULT_BASE_URL = "https://api.typecast.ai"
-        private const val SDK_VERSION = "1.2.6"
+        private const val SDK_VERSION = "1.2.9"
         private const val API_KEY_HEADER = "X-API-KEY"
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 

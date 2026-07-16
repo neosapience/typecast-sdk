@@ -10,7 +10,7 @@ import 'timestamps.dart';
 
 class TypecastClient {
   static const defaultBaseUrl = 'https://api.typecast.ai';
-  static const _sdkVersion = '0.1.6';
+  static const _sdkVersion = '0.1.8';
 
   TypecastClient({
     String? apiKey,

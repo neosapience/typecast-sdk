@@ -2,8 +2,7 @@ require "rake/testtask"
 
 Rake::TestTask.new(:test) do |t|
   t.libs << "test"
-  t.pattern = "test/*_test.rb"
-  t.exclude = "test/e2e_test.rb"
+  t.pattern = "test/all_test.rb"
 end
 
 task default: :test

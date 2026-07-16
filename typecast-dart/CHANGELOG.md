@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.8
+
+- Updated speech composition to use the Typecast Compose API.
+
 ## 0.1.7
 
 - Added the Recommend Voices API.

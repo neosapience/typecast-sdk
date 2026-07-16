@@ -2,7 +2,7 @@ import Foundation
 
 /// Typecast API client for text-to-speech and voice operations
 public final class TypecastClient: Sendable {
-  private static let sdkVersion = "0.3.7"
+  private static let sdkVersion = "0.3.9"
   private let configuration: TypecastConfiguration
   private let session: URLSession
   private let decoder: JSONDecoder

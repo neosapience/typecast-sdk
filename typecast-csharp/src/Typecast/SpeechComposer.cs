@@ -142,7 +142,7 @@ public class SpeechComposer
 
     private static void ValidatePause(double seconds)
     {
-        if (!double.IsFinite(seconds) || seconds <= 0)
+        if (double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds <= 0)
             throw new ArgumentOutOfRangeException(nameof(seconds), "Pause must be finite and greater than zero.");
     }
 
@@ -259,7 +259,7 @@ public class SpeechComposer
         var number = token.Substring(0, token.Length - 1);
         if (number.Any(c => !char.IsDigit(c) && c != '.')) return false;
         return double.TryParse(number, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out seconds)
-            && double.IsFinite(seconds) && seconds > 0;
+            && !double.IsNaN(seconds) && !double.IsInfinity(seconds) && seconds > 0;
     }
 
 }

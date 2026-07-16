@@ -63,7 +63,7 @@ describe('TypecastClient', () => {
             'X-API-KEY': 'test-api-key',
             'Content-Type': 'application/json',
             'User-Agent': expect.stringMatching(
-              /^typecast-js\/0\.4\.6 Node\/\d+\.\d+ fetch \(runtime=node; base=custom; os=[a-z0-9_-]+; arch=[a-z0-9_-]+; sdk_env=node; platform=server\)$/,
+              /^typecast-js\/0\.4\.8 Node\/\d+\.\d+ fetch \(runtime=node; base=custom; os=[a-z0-9_-]+; arch=[a-z0-9_-]+; sdk_env=node; platform=server\)$/,
             ),
           },
           body: JSON.stringify(baseRequest),

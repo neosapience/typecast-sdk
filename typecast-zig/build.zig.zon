@@ -1,6 +1,6 @@
 .{
     .name = .typecast_zig,
-    .version = "0.2.6",
+    .version = "0.2.8",
     .fingerprint = 0x66eb5eeff7529a2f,
     .paths = .{
         "build.zig",

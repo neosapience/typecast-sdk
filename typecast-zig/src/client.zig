@@ -5,7 +5,7 @@ const json_helpers = @import("json.zig");
 const timestamps = @import("timestamps.zig");
 const composer = @import("composer.zig");
 
-const SDK_VERSION = "0.2.6";
+const SDK_VERSION = "0.2.8";
 const USER_AGENT_DEFAULT = "typecast-zig/" ++ SDK_VERSION ++ " Zig/unknown std-http (base=default; os=" ++ osName() ++ "; arch=" ++ archName() ++ "; sdk_env=zig; platform=server)";
 const USER_AGENT_CUSTOM = "typecast-zig/" ++ SDK_VERSION ++ " Zig/unknown std-http (base=custom; os=" ++ osName() ++ "; arch=" ++ archName() ++ "; sdk_env=zig; platform=server)";
 
