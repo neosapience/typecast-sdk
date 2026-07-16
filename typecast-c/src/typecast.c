@@ -828,10 +828,12 @@ static TypecastTTSResponse* post_compose_json(TypecastClient* client, cJSON* jso
         free(response_buf.data); free(header_buf.data); return NULL;
     }
     TypecastTTSResponse* response = (TypecastTTSResponse*)calloc(1, sizeof(TypecastTTSResponse));
+    /* LCOV_EXCL_START - allocation failure is not deterministic in unit tests. */
     if (!response) {
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to allocate response");
         free(response_buf.data); free(header_buf.data); return NULL;
     }
+    /* LCOV_EXCL_STOP */
     response->audio_data = response_buf.data;
     response->audio_size = response_buf.size;
     response->duration = parse_duration_header(header_buf.data);
@@ -1172,11 +1174,13 @@ TYPECAST_API TypecastTTSResponse* typecast_speech_composer_generate(
         TypecastSpeechPart* parsed = NULL;
         size_t parsed_count = 0;
         TypecastErrorCode err = typecast_parse_pause_markup(composer->parts[i].text, &parsed, &parsed_count);
+        /* LCOV_EXCL_START - valid internal arguments can only fail on allocation. */
         if (err != TYPECAST_OK) {
             cJSON_Delete(root);
             set_error(composer->client, err, "Failed to parse composed speech");
             return NULL;
         }
+        /* LCOV_EXCL_STOP */
         for (size_t j = 0; j < parsed_count; j++) {
             if (parsed[j].is_pause) {
                 cJSON* pause = cJSON_CreateObject();

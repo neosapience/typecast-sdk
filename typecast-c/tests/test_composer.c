@@ -32,6 +32,7 @@ static int tests_failed = 0;
 typedef struct {
     int listen_fd;
     int port;
+    int status;
     pthread_t thread;
     char request[16384];
 } TinyServer;
@@ -55,8 +56,8 @@ static void* tiny_server_thread(void* arg) {
     const char* body = "composed-audio";
     char header[256];
     int header_len = snprintf(header, sizeof(header),
-        "HTTP/1.1 200 OK\r\nContent-Type: audio/mpeg\r\nX-Audio-Duration: 1.25\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n",
-        strlen(body));
+        "HTTP/1.1 %d Test\r\nContent-Type: audio/mpeg\r\nX-Audio-Duration: 1.25\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n",
+        server->status, strlen(body));
     (void)send(fd, header, (size_t)header_len, 0);
     (void)send(fd, body, strlen(body), 0);
     close(fd);
@@ -65,6 +66,7 @@ static void* tiny_server_thread(void* arg) {
 
 static int tiny_server_start(TinyServer* server) {
     memset(server, 0, sizeof(*server));
+    server->status = 200;
     server->listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server->listen_fd < 0) return 0;
     int opt = 1;
@@ -108,7 +110,17 @@ static void test_segment_requests_merge_defaults_and_overrides(void) {
     defaults.output.use_audio_pitch = 1;
     defaults.output.audio_pitch = 1;
     ASSERT_EQ(typecast_speech_composer_defaults(composer, &defaults), TYPECAST_OK);
-    ASSERT_EQ(typecast_speech_composer_say(composer, "First", NULL), TYPECAST_OK);
+    TypecastComposerSettings overrides = {0};
+    overrides.use_output = 1;
+    overrides.output.use_volume = 1;
+    overrides.output.volume = 80;
+    overrides.output.use_target_lufs = 1;
+    overrides.output.target_lufs = -18.0f;
+    overrides.output.use_audio_tempo = 1;
+    overrides.output.audio_tempo = 1.1f;
+    overrides.use_seed = 1;
+    overrides.seed = 77;
+    ASSERT_EQ(typecast_speech_composer_say(composer, "First", &overrides), TYPECAST_OK);
 
     TypecastTTSRequest* requests = NULL;
     size_t count = 0;
@@ -116,6 +128,10 @@ static void test_segment_requests_merge_defaults_and_overrides(void) {
     ASSERT_EQ(count, 1);
     ASSERT_STREQ(requests[0].voice_id, "default-voice");
     ASSERT_EQ(requests[0].output->audio_pitch, 1);
+    ASSERT_EQ(requests[0].output->volume, 80);
+    ASSERT(requests[0].output->target_lufs < -17.9f && requests[0].output->target_lufs > -18.1f);
+    ASSERT(requests[0].output->audio_tempo > 1.09f && requests[0].output->audio_tempo < 1.11f);
+    ASSERT_EQ(requests[0].seed, 77);
     typecast_speech_composer_segment_requests_free(requests, count);
     typecast_speech_composer_destroy(composer);
     typecast_client_destroy(client);
@@ -136,6 +152,7 @@ static void test_generate_uses_compose_api_once(void) {
     defaults.output.use_audio_format = 1;
     defaults.output.audio_format = TYPECAST_AUDIO_FORMAT_MP3;
     ASSERT_EQ(typecast_speech_composer_defaults(composer, &defaults), TYPECAST_OK);
+    ASSERT_EQ(typecast_speech_composer_pause(composer, 0.25f), TYPECAST_OK);
     ASSERT_EQ(typecast_speech_composer_say(composer, "Hello<|0.3s|>world", NULL), TYPECAST_OK);
 
     TypecastTTSResponse* response = typecast_speech_composer_generate(composer, TYPECAST_AUDIO_FORMAT_MP3);
@@ -149,6 +166,7 @@ static void test_generate_uses_compose_api_once(void) {
     ASSERT(strstr(server.request, "\"type\":\"tts\"") != NULL);
     ASSERT(strstr(server.request, "\"type\":\"pause\"") != NULL);
     ASSERT(strstr(server.request, "\"duration_seconds\":0.3") != NULL);
+    ASSERT(strstr(server.request, "\"duration_seconds\":0.25") != NULL);
     ASSERT(strstr(server.request, "\"text\":\"Hello\"") != NULL);
     ASSERT(strstr(server.request, "\"text\":\"world\"") != NULL);
 
@@ -166,11 +184,64 @@ static void test_generate_validates_before_network(void) {
     typecast_client_destroy(client);
 }
 
+static void test_composer_validation_edges(void) {
+    TypecastClient* client = typecast_client_create_with_host("test-key", "http://localhost:1");
+    TypecastSpeechComposer* composer = typecast_speech_composer_create(client);
+    ASSERT_EQ(typecast_speech_composer_pause(NULL, 0.1f), TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT_EQ(typecast_speech_composer_pause(composer, -0.1f), TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT_EQ(typecast_speech_composer_say(composer, "Hello", NULL), TYPECAST_OK);
+
+    TypecastTTSRequest* requests = NULL;
+    size_t count = 0;
+    ASSERT_EQ(
+        typecast_speech_composer_segment_requests(composer, &requests, &count),
+        TYPECAST_ERROR_INVALID_PARAM
+    );
+    ASSERT(requests == NULL);
+    ASSERT(typecast_speech_composer_generate(composer, TYPECAST_AUDIO_FORMAT_WAV) == NULL);
+    ASSERT_EQ(typecast_client_get_error(client)->code, TYPECAST_ERROR_INVALID_PARAM);
+
+    typecast_speech_composer_destroy(composer);
+    typecast_client_destroy(client);
+}
+
+static void test_generate_propagates_network_and_http_errors(void) {
+    TypecastClient* network_client = typecast_client_create_with_host("test-key", "http://127.0.0.1:1");
+    TypecastSpeechComposer* network_composer = typecast_speech_composer_create(network_client);
+    TypecastComposerSettings defaults = {0};
+    defaults.voice_id = "voice";
+    defaults.use_model = 1;
+    defaults.model = TYPECAST_MODEL_SSFM_V30;
+    ASSERT_EQ(typecast_speech_composer_defaults(network_composer, &defaults), TYPECAST_OK);
+    ASSERT_EQ(typecast_speech_composer_say(network_composer, "Hello", NULL), TYPECAST_OK);
+    ASSERT(typecast_speech_composer_generate(network_composer, TYPECAST_AUDIO_FORMAT_WAV) == NULL);
+    ASSERT_EQ(typecast_client_get_error(network_client)->code, TYPECAST_ERROR_NETWORK);
+    typecast_speech_composer_destroy(network_composer);
+    typecast_client_destroy(network_client);
+
+    TinyServer server;
+    ASSERT(tiny_server_start(&server));
+    server.status = 422;
+    char host[128];
+    snprintf(host, sizeof(host), "http://127.0.0.1:%d", server.port);
+    TypecastClient* http_client = typecast_client_create_with_host("test-key", host);
+    TypecastSpeechComposer* http_composer = typecast_speech_composer_create(http_client);
+    ASSERT_EQ(typecast_speech_composer_defaults(http_composer, &defaults), TYPECAST_OK);
+    ASSERT_EQ(typecast_speech_composer_say(http_composer, "Hello", NULL), TYPECAST_OK);
+    ASSERT(typecast_speech_composer_generate(http_composer, TYPECAST_AUDIO_FORMAT_WAV) == NULL);
+    ASSERT_EQ(typecast_client_get_error(http_client)->code, TYPECAST_ERROR_UNPROCESSABLE_ENTITY);
+    tiny_server_stop(&server);
+    typecast_speech_composer_destroy(http_composer);
+    typecast_client_destroy(http_client);
+}
+
 int main(void) {
     RUN(parse_pause_markup_preserves_invalid_tokens);
     RUN(segment_requests_merge_defaults_and_overrides);
     RUN(generate_uses_compose_api_once);
     RUN(generate_validates_before_network);
+    RUN(composer_validation_edges);
+    RUN(generate_propagates_network_and_http_errors);
     printf("\nComposer tests: %d run, %d failed\n", tests_run, tests_failed);
     return tests_failed == 0 ? 0 : 1;
 }

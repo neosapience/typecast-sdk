@@ -76,6 +76,90 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
     } catch {
       XCTFail("unexpected error: \(error)")
     }
+
+    do {
+      _ = try await client.composeSpeech().pause(0.25).generate()
+      XCTFail("expected error")
+    } catch let TypecastError.validationError(message) {
+      XCTAssertTrue(message.contains("at least one speech segment"))
+    } catch {
+      XCTFail("unexpected error: \(error)")
+    }
+
+    do {
+      _ = try await client.composeSpeech()
+        .defaults(ComposerSettings(voiceId: "voice"))
+        .say("Hello")
+        .generate()
+      XCTFail("expected error")
+    } catch let TypecastError.validationError(message) {
+      XCTAssertTrue(message.contains("model is required"))
+    } catch {
+      XCTFail("unexpected error: \(error)")
+    }
+  }
+
+  func testComposeSpeechSendsExplicitPauseAndUsesResponseDefaults() async throws {
+    MockURLProtocol.requestHandler = { req in
+      return (self.httpResponse(url: req.url!, status: 200), Data("audio".utf8))
+    }
+
+    let response = try await client.composeSpeech()
+      .defaults(ComposerSettings(voiceId: "voice", model: .ssfmV30))
+      .pause(0.25)
+      .say("Hello")
+      .generate()
+
+    let body = try XCTUnwrap(MockURLProtocol.lastBody)
+    let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+    let segments = try XCTUnwrap(payload["segments"] as? [[String: Any]])
+    XCTAssertEqual(segments.first?["type"] as? String, "pause")
+    XCTAssertEqual(segments.first?["duration_seconds"] as? Double, 0.25)
+    XCTAssertEqual(response.format, .wav)
+    XCTAssertEqual(response.duration, 0)
+  }
+
+  func testComposeSpeechPropagatesHttpError() async {
+    MockURLProtocol.requestHandler = { req in
+      return (
+        self.httpResponse(url: req.url!, status: 422),
+        #"{"detail":"invalid segments"}"#.data(using: .utf8)
+      )
+    }
+
+    do {
+      _ = try await client.composeSpeech()
+        .defaults(ComposerSettings(voiceId: "voice", model: .ssfmV30))
+        .say("Hello")
+        .generate()
+      XCTFail("expected error")
+    } catch let error as TypecastError {
+      XCTAssertEqual(error.statusCode, 422)
+    } catch {
+      XCTFail("unexpected error: \(error)")
+    }
+  }
+
+  func testComposeSpeechRejectsNonHttpResponse() async {
+    MockURLProtocol.rawResponseHandler = { req in
+      return (
+        URLResponse(
+          url: req.url!, mimeType: nil, expectedContentLength: 0, textEncodingName: nil),
+        nil
+      )
+    }
+
+    do {
+      _ = try await client.composeSpeech()
+        .defaults(ComposerSettings(voiceId: "voice", model: .ssfmV30))
+        .say("Hello")
+        .generate()
+      XCTFail("expected error")
+    } catch TypecastError.invalidResponse {
+      // Expected.
+    } catch {
+      XCTFail("unexpected error: \(error)")
+    }
   }
 
   func testParsePauseMarkupIsLenientForInvalidTokens() {
@@ -83,5 +167,7 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
       parsePauseMarkup("a<|0.3s|>b<|abc|>c<|3s|>"),
       [.text("a"), .pause(0.3), .text("b<|abc|>c"), .pause(3)]
     )
+    XCTAssertEqual(parsePauseMarkup("hello<|0.3s"), [.text("hello<|0.3s")])
+    XCTAssertEqual(parsePauseMarkup("a<|xs|>b<|1..2s|>c"), [.text("a<|xs|>b<|1..2s|>c")])
   }
 }

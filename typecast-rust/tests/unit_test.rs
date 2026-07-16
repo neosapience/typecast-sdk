@@ -888,6 +888,37 @@ async fn compose_speech_composes_wav_and_merges_overrides() {
 }
 
 #[tokio::test]
+async fn compose_speech_sends_explicit_pause_and_propagates_api_errors() {
+    let mut server = Server::new_async().await;
+    let mock = server
+        .mock("POST", "/v1/text-to-speech/compose")
+        .with_status(422)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"message":"invalid segments"}"#)
+        .match_body(mockito::Matcher::Regex(
+            r#""type":"pause","duration_seconds":0\.25"#.to_string(),
+        ))
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let err = client
+        .compose_speech()
+        .defaults(
+            ComposerSettings::new()
+                .voice_id("voice-a")
+                .model(TTSModel::SsfmV30),
+        )
+        .say("Hello")
+        .pause(0.25)
+        .generate()
+        .await
+        .unwrap_err();
+    assert!(err.is_validation_error());
+    mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn compose_speech_validates_before_network() {
     let mut server = Server::new_async().await;
     let _m = server
@@ -1280,6 +1311,27 @@ async fn recommend_voices_rejects_invalid_count() {
         }
         other => panic!("expected validation error, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn recommend_voices_propagates_server_error() {
+    let mut server = Server::new_async().await;
+    let mock = server
+        .mock("GET", "/v1/voices/recommendations")
+        .match_query(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::UrlEncoded("query".into(), "voice".into()),
+            mockito::Matcher::UrlEncoded("count".into(), "1".into()),
+        ]))
+        .with_status(500)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"message":"failed"}"#)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    let err = client.recommend_voices("voice", Some(1)).await.unwrap_err();
+    assert!(err.is_server_error());
+    mock.assert_async().await;
 }
 
 // ---------------------------------------------------------------------------

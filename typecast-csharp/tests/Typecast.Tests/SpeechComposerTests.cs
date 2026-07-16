@@ -91,6 +91,71 @@ public class SpeechComposerTests : IDisposable
         parts[1].IsPause.Should().BeTrue();
         parts[2].Text.Should().Be("b<|abc|>c");
         parts[3].IsPause.Should().BeTrue();
+        SpeechComposer.ParsePauseMarkup("plain")[0].Text.Should().Be("plain");
+        SpeechComposer.ParsePauseMarkup("a<|1s")[0].Text.Should().Be("a<|1s");
+        SpeechComposer.ParsePauseMarkup("a<|1.2.3s|>b")[0].Text.Should().Be("a<|1.2.3s|>b");
+        SpeechComposer.ParsePauseMarkup("a<|.s|>b")[0].Text.Should().Be("a<|.s|>b");
+        SpeechComposer.ParsePauseMarkup("a<|xs|>b")[0].Text.Should().Be("a<|xs|>b");
+    }
+
+    [Fact]
+    public void SegmentRequests_KeepCompatibilityAndMergeOptions()
+    {
+        var requests = _client.ComposeSpeech()
+            .Defaults(new ComposerSettings
+            {
+                VoiceId = "voice-a",
+                Model = TTSModel.SsfmV30,
+                Language = LanguageCode.English,
+                Output = new Output(audioPitch: 1, audioTempo: 0.9, audioFormat: AudioFormat.Mp3)
+            })
+            .Say("First")
+            .Pause(0.25)
+            .Say("Second", new ComposerSettings
+            {
+                VoiceId = "voice-b",
+                Prompt = new PresetPrompt(EmotionPreset.Happy, 1.0),
+                Seed = 77,
+                Output = new Output(volume: 80, audioPitch: -2, audioTempo: 1.1, audioFormat: AudioFormat.Mp3, targetLufs: -18)
+            })
+            .SegmentRequests();
+
+        requests.Should().HaveCount(2);
+        requests[0].Output!.AudioFormat.Should().Be(AudioFormat.Wav);
+        requests[1].VoiceId.Should().Be("voice-b");
+        requests[1].Output!.Volume.Should().Be(80);
+        requests[1].Output!.TargetLufs.Should().Be(-18);
+
+        var defaults = _client.ComposeSpeech()
+            .Defaults(new ComposerSettings { VoiceId = "voice" })
+            .Say("Hello")
+            .SegmentRequests();
+        defaults[0].Model.Should().Be(TTSModel.SsfmV30);
+        defaults[0].Output!.AudioFormat.Should().Be(AudioFormat.Wav);
+
+        FluentActions.Invoking(() => _client.ComposeSpeech().Pause(-0.1))
+            .Should().Throw<ArgumentOutOfRangeException>();
+        FluentActions.Invoking(() => _client.ComposeSpeech().Say("Hello").SegmentRequests())
+            .Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Generate_SynchronousPathIncludesExplicitPauseAndBlankText()
+    {
+        _handler.Protected().Setup<Task<HttpResponseMessage>>(
+                "SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(Array.Empty<byte>())
+            });
+
+        var response = _client.ComposeSpeech()
+            .Defaults(new ComposerSettings { VoiceId = "voice" })
+            .Pause(0.1)
+            .Say("Hello<|0.1s|>   ")
+            .Generate();
+
+        response.Format.Should().Be(AudioFormat.Wav);
     }
 
     public void Dispose()

@@ -75,4 +75,57 @@ describe('SpeechComposer', () => {
       { kind: 'text', text: 'b<|bad|>' },
     ]);
   });
+
+  it('covers Compose response fallbacks and API errors', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'content-type': 'audio/mp3' }),
+        arrayBuffer: async () => new ArrayBuffer(1),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers(),
+        arrayBuffer: async () => new ArrayBuffer(0),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        json: async () => ({ detail: 'invalid segments' }),
+      });
+
+    const defaults = { voice_id: 'voice', model: 'ssfm-v30' as const };
+    await expect(
+      client.composeSpeech().defaults(defaults).say('Hello').generate(),
+    ).resolves.toMatchObject({
+      format: 'mp3',
+      duration: 0,
+    });
+    await expect(
+      client.composeSpeech().defaults(defaults).say('Hello').generate(),
+    ).resolves.toMatchObject({
+      format: 'wav',
+      duration: 0,
+    });
+    await expect(client.composeSpeech().defaults(defaults).say('Hello').generate()).rejects.toThrow(
+      'invalid segments',
+    );
+  });
+
+  it('skips blank text around pause markup', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      headers: new Headers({ 'content-type': 'audio/wav' }),
+      arrayBuffer: async () => new ArrayBuffer(0),
+    });
+
+    await client
+      .composeSpeech()
+      .defaults({ voice_id: 'voice', model: 'ssfm-v30' })
+      .say('Hello<|0.1s|>   ')
+      .generate();
+
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).segments).toHaveLength(2);
+  });
 });
