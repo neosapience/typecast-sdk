@@ -159,12 +159,13 @@ def parse_pause_markup(text: str) -> list[Union[_TextPart, _PausePart]]:
     last_index = 0
     for match in _PAUSE_TOKEN.finditer(text):
         seconds = float(match.group(1))
-        if not math.isfinite(seconds) or seconds <= 0:
-            continue
-        if match.start() > last_index:
-            parts.append(_TextPart(kind="text", text=text[last_index : match.start()]))
-        parts.append(_PausePart(kind="pause", seconds=seconds))
-        last_index = match.end()
+        if math.isfinite(seconds) and seconds > 0:
+            if match.start() > last_index:
+                parts.append(
+                    _TextPart(kind="text", text=text[last_index : match.start()])
+                )
+            parts.append(_PausePart(kind="pause", seconds=seconds))
+            last_index = match.end()
     if last_index < len(text):
         parts.append(_TextPart(kind="text", text=text[last_index:]))
     return parts
