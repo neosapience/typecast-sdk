@@ -6,6 +6,10 @@ import com.neosapience.models.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -191,10 +195,37 @@ class TypecastClient private constructor(
      * Use [SpeechComposer.defaults] for shared options, then chain
      * [SpeechComposer.say] and [SpeechComposer.pause]. Each `say` call may
      * override voice, pitch, tempo, prompt, seed, and other TTS options for that
-     * segment. Internal segment requests are generated as WAV so the SDK can trim
-     * leading/trailing silence and concatenate PCM.
+     * segment. Generation is performed by the Typecast Compose API in one request.
      */
     fun composeSpeech(): SpeechComposer = SpeechComposer(this)
+
+    internal fun composeTextToSpeech(parts: List<Any>): TTSResponse {
+        val payload = buildJsonObject {
+            put("segments", buildJsonArray {
+                parts.forEach { part ->
+                    add(buildJsonObject {
+                        if (part is TTSRequest) {
+                            put("type", "tts")
+                            json.encodeToJsonElement(TTSRequest.serializer(), part).jsonObject.forEach(::put)
+                        } else {
+                            put("type", "pause")
+                            put("duration_seconds", part as Double)
+                        }
+                    })
+                }
+            })
+        }
+        val request = Request.Builder().url("$baseUrl/v1/text-to-speech/compose")
+            .addAuthHeader().addUserAgentHeader().addHeader("Content-Type", "application/json")
+            .post(payload.toString().toRequestBody(JSON_MEDIA_TYPE)).build()
+        httpClient.newCall(request).execute().use { response ->
+            val body = response.body!!
+            if (!response.isSuccessful) throw buildError(response.code, body.string())
+            val contentType = response.header("Content-Type").orEmpty()
+            val format = if (contentType.contains("mp3") || contentType.contains("mpeg")) "mp3" else "wav"
+            return TTSResponse(body.bytes(), response.header("X-Audio-Duration")?.toDoubleOrNull() ?: 0.0, format)
+        }
+    }
 
     /**
      * Streams synthesized audio from `POST /v1/text-to-speech/stream`.

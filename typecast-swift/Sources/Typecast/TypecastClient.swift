@@ -70,9 +70,9 @@ public final class TypecastClient: Sendable {
   internal func buildUserAgent() -> String {
     let base =
       configuration.baseURL.caseInsensitiveCompare(TypecastConfiguration.defaultBaseURL)
-      == .orderedSame ? "default" : "custom"
-    return "typecast-swift/\(Self.sdkVersion) Swift/unknown URLSession " +
-      "(base=\(base); os=\(Self.osName()); arch=\(Self.archName()); sdk_env=swift; platform=server)"
+        == .orderedSame ? "default" : "custom"
+    return "typecast-swift/\(Self.sdkVersion) Swift/unknown URLSession "
+      + "(base=\(base); os=\(Self.osName()); arch=\(Self.archName()); sdk_env=swift; platform=server)"
   }
 
   private static func osName() -> String {
@@ -171,6 +171,24 @@ public final class TypecastClient: Sendable {
     let duration = durationHeader.flatMap(Double.init) ?? 0
 
     return TTSResponse(audioData: data, duration: duration, format: format)
+  }
+
+  func composeTextToSpeech(_ segments: [ComposeSegment]) async throws -> TTSResponse {
+    let url = try buildURL(path: "/v1/text-to-speech/compose")
+    let body = try encoder.encode(ComposeRequest(segments: segments))
+    let (data, response) = try await session.data(
+      for: createRequest(url: url, method: "POST", body: body))
+    guard let http = response as? HTTPURLResponse else {
+      throw TypecastError.invalidResponse("Invalid response type")
+    }
+    guard (200...299).contains(http.statusCode) else {
+      throw TypecastError.fromResponse(statusCode: http.statusCode, data: data)
+    }
+    let contentType = http.value(forHTTPHeaderField: "Content-Type") ?? "audio/wav"
+    return TTSResponse(
+      audioData: data,
+      duration: http.value(forHTTPHeaderField: "X-Audio-Duration").flatMap(Double.init) ?? 0,
+      format: contentType.contains("mp3") || contentType.contains("mpeg") ? .mp3 : .wav)
   }
 
   /// Convert text to speech and write the audio bytes to a file.

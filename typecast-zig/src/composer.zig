@@ -72,7 +72,7 @@ pub const SpeechComposer = struct {
 
     /// Add a silent pause in seconds.
     pub fn pause(self: *SpeechComposer, seconds: f64) !void {
-        if (seconds < 0) return error.InvalidPause;
+        if (!std.math.isFinite(seconds) or seconds <= 0) return error.InvalidPause;
         try self.parts.append(self.client.allocator, .{ .pause = seconds });
     }
 
@@ -106,56 +106,85 @@ pub const SpeechComposer = struct {
         return requests;
     }
 
-    /// Generate composed audio. WAV output is supported; MP3 conversion should
-    /// be performed by the application after receiving the composed WAV.
+    /// Generate composed audio with one Typecast Compose API request.
     pub fn generate(self: *SpeechComposer, requested_format: ?models.AudioFormat) !models.TtsResponse {
-        if (requested_format == .mp3) return error.Mp3ConversionNotAvailable;
-
-        var audio_segments: std.ArrayList([]const u8) = .empty;
-        defer {
-            for (audio_segments.items) |audio| self.client.allocator.free(audio);
-            audio_segments.deinit(self.client.allocator);
-        }
-
-        var pauses: std.ArrayList(f64) = .empty;
-        defer pauses.deinit(self.client.allocator);
-
-        var pending_pause: f64 = 0;
-        var has_audio = false;
+        const output_format = try self.resolveOutputFormat(requested_format);
+        var body: std.ArrayList(u8) = .empty;
+        defer body.deinit(self.client.allocator);
+        try body.appendSlice(self.client.allocator, "{\"segments\":[");
+        var first = true;
+        var has_speech = false;
         for (self.parts.items) |part| {
             switch (part) {
-                .pause => |seconds| pending_pause += seconds,
+                .pause => |seconds| {
+                    if (!std.math.isFinite(seconds) or seconds <= 0) return error.InvalidPause;
+                    if (!first) try body.append(self.client.allocator, ',');
+                    first = false;
+                    try body.writer(self.client.allocator).print("{{\"type\":\"pause\",\"duration_seconds\":{d}}}", .{seconds});
+                },
                 .speech => |speech| {
-                    if (has_audio) {
-                        try pauses.append(self.client.allocator, pending_pause);
-                    }
-                    pending_pause = 0;
                     const merged = mergeSettings(self.settings, speech.settings);
-                    const voice_id = merged.voice_id orelse return error.MissingVoiceId;
-                    const model = merged.model orelse .ssfm_v30;
-                    var output = toModelOutput(merged.output);
-                    output.audio_format = .wav;
-                    const response = try self.client.textToSpeech(.{
-                        .voice_id = voice_id,
-                        .text = speech.text,
-                        .model = model,
-                        .language = merged.language,
-                        .prompt = merged.prompt,
-                        .output = output,
-                        .seed = merged.seed,
-                    });
-                    try audio_segments.append(self.client.allocator, response.audio_data);
-                    has_audio = true;
+                    const parsed_parts = try parsePauseMarkup(self.client.allocator, speech.text);
+                    defer freeSpeechParts(self.client.allocator, parsed_parts);
+                    for (parsed_parts) |parsed| {
+                        if (parsed.is_pause) {
+                            if (!std.math.isFinite(parsed.pause_seconds) or parsed.pause_seconds <= 0) return error.InvalidPause;
+                            if (!first) try body.append(self.client.allocator, ',');
+                            first = false;
+                            try body.writer(self.client.allocator).print("{{\"type\":\"pause\",\"duration_seconds\":{d}}}", .{parsed.pause_seconds});
+                            continue;
+                        }
+                        if (std.mem.trim(u8, parsed.text, " \t\r\n").len == 0) continue;
+                        const voice_id = merged.voice_id orelse return error.MissingVoiceId;
+                        const model = merged.model orelse .ssfm_v30;
+                        var output = toModelOutput(merged.output);
+                        output.audio_format = output_format;
+                        const request_body = try @import("json.zig").serializeTtsRequest(self.client.allocator, .{
+                            .voice_id = voice_id,
+                            .text = parsed.text,
+                            .model = model,
+                            .language = merged.language,
+                            .prompt = merged.prompt,
+                            .output = output,
+                            .seed = merged.seed,
+                        });
+                        defer self.client.allocator.free(request_body);
+                        if (!first) try body.append(self.client.allocator, ',');
+                        first = false;
+                        try body.appendSlice(self.client.allocator, "{\"type\":\"tts\",");
+                        try body.appendSlice(self.client.allocator, request_body[1..]);
+                        has_speech = true;
+                    }
                 },
             }
         }
+        if (!has_speech) return error.MissingSpeechSegment;
+        try body.appendSlice(self.client.allocator, "]}");
+        return self.client.composeTextToSpeechBody(body.items);
+    }
 
-        const audio_data = try composeWav(self.client.allocator, audio_segments.items, pauses.items);
-        return .{
-            .audio_data = audio_data,
-            .duration = wavDuration(audio_data) catch 0,
-            .format = .wav,
-        };
+    fn resolveOutputFormat(self: *SpeechComposer, requested_format: ?models.AudioFormat) !models.AudioFormat {
+        var resolved = requested_format;
+        for (self.parts.items) |part| {
+            switch (part) {
+                .pause => {},
+                .speech => |speech| {
+                    const parsed_parts = try parsePauseMarkup(self.client.allocator, speech.text);
+                    defer freeSpeechParts(self.client.allocator, parsed_parts);
+                    const has_text = for (parsed_parts) |parsed| {
+                        if (!parsed.is_pause and std.mem.trim(u8, parsed.text, " \t\r\n").len > 0) break true;
+                    } else false;
+                    if (!has_text) continue;
+                    const merged = mergeSettings(self.settings, speech.settings);
+                    if (merged.output) |output| if (output.audio_format) |format| {
+                        if (resolved) |current| {
+                            if (current != format) return error.ConflictingAudioFormats;
+                        } else resolved = format;
+                    };
+                },
+            }
+        }
+        return resolved orelse .wav;
     }
 };
 
@@ -197,7 +226,8 @@ fn parsePauseToken(token: []const u8) ?f64 {
     for (number) |c| {
         if (!(std.ascii.isDigit(c) or c == '.')) return null;
     }
-    return std.fmt.parseFloat(f64, number) catch null;
+    const seconds = std.fmt.parseFloat(f64, number) catch return null;
+    return if (std.math.isFinite(seconds) and seconds > 0) seconds else null;
 }
 
 fn mergeSettings(base: ComposerSettings, overrides: ComposerSettings) ComposerSettings {
@@ -233,136 +263,4 @@ fn toModelOutput(output: ?ComposerOutput) models.Output {
         .audio_tempo = o.audio_tempo,
         .audio_format = o.audio_format,
     };
-}
-
-const WavInfo = struct {
-    sample_rate: u32,
-    pcm_start: usize,
-    pcm_len: usize,
-};
-
-const PcmSegment = struct {
-    bytes: []const u8,
-    start_sample: usize,
-    end_sample: usize,
-};
-
-pub fn composeWav(allocator: Allocator, wavs: []const []const u8, pauses: []const f64) ![]u8 {
-    if (wavs.len == 0) return error.EmptyComposition;
-    if (pauses.len + 1 != wavs.len) return error.InvalidPauseCount;
-
-    const first = try parseWav(wavs[0]);
-    const sample_rate = first.sample_rate;
-    var total_samples: usize = 0;
-    var pcm_segments = try allocator.alloc(PcmSegment, wavs.len);
-    defer allocator.free(pcm_segments);
-
-    for (wavs, 0..) |wav, i| {
-        const info = try parseWav(wav);
-        if (info.sample_rate != sample_rate) return error.UnsupportedWav;
-        const pcm_bytes = wav[info.pcm_start .. info.pcm_start + info.pcm_len];
-        pcm_segments[i] = trimZeroSamples(pcm_bytes);
-        total_samples += pcm_segments[i].end_sample - pcm_segments[i].start_sample;
-        if (i < pauses.len) {
-            total_samples += @intFromFloat(@round(pauses[i] * @as(f64, @floatFromInt(sample_rate))));
-        }
-    }
-
-    const data_len = total_samples * @sizeOf(i16);
-    const out = try allocator.alloc(u8, 44 + data_len);
-    writeWavHeader(out[0..44], sample_rate, @intCast(data_len));
-    var cursor: usize = 44;
-
-    for (pcm_segments, 0..) |segment, i| {
-        var sample_index = segment.start_sample;
-        while (sample_index < segment.end_sample) : (sample_index += 1) {
-            const byte_index = sample_index * 2;
-            const sample = std.mem.readInt(i16, segment.bytes[byte_index..][0..2], .little);
-            std.mem.writeInt(i16, out[cursor..][0..2], sample, .little);
-            cursor += 2;
-        }
-        if (i < pauses.len) {
-            const pause_samples: usize = @intFromFloat(@round(pauses[i] * @as(f64, @floatFromInt(sample_rate))));
-            @memset(out[cursor .. cursor + pause_samples * 2], 0);
-            cursor += pause_samples * 2;
-        }
-    }
-
-    return out;
-}
-
-fn parseWav(wav: []const u8) !WavInfo {
-    if (wav.len < 44) return error.UnsupportedWav;
-    if (!std.mem.eql(u8, wav[0..4], "RIFF") or !std.mem.eql(u8, wav[8..12], "WAVE")) return error.UnsupportedWav;
-    if (!std.mem.eql(u8, wav[12..16], "fmt ")) return error.UnsupportedWav;
-    const audio_format = std.mem.readInt(u16, wav[20..][0..2], .little);
-    const channels = std.mem.readInt(u16, wav[22..][0..2], .little);
-    const sample_rate = std.mem.readInt(u32, wav[24..][0..4], .little);
-    const bits_per_sample = std.mem.readInt(u16, wav[34..][0..2], .little);
-    if (audio_format != 1 or channels != 1 or bits_per_sample != 16) return error.UnsupportedWav;
-    var cursor: usize = 36;
-    while (cursor + 8 <= wav.len) {
-        const chunk_id = wav[cursor .. cursor + 4];
-        const chunk_size = std.mem.readInt(u32, wav[cursor + 4 ..][0..4], .little);
-        const data_start = cursor + 8;
-        const data_end = data_start + chunk_size;
-        if (data_end > wav.len) return error.UnsupportedWav;
-        if (std.mem.eql(u8, chunk_id, "data")) {
-            return .{ .sample_rate = sample_rate, .pcm_start = data_start, .pcm_len = chunk_size };
-        }
-        cursor = data_end;
-    }
-    return error.UnsupportedWav;
-}
-
-fn trimZeroSamples(bytes: []const u8) PcmSegment {
-    const sample_count = bytes.len / 2;
-    var start: usize = 0;
-    var end: usize = sample_count;
-    while (start < end and std.mem.readInt(i16, bytes[start * 2 ..][0..2], .little) == 0) start += 1;
-    while (end > start and std.mem.readInt(i16, bytes[(end - 1) * 2 ..][0..2], .little) == 0) end -= 1;
-    return .{ .bytes = bytes, .start_sample = start, .end_sample = end };
-}
-
-fn wavDuration(wav: []const u8) !f64 {
-    const info = try parseWav(wav);
-    const sample_count = info.pcm_len / @sizeOf(i16);
-    return @as(f64, @floatFromInt(sample_count)) / @as(f64, @floatFromInt(info.sample_rate));
-}
-
-fn writeWavHeader(header: []u8, sample_rate: u32, data_len: u32) void {
-    @memcpy(header[0..4], "RIFF");
-    std.mem.writeInt(u32, header[4..][0..4], 36 + data_len, .little);
-    @memcpy(header[8..12], "WAVE");
-    @memcpy(header[12..16], "fmt ");
-    std.mem.writeInt(u32, header[16..][0..4], 16, .little);
-    std.mem.writeInt(u16, header[20..][0..2], 1, .little);
-    std.mem.writeInt(u16, header[22..][0..2], 1, .little);
-    std.mem.writeInt(u32, header[24..][0..4], sample_rate, .little);
-    std.mem.writeInt(u32, header[28..][0..4], sample_rate * 2, .little);
-    std.mem.writeInt(u16, header[32..][0..2], 2, .little);
-    std.mem.writeInt(u16, header[34..][0..2], 16, .little);
-    @memcpy(header[36..40], "data");
-    std.mem.writeInt(u32, header[40..][0..4], data_len, .little);
-}
-
-pub fn testWav(allocator: Allocator, samples: []const i16, sample_rate: u32) ![]u8 {
-    const out = try allocator.alloc(u8, 44 + samples.len * 2);
-    writeWavHeader(out[0..44], sample_rate, @intCast(samples.len * 2));
-    var cursor: usize = 44;
-    for (samples) |sample| {
-        std.mem.writeInt(i16, out[cursor..][0..2], sample, .little);
-        cursor += 2;
-    }
-    return out;
-}
-
-pub fn testReadPcm(allocator: Allocator, wav: []const u8) ![]i16 {
-    const info = try parseWav(wav);
-    const bytes = wav[info.pcm_start .. info.pcm_start + info.pcm_len];
-    const samples = try allocator.alloc(i16, bytes.len / 2);
-    for (samples, 0..) |*sample, i| {
-        sample.* = std.mem.readInt(i16, bytes[i * 2 ..][0..2], .little);
-    }
-    return samples;
 }

@@ -54,8 +54,8 @@ pub const Client = struct {
 
     /// Create a composed speech builder for multi-speaker audio and pauses.
     ///
-    /// Segment requests are generated as WAV internally so the SDK can trim
-    /// leading/trailing silence, insert pause samples, and concatenate PCM.
+    /// All speech and pause segments are sent together to generate composed
+    /// audio with one backend request.
     pub fn composeSpeech(self: *Client) composer.SpeechComposer {
         return composer.SpeechComposer.init(self);
     }
@@ -104,6 +104,26 @@ pub const Client = struct {
             .duration = duration,
             .format = format,
         };
+    }
+
+    pub fn composeTextToSpeechBody(self: *Client, body: []const u8) !models.TtsResponse {
+        try self.validateApiKey();
+        const uri = try buildUri(self.base_url, "/v1/text-to-speech/compose", null);
+        const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
+            &.{ .{ .name = "User-Agent", .value = self.userAgent() }, .{ .name = "Content-Type", .value = "application/json" } }
+        else
+            &.{ .{ .name = "User-Agent", .value = self.userAgent() }, .{ .name = "X-API-KEY", .value = self.api_key }, .{ .name = "Content-Type", .value = "application/json" } };
+        var req = try self.http_client.request(.POST, uri, .{ .extra_headers = headers });
+        defer req.deinit();
+        try req.sendBodyComplete(@constCast(body));
+        var redirect_buf: [4096]u8 = undefined;
+        var response = try req.receiveHead(&redirect_buf);
+        try mapStatusError(response.head.status);
+        const duration = parseDurationHeader(response.head.bytes);
+        const format = detectFormat(response.head.content_type);
+        var transfer_buf: [16384]u8 = undefined;
+        const audio_data = try response.reader(&transfer_buf).allocRemaining(self.allocator, .unlimited);
+        return .{ .audio_data = audio_data, .duration = duration, .format = format };
     }
 
     /// Generate audio and write it to a file.

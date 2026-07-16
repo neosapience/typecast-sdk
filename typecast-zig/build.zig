@@ -35,7 +35,7 @@ pub fn build(b: *std.Build) void {
     const mock_test_step = b.step("test-mock", "Run mock tests");
     mock_test_step.dependOn(&run_mock_tests.step);
 
-    // Composer tests (pause markup, per-segment options, WAV composition)
+    // Composer tests (pause markup and per-segment options)
     const composer_test_mod = b.createModule(.{
         .root_source_file = b.path("tests/composer_test.zig"),
         .target = target,

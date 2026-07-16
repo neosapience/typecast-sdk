@@ -79,29 +79,8 @@ fn small_wav() -> Vec<u8> {
 #[tokio::test]
 async fn compose_speech_smoke_for_timestamps_binary_coverage() {
     let mut server = Server::new_async().await;
-    let _m1 = server
-        .mock("POST", "/v1/text-to-speech")
-        .with_status(200)
-        .with_header("content-type", "audio/wav")
-        .with_body(small_wav())
-        .create_async()
-        .await;
-    let _m2 = server
-        .mock("POST", "/v1/text-to-speech")
-        .with_status(200)
-        .with_header("content-type", "audio/wav")
-        .with_body(small_wav())
-        .create_async()
-        .await;
-    let _m3 = server
-        .mock("POST", "/v1/text-to-speech")
-        .with_status(200)
-        .with_header("content-type", "audio/wav")
-        .with_body(small_wav())
-        .create_async()
-        .await;
-    let _m4 = server
-        .mock("POST", "/v1/text-to-speech")
+    let mock = server
+        .mock("POST", "/v1/text-to-speech/compose")
         .with_status(200)
         .with_header("content-type", "audio/wav")
         .with_body(small_wav())
@@ -132,6 +111,7 @@ async fn compose_speech_smoke_for_timestamps_binary_coverage() {
         .unwrap();
 
     assert_eq!(response.format, AudioFormat::Wav);
+    mock.assert_async().await;
 }
 
 // ---------------------------------------------------------------------------

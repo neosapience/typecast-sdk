@@ -1,53 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TypecastClient } from '../../src/client';
+import { parsePauseMarkup } from '../../src/composer';
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
-
-function makeWav(samples: number[], sampleRate = 8000): ArrayBuffer {
-  const bytes = new ArrayBuffer(44 + samples.length * 2);
-  const view = new DataView(bytes);
-  const writeAscii = (offset: number, value: string): void => {
-    for (let i = 0; i < value.length; i += 1) {
-      view.setUint8(offset + i, value.charCodeAt(i));
-    }
-  };
-  writeAscii(0, 'RIFF');
-  view.setUint32(4, 36 + samples.length * 2, true);
-  writeAscii(8, 'WAVE');
-  writeAscii(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeAscii(36, 'data');
-  view.setUint32(40, samples.length * 2, true);
-  samples.forEach((sample, index) => {
-    view.setInt16(44 + index * 2, sample, true);
-  });
-  return bytes;
-}
-
-function readPcmSamples(wav: ArrayBuffer): number[] {
-  const view = new DataView(wav);
-  const samples: number[] = [];
-  for (let offset = 44; offset < wav.byteLength; offset += 2) {
-    samples.push(view.getInt16(offset, true));
-  }
-  return samples;
-}
-
-function corruptAscii(buffer: ArrayBuffer, offset: number, value: string): ArrayBuffer {
-  const copy = buffer.slice(0);
-  const view = new DataView(copy);
-  for (let i = 0; i < value.length; i += 1) {
-    view.setUint8(offset + i, value.charCodeAt(i));
-  }
-  return copy;
-}
 
 describe('SpeechComposer', () => {
   let client: TypecastClient;
@@ -60,238 +16,159 @@ describe('SpeechComposer', () => {
     });
   });
 
-  it('splits valid pause markup, preserves invalid tokens, merges overrides, and composes WAV', async () => {
-    mockFetch
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: new Headers({
-          'content-type': 'audio/wav',
-          'x-audio-duration': '0.0005',
-        }),
-        arrayBuffer: () => Promise.resolve(makeWav([0, 1000, 0], 8000)),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: new Headers({
-          'content-type': 'audio/wav',
-          'x-audio-duration': '0.0005',
-        }),
-        arrayBuffer: () => Promise.resolve(makeWav([0, 2000, 0], 8000)),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: new Headers({
-          'content-type': 'audio/wav',
-          'x-audio-duration': '0.0005',
-        }),
-        arrayBuffer: () => Promise.resolve(makeWav([0, 3000, 0], 8000)),
-      });
-
-    const result = await (client as any)
+  it('sends speech and pause segments to the Compose API once', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      headers: new Headers({
+        'content-type': 'audio/mpeg',
+        'x-audio-duration': '2.5',
+      }),
+      arrayBuffer: async () => new ArrayBuffer(3),
+    });
+    const response = await client
       .composeSpeech()
       .defaults({
+        voice_id: 'voice-a',
         model: 'ssfm-v30',
-        voice_id: 'tc_voice_a',
-        output: { audio_format: 'wav', audio_pitch: 1, audio_tempo: 1.0 },
+        output: { audio_format: 'mp3', audio_pitch: 1 },
       })
-      .say('Hello<|0.001s|><|abc|>')
-      .pause(0.001)
-      .say('World', {
-        voice_id: 'tc_voice_b',
-        output: { audio_pitch: 3 },
-      })
-      .generate();
-
-    expect(result.format).toBe('wav');
-    expect(readPcmSamples(result.audioData)).toEqual([
-      1000,
-      0, 0, 0, 0, 0, 0, 0, 0,
-      2000,
-      0, 0, 0, 0, 0, 0, 0, 0,
-      3000,
-    ]);
-    expect(result.duration).toBe(19 / 8000);
-
-    expect(mockFetch).toHaveBeenCalledTimes(3);
-    const firstBody = JSON.parse(mockFetch.mock.calls[0][1].body as string);
-    const secondBody = JSON.parse(mockFetch.mock.calls[1][1].body as string);
-    const thirdBody = JSON.parse(mockFetch.mock.calls[2][1].body as string);
-    expect(firstBody).toMatchObject({
-      text: 'Hello',
-      model: 'ssfm-v30',
-      voice_id: 'tc_voice_a',
-      output: { audio_format: 'wav', audio_pitch: 1, audio_tempo: 1.0 },
-    });
-    expect(secondBody).toMatchObject({
-      text: '<|abc|>',
-      model: 'ssfm-v30',
-      voice_id: 'tc_voice_a',
-      output: { audio_format: 'wav', audio_pitch: 1, audio_tempo: 1.0 },
-    });
-    expect(thirdBody).toMatchObject({
-      text: 'World',
-      model: 'ssfm-v30',
-      voice_id: 'tc_voice_b',
-      output: { audio_format: 'wav', audio_pitch: 3, audio_tempo: 1.0 },
-    });
-  });
-
-  it('rejects invalid builder state before network calls', async () => {
-    expect(() => (client as any).composeSpeech().pause(0)).toThrow(
-      'pause seconds must be greater than 0',
-    );
-    await expect((client as any).composeSpeech().generate()).rejects.toThrow(
-      'at least one speech segment is required',
-    );
-    await expect(
-      (client as any).composeSpeech().defaults({ model: 'ssfm-v30' }).say('Hello').generate(),
-    ).rejects.toThrow('voice_id is required');
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it('raises a clear error when mp3 output cannot be encoded', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({
-        'content-type': 'audio/wav',
-        'x-audio-duration': '0.0005',
-      }),
-      arrayBuffer: () => Promise.resolve(makeWav([1000], 8000)),
-    });
-
-    await expect(
-      (client as any)
-        .composeSpeech()
-        .defaults({
-          model: 'ssfm-v30',
-          voice_id: 'tc_voice_a',
-          output: { audio_format: 'mp3' },
-        })
-        .say('Hello')
-        .generate(),
-    ).rejects.toThrow('ffmpeg is required to encode composed speech as mp3');
-  });
-
-  it('rejects unsupported output formats and pauses before audio exists', async () => {
-    await expect(
-      (client as any)
-        .composeSpeech()
-        .defaults({ model: 'ssfm-v30', voice_id: 'tc_voice_a', output: { audio_format: 'flac' } })
-        .say('Hello')
-        .generate(),
-    ).rejects.toThrow('unsupported composed speech output format');
-
-    await expect(
-      (client as any)
-        .composeSpeech()
-        .defaults({ model: 'ssfm-v30', voice_id: 'tc_voice_a' })
-        .pause(0.001)
-        .say('Hello')
-        .generate(),
-    ).rejects.toThrow('pause cannot be the first composed part');
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it('requires model before making network calls', async () => {
-    await expect(
-      (client as any).composeSpeech().defaults({ voice_id: 'tc_voice_a' }).say('Hello').generate(),
-    ).rejects.toThrow('model is required');
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it('skips empty text parts created around pause markup', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({ 'content-type': 'audio/wav' }),
-      arrayBuffer: () => Promise.resolve(makeWav([1000], 8000)),
-    });
-
-    await (client as any)
-      .composeSpeech()
-      .defaults({ model: 'ssfm-v30', voice_id: 'tc_voice_a' })
-      .say('Hello<|0.001s|>   ')
+      .say('Hello<|0.3s|>world')
+      .pause(1)
+      .say('Again', { voice_id: 'voice-b' })
       .generate();
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body as string);
-    expect(body.text).toBe('Hello');
+    expect(mockFetch.mock.calls[0][0]).toContain('/v1/text-to-speech/compose');
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toMatchObject({
+      segments: [
+        {
+          type: 'tts',
+          voice_id: 'voice-a',
+          text: 'Hello',
+          output: { audio_format: 'mp3' },
+        },
+        { type: 'pause', duration_seconds: 0.3 },
+        { type: 'tts', voice_id: 'voice-a', text: 'world' },
+        { type: 'pause', duration_seconds: 1 },
+        { type: 'tts', voice_id: 'voice-b', text: 'Again' },
+      ],
+    });
+    expect(response).toMatchObject({ format: 'mp3', duration: 2.5 });
   });
 
-  it('rejects invalid and unsupported WAV segments', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({ 'content-type': 'audio/wav' }),
-      arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
-    });
+  it('validates required builder state before the request', async () => {
+    expect(() => client.composeSpeech().pause(0)).toThrow('greater than 0');
+    await expect(client.composeSpeech().generate()).rejects.toThrow('at least one speech');
     await expect(
-      (client as any)
-        .composeSpeech()
-        .defaults({ model: 'ssfm-v30', voice_id: 'tc_voice_a' })
-        .say('Hello')
-        .generate(),
-    ).rejects.toThrow('unsupported WAV data');
-
-    mockFetch.mockReset();
-    const stereoWav = makeWav([1000], 8000);
-    new DataView(stereoWav).setUint16(22, 2, true);
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({ 'content-type': 'audio/wav' }),
-      arrayBuffer: () => Promise.resolve(stereoWav),
-    });
+      client.composeSpeech().defaults({ model: 'ssfm-v30' }).say('Hello').generate(),
+    ).rejects.toThrow('voice_id');
     await expect(
-      (client as any)
-        .composeSpeech()
-        .defaults({ model: 'ssfm-v30', voice_id: 'tc_voice_a' })
-        .say('Hello')
-        .generate(),
-    ).rejects.toThrow('only mono 16-bit PCM WAV is supported');
-
-    mockFetch.mockReset();
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({ 'content-type': 'audio/wav' }),
-      arrayBuffer: () => Promise.resolve(corruptAscii(makeWav([1000], 8000), 36, 'JUNK')),
-    });
-    await expect(
-      (client as any)
-        .composeSpeech()
-        .defaults({ model: 'ssfm-v30', voice_id: 'tc_voice_a' })
-        .say('Hello')
-        .generate(),
-    ).rejects.toThrow('unsupported WAV data');
+      client.composeSpeech().defaults({ voice_id: 'voice' }).say('Hello').generate(),
+    ).rejects.toThrow('model');
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it('rejects WAV segments with mismatched sample settings', async () => {
+  it('preserves invalid pause markup', () => {
+    expect(parsePauseMarkup('a<|0.5s|>b<|bad|>')).toEqual([
+      { kind: 'text', text: 'a' },
+      { kind: 'pause', seconds: 0.5 },
+      { kind: 'text', text: 'b<|bad|>' },
+    ]);
+  });
+
+  it('covers Compose response fallbacks and API errors', async () => {
     mockFetch
       .mockResolvedValueOnce({
         ok: true,
-        status: 200,
-        headers: new Headers({ 'content-type': 'audio/wav' }),
-        arrayBuffer: () => Promise.resolve(makeWav([1000], 8000)),
+        headers: new Headers({ 'content-type': 'audio/mp3' }),
+        arrayBuffer: async () => new ArrayBuffer(1),
       })
       .mockResolvedValueOnce({
         ok: true,
-        status: 200,
-        headers: new Headers({ 'content-type': 'audio/wav' }),
-        arrayBuffer: () => Promise.resolve(makeWav([2000], 16000)),
+        headers: new Headers(),
+        arrayBuffer: async () => new ArrayBuffer(0),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        json: async () => ({ detail: 'invalid segments' }),
       });
 
+    const defaults = { voice_id: 'voice', model: 'ssfm-v30' as const };
     await expect(
-      (client as any)
+      client.composeSpeech().defaults(defaults).say('Hello').generate(),
+    ).resolves.toMatchObject({
+      format: 'mp3',
+      duration: 0,
+    });
+    await expect(
+      client.composeSpeech().defaults(defaults).say('Hello').generate(),
+    ).resolves.toMatchObject({
+      format: 'wav',
+      duration: 0,
+    });
+    await expect(client.composeSpeech().defaults(defaults).say('Hello').generate()).rejects.toThrow(
+      'invalid segments',
+    );
+  });
+
+  it('skips blank text around pause markup', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      headers: new Headers({ 'content-type': 'audio/wav' }),
+      arrayBuffer: async () => new ArrayBuffer(0),
+    });
+
+    await client
+      .composeSpeech()
+      .defaults({ voice_id: 'voice', model: 'ssfm-v30' })
+      .say('Hello<|0.1s|>   ')
+      .generate();
+
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).segments).toHaveLength(2);
+  });
+
+  it('resolves one segment output format and rejects conflicts', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      headers: new Headers({ 'content-type': 'audio/mp3' }),
+      arrayBuffer: async () => new ArrayBuffer(0),
+    });
+
+    await client
+      .composeSpeech()
+      .say('Hello', {
+        voice_id: 'voice',
+        model: 'ssfm-v30',
+        output: { audio_format: 'mp3' },
+      })
+      .generate();
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).segments[0].output.audio_format).toBe(
+      'mp3',
+    );
+
+    await expect(
+      client
         .composeSpeech()
-        .defaults({ model: 'ssfm-v30', voice_id: 'tc_voice_a' })
-        .say('Hello')
-        .say('World')
+        .say('One', {
+          voice_id: 'voice',
+          model: 'ssfm-v30',
+          output: { audio_format: 'wav' },
+        })
+        .say('Two', {
+          voice_id: 'voice',
+          model: 'ssfm-v30',
+          output: { audio_format: 'mp3' },
+        })
         .generate(),
-    ).rejects.toThrow('all composed WAV segments must use the same PCM format');
+    ).rejects.toThrow('one audio format');
+  });
+
+  it('preserves non-finite inline pause markup as text', () => {
+    const overflow = '9'.repeat(400);
+    expect(parsePauseMarkup(`a<|${overflow}s|>b`)).toEqual([
+      { kind: 'text', text: `a<|${overflow}s|>b` },
+    ]);
   });
 });

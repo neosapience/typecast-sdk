@@ -12,6 +12,7 @@ use crate::models::{
 use bytes::Bytes;
 use futures_util::stream::{Stream, StreamExt};
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE, USER_AGENT};
+use serde::Serialize;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -304,6 +305,38 @@ impl TypecastClient {
 
         Ok(TTSResponse {
             audio_data,
+            duration,
+            format,
+        })
+    }
+
+    pub(crate) async fn compose_text_to_speech(
+        &self,
+        request: &impl Serialize,
+    ) -> Result<TTSResponse> {
+        let url = self.build_url("/v1/text-to-speech/compose", None);
+        let response = self.client.post(&url).json(request).send().await?;
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+        let format = response
+            .headers()
+            .get(CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .filter(|v| {
+                let normalized = v.to_ascii_lowercase();
+                normalized.contains("mp3") || normalized.contains("mpeg")
+            })
+            .map(|_| AudioFormat::Mp3)
+            .unwrap_or(AudioFormat::Wav);
+        let duration = response
+            .headers()
+            .get("X-Audio-Duration")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        Ok(TTSResponse {
+            audio_data: response.bytes().await?.to_vec(),
             duration,
             format,
         })

@@ -87,44 +87,29 @@ class SpeechComposer
             throw new \InvalidArgumentException('at least one speech segment is required');
         }
 
-        $outputFormat = $this->defaults->output?->audioFormat ?? 'wav';
-        $wavSpec = null;
-        $outputSamples = [];
-
+        $formats = [];
+        foreach ($plan as $part) {
+            if ($part['kind'] === 'speech' && $part['settings']->output?->audioFormat !== null) {
+                $formats[$part['settings']->output->audioFormat] = true;
+            }
+        }
+        if (count($formats) > 1) {
+            throw new \InvalidArgumentException('composed speech segments must use one audio format');
+        }
+        $outputFormat = array_key_first($formats) ?? 'wav';
+        $segments = [];
         foreach ($plan as $part) {
             if ($part['kind'] === 'pause') {
                 $seconds = $part['seconds'];
                 if (!self::isValidPause($seconds)) {
                     throw new \InvalidArgumentException('pause seconds must be greater than 0');
                 }
-                if ($wavSpec === null) {
-                    throw new \InvalidArgumentException('pause cannot be the first composed part');
-                }
-                array_push($outputSamples, ...array_fill(0, self::secondsToSamples($seconds, $wavSpec['sample_rate']), 0));
+                $segments[] = ['type' => 'pause', 'duration_seconds' => $seconds];
                 continue;
             }
-
-            $response = $this->client->textToSpeech(self::requestFromPart($part));
-            $wav = self::parseWav($response->audioData);
-            if ($wavSpec !== null && $wav['spec'] !== $wavSpec) {
-                throw new \InvalidArgumentException('all composed WAV segments must use the same PCM format');
-            }
-            $wavSpec = $wav['spec'];
-            array_push($outputSamples, ...self::trimSilence($wav['samples']));
+            $segments[] = ['type' => 'tts'] + self::requestFromPart($part, $outputFormat)->toArray();
         }
-
-        if ($wavSpec === null) {
-            throw new \InvalidArgumentException('at least one speech segment is required');
-        }
-        if ($outputFormat === 'mp3') {
-            throw new \InvalidArgumentException('MP3 conversion is app-level responsibility for composed speech');
-        }
-
-        return new TTSResponse(
-            audioData: self::encodeWav($outputSamples, $wavSpec),
-            duration: count($outputSamples) / $wavSpec['sample_rate'],
-            format: 'wav',
-        );
+        return $this->client->composeTextToSpeech($segments);
     }
 
     /**
@@ -197,7 +182,7 @@ class SpeechComposer
     /**
      * @param array<string, mixed> $part
      */
-    private static function requestFromPart(array $part): TTSRequest
+    private static function requestFromPart(array $part, string $outputFormat = 'wav'): TTSRequest
     {
         /** @var ComposerSettings $settings */
         $settings = $part['settings'];
@@ -207,102 +192,9 @@ class SpeechComposer
             model: (string) $settings->model,
             language: $settings->language,
             prompt: $settings->prompt,
-            output: self::mergeOutput($settings->output, new Output(volume: null, audioPitch: null, audioTempo: null, audioFormat: 'wav')),
+            output: self::mergeOutput($settings->output, new Output(volume: null, audioPitch: null, audioTempo: null, audioFormat: $outputFormat)),
             seed: $settings->seed,
         );
-    }
-
-    /**
-     * @return array{spec: array<string, int>, samples: array<int, int>}
-     */
-    private static function parseWav(string $data): array
-    {
-        if (strlen($data) < 12 || substr($data, 0, 4) !== 'RIFF' || substr($data, 8, 4) !== 'WAVE') {
-            throw new \InvalidArgumentException('unsupported WAV data');
-        }
-
-        $offset = 12;
-        $spec = null;
-        $samples = null;
-        while ($offset + 8 <= strlen($data)) {
-            $chunkId = substr($data, $offset, 4);
-            $chunkSize = unpack('V', substr($data, $offset + 4, 4))[1];
-            $chunkDataOffset = $offset + 8;
-            $chunkEnd = $chunkDataOffset + $chunkSize;
-            if ($chunkEnd > strlen($data)) {
-                throw new \InvalidArgumentException('unsupported WAV data');
-            }
-
-            if ($chunkId === 'fmt ') {
-                if ($chunkSize < 16) {
-                    throw new \InvalidArgumentException('unsupported WAV data');
-                }
-                $fmt = unpack('vaudio_format/vchannels/Vsample_rate/Vbyte_rate/vblock_align/vbits_per_sample', substr($data, $chunkDataOffset, 16));
-                if ($fmt['audio_format'] !== 1 || $fmt['channels'] !== 1 || $fmt['bits_per_sample'] !== 16) {
-                    throw new \InvalidArgumentException('only mono 16-bit PCM WAV is supported for composed speech');
-                }
-                $spec = [
-                    'sample_rate' => $fmt['sample_rate'],
-                    'channels' => $fmt['channels'],
-                    'bits_per_sample' => $fmt['bits_per_sample'],
-                ];
-            } elseif ($chunkId === 'data') {
-                $samples = [];
-                for ($i = $chunkDataOffset; $i + 1 < $chunkEnd; $i += 2) {
-                    $value = unpack('v', substr($data, $i, 2))[1];
-                    $samples[] = $value >= 0x8000 ? $value - 0x10000 : $value;
-                }
-            }
-            $offset = $chunkEnd + ($chunkSize % 2);
-        }
-
-        if ($spec === null || $samples === null) {
-            throw new \InvalidArgumentException('unsupported WAV data');
-        }
-
-        return ['spec' => $spec, 'samples' => $samples];
-    }
-
-    /**
-     * @param array<int, int> $samples
-     * @param array<string, int> $spec
-     */
-    private static function encodeWav(array $samples, array $spec): string
-    {
-        $payload = '';
-        foreach ($samples as $sample) {
-            $payload .= pack('v', $sample & 0xffff);
-        }
-
-        return 'RIFF'
-            . pack('V', 36 + strlen($payload))
-            . 'WAVEfmt '
-            . pack('VvvVVvv', 16, 1, $spec['channels'], $spec['sample_rate'], $spec['sample_rate'] * $spec['channels'] * 2, $spec['channels'] * 2, $spec['bits_per_sample'])
-            . 'data'
-            . pack('V', strlen($payload))
-            . $payload;
-    }
-
-    /**
-     * @param array<int, int> $samples
-     * @return array<int, int>
-     */
-    private static function trimSilence(array $samples): array
-    {
-        $start = 0;
-        $end = count($samples);
-        while ($start < $end && abs($samples[$start]) <= 0) {
-            $start++;
-        }
-        while ($end > $start && abs($samples[$end - 1]) <= 0) {
-            $end--;
-        }
-        return array_values(array_slice($samples, $start, $end - $start));
-    }
-
-    private static function secondsToSamples(float $seconds, int $sampleRate): int
-    {
-        return (int) round($seconds * $sampleRate);
     }
 
     private static function isValidPause(float $seconds): bool

@@ -54,6 +54,23 @@ class TypecastClient {
     );
   }
 
+  Future<TtsResponse> composeTextToSpeech(
+      List<Map<String, dynamic>> segments) async {
+    final response = await _httpClient
+        .post(_url('/v1/text-to-speech/compose'),
+            headers: _jsonHeaders(), body: encodeJson({'segments': segments}))
+        .timeout(requestTimeout);
+    _raiseForStatus(response);
+    final contentType = response.headers['content-type'] ?? 'audio/wav';
+    return TtsResponse(
+        audioData: Uint8List.fromList(response.bodyBytes),
+        duration:
+            double.tryParse(response.headers['x-audio-duration'] ?? '') ?? 0,
+        format: contentType.contains('mp3') || contentType.contains('mpeg')
+            ? AudioFormat.mp3
+            : AudioFormat.wav);
+  }
+
   Future<TtsResponse> generateToFile(
     String path,
     GenerateToFileRequest request,

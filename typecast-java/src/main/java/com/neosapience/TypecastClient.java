@@ -4,6 +4,7 @@ import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
 import com.google.gson.reflect.TypeToken;
 import io.github.cdimascio.dotenv.Dotenv;
 import com.neosapience.exceptions.*;
@@ -16,6 +17,7 @@ import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -269,9 +271,10 @@ public class TypecastClient {
             String contentType = response.header("Content-Type");
             String format = "wav";
             if (contentType != null) {
-                if (contentType.contains("mp3")) {
+                String normalizedContentType = contentType.toLowerCase(Locale.ROOT);
+                if (normalizedContentType.contains("mp3") || normalizedContentType.contains("mpeg")) {
                     format = "mp3";
-                } else if (contentType.contains("wav")) {
+                } else if (normalizedContentType.contains("wav")) {
                     format = "wav";
                 }
             }
@@ -313,12 +316,48 @@ public class TypecastClient {
      * speech segments with per-segment voice, pitch, tempo, prompt, and seed
      * overrides, and {@link SpeechComposer#pause(double)} to insert explicit
      * silence in seconds. The composer requests WAV segments internally so it
-     * can trim leading/trailing silence and concatenate the final audio.</p>
+     * sends all speech and pause segments to the Compose API in one request.</p>
      *
      * @return a composed speech builder bound to this client
      */
     public SpeechComposer composeSpeech() {
         return new SpeechComposer(this);
+    }
+
+    TTSResponse composeTextToSpeech(List<Object> parts) {
+        JsonArray segments = new JsonArray();
+        for (Object part : parts) {
+            JsonObject segment;
+            if (part instanceof TTSRequest) {
+                segment = gson.fromJson(buildTTSRequestJson((TTSRequest) part), JsonObject.class);
+                segment.addProperty("type", "tts");
+            } else {
+                segment = new JsonObject();
+                segment.addProperty("type", "pause");
+                segment.addProperty("duration_seconds", (Double) part);
+            }
+            segments.add(segment);
+        }
+        JsonObject payload = new JsonObject();
+        payload.add("segments", segments);
+        Request request = addAuthHeader(new Request.Builder().url(baseUrl + "/v1/text-to-speech/compose")
+                .addHeader("Content-Type", CONTENT_TYPE_JSON).post(RequestBody.create(payload.toString(), JSON_MEDIA_TYPE)).build());
+        try (Response response = httpClient.newCall(request).execute()) {
+            ResponseBody body = response.body();
+            if (!response.isSuccessful()) throw createException(response.code(), body.string());
+            String contentType = response.header("Content-Type", "audio/wav");
+            String duration = response.header("X-Audio-Duration", "0");
+            double parsedDuration;
+            try {
+                parsedDuration = Double.parseDouble(duration);
+            } catch (NumberFormatException ignored) {
+                parsedDuration = 0.0;
+            }
+            return new TTSResponse(body.bytes(), parsedDuration,
+                    contentType.contains("mp3") || contentType.contains("mpeg") ? "mp3" : "wav");
+        } catch (IOException e) {
+            throw new TypecastException("Failed to make API request", e);
+        }
     }
 
     /**

@@ -1,4 +1,3 @@
-using Typecast.Exceptions;
 using Typecast.Models;
 
 namespace Typecast;
@@ -36,6 +35,7 @@ public class ComposerSettings
 public sealed record SpeechPart(string Text, double PauseSeconds, bool IsPause);
 
 internal sealed record ComposerSpeechPart(string Text, ComposerSettings Settings);
+internal sealed record ComposePart(TTSRequest? Request, double? PauseSeconds);
 
 /// <summary>
 /// Builder for composing multi-speaker speech and explicit pauses.
@@ -73,10 +73,10 @@ public class SpeechComposer
     /// <summary>Add an explicit silent pause in seconds.</summary>
     /// <param name="seconds">Pause duration in seconds. Use <c>0.3</c> for 300 ms or <c>3</c> for 3 seconds.</param>
     /// <returns>This composer so calls can be chained.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="seconds"/> is negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="seconds"/> is not finite and greater than zero.</exception>
     public SpeechComposer Pause(double seconds)
     {
-        if (seconds < 0) throw new ArgumentOutOfRangeException(nameof(seconds), "Pause must be non-negative.");
+        ValidatePause(seconds);
         _parts.Add(seconds);
         return this;
     }
@@ -85,8 +85,7 @@ public class SpeechComposer
     /// Builds the individual Typecast TTS requests that will be sent for speech segments.
     /// </summary>
     /// <remarks>
-    /// Each request is forced to WAV output so generated segments can be trimmed
-    /// and concatenated. This method is useful for testing, logging, and previewing
+    /// Each request uses WAV output for backward compatibility. This method is useful for testing, logging, and previewing
     /// the merged per-segment settings before generation.
     /// </remarks>
     /// <returns>The planned TTS requests, excluding pause-only parts.</returns>
@@ -94,67 +93,67 @@ public class SpeechComposer
     {
         return _parts
             .OfType<ComposerSpeechPart>()
-            .Select(BuildRequest)
+            .Select(speech => BuildRequest(speech))
             .ToList();
     }
 
     /// <summary>
-    /// Generates composed speech by synthesizing each segment, trimming leading and trailing
-    /// silent PCM samples, and inserting explicit pauses between segments.
+    /// Generates composed speech with one Typecast Compose API request.
     /// </summary>
     /// <param name="outputFormat">
-    /// Final output format. Only <see cref="AudioFormat.Wav"/> is supported by the C# SDK composer.
+    /// Final output format.
     /// </param>
     /// <param name="cancellationToken">Cancellation token for the underlying Typecast API calls.</param>
-    /// <returns>A WAV <see cref="TTSResponse"/> containing the composed audio.</returns>
-    /// <exception cref="TypecastException">Thrown when MP3 output is requested.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when no speech segment is present or WAV segments are incompatible.</exception>
+    /// <returns>A <see cref="TTSResponse"/> containing the composed audio.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when no speech segment is present.</exception>
     public async Task<TTSResponse> GenerateAsync(AudioFormat outputFormat = AudioFormat.Wav, CancellationToken cancellationToken = default)
     {
-        if (outputFormat == AudioFormat.Mp3)
-        {
-            throw new TypecastException("MP3 conversion is not available for composed speech in the C# SDK.");
-        }
-
-        var segments = new List<byte[]>();
-        var pauses = new List<double>();
-        var pendingPause = 0.0;
-        var hasAudio = false;
+        var segments = new List<ComposePart>();
         foreach (var part in _parts)
         {
             if (part is double pause)
             {
-                pendingPause += pause;
+                ValidatePause(pause);
+                segments.Add(new ComposePart(null, pause));
                 continue;
             }
 
             if (part is not ComposerSpeechPart speech) continue;
-            if (hasAudio) pauses.Add(pendingPause);
-            pendingPause = 0.0;
-            var response = await _client.TextToSpeechAsync(BuildRequest(speech), cancellationToken).ConfigureAwait(false);
-            segments.Add(response.AudioData);
-            hasAudio = true;
+            foreach (var parsed in ParsePauseMarkup(speech.Text))
+            {
+                if (parsed.IsPause)
+                {
+                    ValidatePause(parsed.PauseSeconds);
+                    segments.Add(new ComposePart(null, parsed.PauseSeconds));
+                }
+                else if (!string.IsNullOrWhiteSpace(parsed.Text))
+                {
+                    segments.Add(new ComposePart(BuildRequest(new ComposerSpeechPart(parsed.Text, speech.Settings), outputFormat), null));
+                }
+            }
         }
 
-        if (segments.Count == 0)
+        if (!segments.Any(segment => segment.Request is not null))
         {
             throw new InvalidOperationException("At least one speech segment is required.");
         }
+        return await _client.ComposeTextToSpeechAsync(segments, cancellationToken).ConfigureAwait(false);
+    }
 
-        var audio = ComposeWav(segments, pauses);
-        var info = ParseWav(audio);
-        return new TTSResponse(audio, info.PcmLength / 2.0 / info.SampleRate, AudioFormat.Wav);
+    private static void ValidatePause(double seconds)
+    {
+        if (!double.IsFinite(seconds) || seconds <= 0)
+            throw new ArgumentOutOfRangeException(nameof(seconds), "Pause must be finite and greater than zero.");
     }
 
     /// <summary>
     /// Synchronously generates composed speech.
     /// </summary>
     /// <param name="outputFormat">
-    /// Final output format. Only <see cref="AudioFormat.Wav"/> is supported by the C# SDK composer.
+    /// Final output format.
     /// </param>
-    /// <returns>A WAV <see cref="TTSResponse"/> containing the composed audio.</returns>
-    /// <exception cref="TypecastException">Thrown when MP3 output is requested.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when no speech segment is present or WAV segments are incompatible.</exception>
+    /// <returns>A <see cref="TTSResponse"/> containing the composed audio.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when no speech segment is present.</exception>
     public TTSResponse Generate(AudioFormat outputFormat = AudioFormat.Wav)
     {
         return GenerateAsync(outputFormat).GetAwaiter().GetResult();
@@ -195,7 +194,7 @@ public class SpeechComposer
         return parts;
     }
 
-    private TTSRequest BuildRequest(ComposerSpeechPart speech)
+    private TTSRequest BuildRequest(ComposerSpeechPart speech, AudioFormat outputFormat = AudioFormat.Wav)
     {
         var settings = Merge(_defaults, speech.Settings);
         if (string.IsNullOrWhiteSpace(settings.VoiceId))
@@ -204,7 +203,7 @@ public class SpeechComposer
         }
 
         var output = CopyOutput(settings.Output) ?? new Output(volume: null, audioPitch: null, audioTempo: null, audioFormat: null);
-        output.AudioFormat = AudioFormat.Wav;
+        output.AudioFormat = outputFormat;
         return new TTSRequest(speech.Text, settings.VoiceId!, settings.Model ?? TTSModel.SsfmV30)
         {
             Language = settings.Language,
@@ -259,82 +258,8 @@ public class SpeechComposer
         if (!token.EndsWith("s", StringComparison.Ordinal) || token.Length < 2) return false;
         var number = token.Substring(0, token.Length - 1);
         if (number.Any(c => !char.IsDigit(c) && c != '.')) return false;
-        return double.TryParse(number, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out seconds);
+        return double.TryParse(number, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out seconds)
+            && double.IsFinite(seconds) && seconds > 0;
     }
 
-    private readonly record struct WavInfo(int SampleRate, int PcmStart, int PcmLength);
-
-    private static byte[] ComposeWav(IReadOnlyList<byte[]> wavs, IReadOnlyList<double> pauses)
-    {
-        if (wavs.Count == 0 || pauses.Count + 1 != wavs.Count) throw new InvalidOperationException("Invalid composed speech parts.");
-        var infos = wavs.Select(ParseWav).ToList();
-        var sampleRate = infos[0].SampleRate;
-        if (infos.Any(i => i.SampleRate != sampleRate)) throw new InvalidOperationException("WAV segment sample rates must match.");
-
-        var ranges = new List<(int Start, int End)>();
-        var totalSamples = 0;
-        for (var i = 0; i < wavs.Count; i++)
-        {
-            var info = infos[i];
-            var sampleCount = info.PcmLength / 2;
-            var start = 0;
-            var end = sampleCount;
-            while (start < end && ReadInt16(wavs[i], info.PcmStart + start * 2) == 0) start++;
-            while (end > start && ReadInt16(wavs[i], info.PcmStart + (end - 1) * 2) == 0) end--;
-            ranges.Add((start, end));
-            totalSamples += end - start;
-            if (i < pauses.Count) totalSamples += (int)Math.Round(pauses[i] * sampleRate);
-        }
-
-        var output = new byte[44 + totalSamples * 2];
-        WriteWavHeader(output, sampleRate, totalSamples * 2);
-        var cursor = 44;
-        for (var i = 0; i < wavs.Count; i++)
-        {
-            var info = infos[i];
-            var range = ranges[i];
-            var bytes = (range.End - range.Start) * 2;
-            Buffer.BlockCopy(wavs[i], info.PcmStart + range.Start * 2, output, cursor, bytes);
-            cursor += bytes;
-            if (i < pauses.Count) cursor += (int)Math.Round(pauses[i] * sampleRate) * 2;
-        }
-        return output;
-    }
-
-    private static WavInfo ParseWav(byte[] wav)
-    {
-        if (wav.Length < 44 || ReadAscii(wav, 0, 4) != "RIFF" || ReadAscii(wav, 8, 4) != "WAVE")
-            throw new InvalidOperationException("Composed speech requires WAV audio.");
-        if (BitConverter.ToInt16(wav, 20) != 1 || BitConverter.ToInt16(wav, 22) != 1 || BitConverter.ToInt16(wav, 34) != 16)
-            throw new InvalidOperationException("Composed speech requires mono 16-bit PCM WAV segments.");
-        var cursor = 36;
-        while (cursor + 8 <= wav.Length)
-        {
-            var id = ReadAscii(wav, cursor, 4);
-            var size = BitConverter.ToInt32(wav, cursor + 4);
-            if (cursor + 8 + size > wav.Length) throw new InvalidOperationException("Invalid WAV data.");
-            if (id == "data") return new WavInfo(BitConverter.ToInt32(wav, 24), cursor + 8, size);
-            cursor += 8 + size;
-        }
-        throw new InvalidOperationException("WAV data chunk is missing.");
-    }
-
-    private static short ReadInt16(byte[] data, int offset) => BitConverter.ToInt16(data, offset);
-    private static string ReadAscii(byte[] data, int offset, int count) => System.Text.Encoding.ASCII.GetString(data, offset, count);
-
-    private static void WriteWavHeader(byte[] output, int sampleRate, int dataLength)
-    {
-        System.Text.Encoding.ASCII.GetBytes("RIFF").CopyTo(output, 0);
-        BitConverter.GetBytes(36 + dataLength).CopyTo(output, 4);
-        System.Text.Encoding.ASCII.GetBytes("WAVEfmt ").CopyTo(output, 8);
-        BitConverter.GetBytes(16).CopyTo(output, 16);
-        BitConverter.GetBytes((short)1).CopyTo(output, 20);
-        BitConverter.GetBytes((short)1).CopyTo(output, 22);
-        BitConverter.GetBytes(sampleRate).CopyTo(output, 24);
-        BitConverter.GetBytes(sampleRate * 2).CopyTo(output, 28);
-        BitConverter.GetBytes((short)2).CopyTo(output, 32);
-        BitConverter.GetBytes((short)16).CopyTo(output, 34);
-        System.Text.Encoding.ASCII.GetBytes("data").CopyTo(output, 36);
-        BitConverter.GetBytes(dataLength).CopyTo(output, 40);
-    }
 }

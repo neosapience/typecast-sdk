@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -233,6 +234,28 @@ func (c *Client) TextToSpeech(ctx context.Context, request *TTSRequest) (*TTSRes
 		Duration:  duration,
 		Format:    format,
 	}, nil
+}
+
+func (c *Client) composeTextToSpeech(ctx context.Context, request interface{}) (*TTSResponse, error) {
+	resp, err := c.doRequest(ctx, http.MethodPost, "/v1/text-to-speech/compose", request)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+	audioData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read audio data: %w", err)
+	}
+	format := AudioFormatWAV
+	contentType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if strings.EqualFold(contentType, "audio/mpeg") || strings.EqualFold(contentType, "audio/mp3") {
+		format = AudioFormatMP3
+	}
+	duration, _ := strconv.ParseFloat(resp.Header.Get("X-Audio-Duration"), 64)
+	return &TTSResponse{AudioData: audioData, Duration: duration, Format: format}, nil
 }
 
 // TextToSpeechWithTimestamps synthesizes speech and returns base64 audio plus

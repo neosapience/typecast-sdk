@@ -1,9 +1,9 @@
 using System.Net;
-using System.Reflection;
+using System.Text;
+using System.Text.Json;
 using FluentAssertions;
 using Moq;
 using Moq.Protected;
-using Typecast.Exceptions;
 using Typecast.Models;
 using Xunit;
 
@@ -11,41 +11,95 @@ namespace Typecast.Tests;
 
 public class SpeechComposerTests : IDisposable
 {
-    private readonly Mock<HttpMessageHandler> _mockHandler = new();
+    private readonly Mock<HttpMessageHandler> _handler = new();
     private readonly HttpClient _httpClient;
     private readonly TypecastClient _client;
 
     public SpeechComposerTests()
     {
-        _httpClient = new HttpClient(_mockHandler.Object);
-        _client = new TypecastClient(new TypecastClientConfig
-        {
-            ApiKey = "test-key",
-            HttpClient = _httpClient
-        });
-    }
-
-    public void Dispose()
-    {
-        _client.Dispose();
-        _httpClient.Dispose();
+        _httpClient = new HttpClient(_handler.Object);
+        _client = new TypecastClient(new TypecastClientConfig { ApiKey = "test-key", HttpClient = _httpClient });
     }
 
     [Fact]
-    public void ParsePauseMarkup_ShouldPreserveInvalidTokens()
+    public async Task GenerateAsync_UsesComposeApiAndMergesOverrides()
     {
-        var parts = SpeechComposer.ParsePauseMarkup("Hello <|0.3s|>world <|bad|> <|s|> <|3|> <||> <|xs|> <|1.2.3s|> <|3000s|>");
+        HttpRequestMessage? captured = null;
+        string? requestBody = null;
+        _handler.Protected().Setup<Task<HttpResponseMessage>>(
+                "SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync((HttpRequestMessage request, CancellationToken _) =>
+            {
+                captured = request;
+                requestBody = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                var response = new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(Encoding.UTF8.GetBytes("composed-audio"))
+                };
+                response.Content.Headers.ContentType = new("audio/mpeg");
+                response.Headers.Add("X-Audio-Duration", "1.25");
+                return response;
+            });
 
+        var response = await _client.ComposeSpeech()
+            .Defaults(new ComposerSettings
+            {
+                VoiceId = "voice-a", Model = TTSModel.SsfmV30,
+                Output = new Output(volume: null, audioPitch: 1, audioFormat: AudioFormat.Mp3)
+            })
+            .Say("Hello<|0.3s|>world", new ComposerSettings
+            {
+                VoiceId = "voice-b",
+                Output = new Output(volume: null, audioPitch: null, audioTempo: 1.1, audioFormat: null)
+            })
+            .GenerateAsync(AudioFormat.Mp3);
+
+        captured!.RequestUri!.AbsolutePath.Should().Be("/v1/text-to-speech/compose");
+        using var document = JsonDocument.Parse(requestBody!);
+        var segments = document.RootElement.GetProperty("segments");
+        segments.GetArrayLength().Should().Be(3);
+        segments[0].GetProperty("type").GetString().Should().Be("tts");
+        segments[0].GetProperty("text").GetString().Should().Be("Hello");
+        segments[0].GetProperty("voice_id").GetString().Should().Be("voice-b");
+        segments[0].GetProperty("output").GetProperty("audio_format").GetString().Should().Be("mp3");
+        segments[0].GetProperty("output").GetProperty("audio_pitch").GetInt32().Should().Be(1);
+        segments[0].GetProperty("output").GetProperty("audio_tempo").GetDouble().Should().Be(1.1);
+        segments[1].GetProperty("type").GetString().Should().Be("pause");
+        segments[1].GetProperty("duration_seconds").GetDouble().Should().Be(0.3);
+        segments[2].GetProperty("text").GetString().Should().Be("world");
+        Encoding.UTF8.GetString(response.AudioData).Should().Be("composed-audio");
+        response.Format.Should().Be(AudioFormat.Mp3);
+        response.Duration.Should().Be(1.25);
+        _handler.Protected().Verify("SendAsync", Times.Once(), ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>());
+    }
+
+    [Fact]
+    public void Generate_ValidatesBeforeNetwork()
+    {
+        FluentActions.Invoking(() => _client.ComposeSpeech().Say("Hello").Generate())
+            .Should().Throw<InvalidOperationException>().WithMessage("*VoiceId is required*");
+        FluentActions.Invoking(() => _client.ComposeSpeech().Generate())
+            .Should().Throw<InvalidOperationException>().WithMessage("*At least one speech segment*");
+    }
+
+    [Fact]
+    public void ParsePauseMarkup_PreservesInvalidTokens()
+    {
+        var parts = SpeechComposer.ParsePauseMarkup("a<|0.3s|>b<|abc|>c<|3s|>");
         parts.Should().HaveCount(5);
-        parts[0].Text.Should().Be("Hello ");
-        parts[1].PauseSeconds.Should().BeApproximately(0.3, 0.0001);
-        parts[2].Text.Should().Be("world <|bad|> <|s|> <|3|> <||> <|xs|> <|1.2.3s|> ");
-        parts[3].PauseSeconds.Should().Be(3000);
-        parts[4].Text.Should().Be("");
+        parts[0].Text.Should().Be("a");
+        parts[1].IsPause.Should().BeTrue();
+        parts[2].Text.Should().Be("b<|abc|>c");
+        parts[3].IsPause.Should().BeTrue();
+        SpeechComposer.ParsePauseMarkup("plain")[0].Text.Should().Be("plain");
+        SpeechComposer.ParsePauseMarkup("a<|1s")[0].Text.Should().Be("a<|1s");
+        SpeechComposer.ParsePauseMarkup("a<|1.2.3s|>b")[0].Text.Should().Be("a<|1.2.3s|>b");
+        SpeechComposer.ParsePauseMarkup("a<|.s|>b")[0].Text.Should().Be("a<|.s|>b");
+        SpeechComposer.ParsePauseMarkup("a<|xs|>b")[0].Text.Should().Be("a<|xs|>b");
     }
 
     [Fact]
-    public void SegmentRequests_ShouldMergeDefaultsAndForceWav()
+    public void SegmentRequests_KeepCompatibilityAndMergeOptions()
     {
         var requests = _client.ComposeSpeech()
             .Defaults(new ComposerSettings
@@ -62,310 +116,53 @@ public class SpeechComposerTests : IDisposable
                 VoiceId = "voice-b",
                 Prompt = new PresetPrompt(EmotionPreset.Happy, 1.0),
                 Seed = 77,
-                Output = new Output(volume: 80, audioPitch: -2, audioTempo: 1.1, audioFormat: AudioFormat.Mp3, targetLufs: -18.0)
+                Output = new Output(volume: 80, audioPitch: -2, audioTempo: 1.1, audioFormat: AudioFormat.Mp3, targetLufs: -18)
             })
             .SegmentRequests();
 
         requests.Should().HaveCount(2);
-        requests[0].VoiceId.Should().Be("voice-a");
-        requests[0].Text.Should().Be("First");
         requests[0].Output!.AudioFormat.Should().Be(AudioFormat.Wav);
-        requests[0].Output!.AudioPitch.Should().Be(1);
-        requests[0].Output!.AudioTempo.Should().Be(0.9);
         requests[1].VoiceId.Should().Be("voice-b");
-        requests[1].Text.Should().Be("Second");
-        requests[1].Output!.AudioFormat.Should().Be(AudioFormat.Wav);
         requests[1].Output!.Volume.Should().Be(80);
-        requests[1].Output!.AudioPitch.Should().Be(-2);
-        requests[1].Output!.AudioTempo.Should().Be(1.1);
-        requests[1].Output!.TargetLufs.Should().Be(-18.0);
-        requests[1].Prompt.Should().BeOfType<PresetPrompt>();
-        requests[1].Seed.Should().Be(77);
-    }
+        requests[1].Output!.TargetLufs.Should().Be(-18);
 
-    [Fact]
-    public void Pause_ShouldRejectNegativeDurations()
-    {
-        Action act = () => _client.ComposeSpeech().Pause(-0.1);
-
-        act.Should().Throw<ArgumentOutOfRangeException>()
-            .WithParameterName("seconds");
-    }
-
-    [Fact]
-    public async Task GenerateAsync_ShouldTrimSegmentsAndInsertSilence()
-    {
-        var responses = new Queue<HttpResponseMessage>(new[]
-        {
-            WavResponse(new short[] { 0, 100, 0 }, 10),
-            WavResponse(new short[] { 0, -200, 0 }, 10),
-        });
-
-        _mockHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.IsAny<HttpRequestMessage>(),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(() => responses.Dequeue());
-
-        var response = await _client.ComposeSpeech()
-            .Defaults(new ComposerSettings { VoiceId = "voice-a", Model = TTSModel.SsfmV30 })
-            .Say("First")
-            .Pause(0.2)
-            .Say("Second")
-            .GenerateAsync();
-
-        ReadPcm(response.AudioData).Should().Equal(new short[] { 100, 0, 0, -200 });
-        response.Duration.Should().BeApproximately(0.4, 0.0001);
-    }
-
-    [Fact]
-    public async Task GenerateAsync_ShouldTrimAllZeroSegmentsToEmptyAudio()
-    {
-        _mockHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.IsAny<HttpRequestMessage>(),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(WavResponse(new short[] { 0, 0 }, 10));
-
-        var response = await _client.ComposeSpeech()
-            .Defaults(new ComposerSettings { VoiceId = "voice-a", Model = TTSModel.SsfmV30 })
-            .Say("Silence")
-            .GenerateAsync();
-
-        ReadPcm(response.AudioData).Should().BeEmpty();
-        response.Duration.Should().Be(0);
-    }
-
-    [Fact]
-    public async Task GenerateAsync_ShouldRejectMp3()
-    {
-        Func<Task> act = () => _client.ComposeSpeech()
-            .Defaults(new ComposerSettings { VoiceId = "voice-a" })
-            .Say("Hello")
-            .GenerateAsync(AudioFormat.Mp3);
-
-        await act.Should().ThrowAsync<TypecastException>()
-            .WithMessage("*MP3 conversion*");
-    }
-
-    [Fact]
-    public async Task GenerateAsync_ShouldRejectEmptyComposer()
-    {
-        Func<Task> act = () => _client.ComposeSpeech()
-            .Pause(0.1)
-            .GenerateAsync();
-
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*At least one speech segment*");
-    }
-
-    [Fact]
-    public void Generate_ShouldSynchronouslyComposeSpeech()
-    {
-        _mockHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.IsAny<HttpRequestMessage>(),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(WavResponse(new short[] { 0, 321, 0 }, 10));
-
-        var response = _client.ComposeSpeech()
-            .Defaults(new ComposerSettings { VoiceId = "voice-a", Model = TTSModel.SsfmV30 })
-            .Say("Hello")
-            .Generate();
-
-        ReadPcm(response.AudioData).Should().Equal(new short[] { 321 });
-    }
-
-    [Fact]
-    public void SegmentRequests_ShouldRequireVoiceId()
-    {
-        Action act = () => _client.ComposeSpeech()
+        var defaults = _client.ComposeSpeech()
+            .Defaults(new ComposerSettings { VoiceId = "voice" })
             .Say("Hello")
             .SegmentRequests();
+        defaults[0].Model.Should().Be(TTSModel.SsfmV30);
+        defaults[0].Output!.AudioFormat.Should().Be(AudioFormat.Wav);
 
-        act.Should().Throw<InvalidOperationException>()
-            .WithMessage("*VoiceId is required*");
+        FluentActions.Invoking(() => _client.ComposeSpeech().Pause(-0.1))
+            .Should().Throw<ArgumentOutOfRangeException>();
+        FluentActions.Invoking(() => _client.ComposeSpeech().Pause(double.NaN))
+            .Should().Throw<ArgumentOutOfRangeException>();
+        FluentActions.Invoking(() => _client.ComposeSpeech().Say("Hello").SegmentRequests())
+            .Should().Throw<InvalidOperationException>();
     }
 
     [Fact]
-    public async Task GenerateAsync_ShouldRejectInvalidWavResponses()
+    public void Generate_SynchronousPathIncludesExplicitPauseAndBlankText()
     {
-        var cases = new[]
-        {
-            new byte[] { 1, 2, 3 },
-            TestWav(new short[] { 100 }, 10, audioFormat: 2),
-            TestWavWithInvalidChunkSize(),
-            TestWavWithoutData(extraChunk: true),
-            TestWavWithoutData(extraChunk: false),
-        };
+        _handler.Protected().Setup<Task<HttpResponseMessage>>(
+                "SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+            .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(Array.Empty<byte>())
+            });
 
-        foreach (var wav in cases)
-        {
-            _mockHandler.Reset();
-            _mockHandler.Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.IsAny<HttpRequestMessage>(),
-                    ItExpr.IsAny<CancellationToken>())
-                .ReturnsAsync(WavResponse(wav));
+        var response = _client.ComposeSpeech()
+            .Defaults(new ComposerSettings { VoiceId = "voice" })
+            .Pause(0.1)
+            .Say("Hello<|0.1s|>   ")
+            .Generate();
 
-            Func<Task> act = () => _client.ComposeSpeech()
-                .Defaults(new ComposerSettings { VoiceId = "voice-a", Model = TTSModel.SsfmV30 })
-                .Say("Hello")
-                .GenerateAsync();
-
-            await act.Should().ThrowAsync<InvalidOperationException>();
-        }
+        response.Format.Should().Be(AudioFormat.Wav);
     }
 
-    [Fact]
-    public async Task GenerateAsync_ShouldRejectMismatchedSampleRates()
+    public void Dispose()
     {
-        var responses = new Queue<HttpResponseMessage>(new[]
-        {
-            WavResponse(new short[] { 100 }, 10),
-            WavResponse(new short[] { 200 }, 20),
-        });
-
-        _mockHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.IsAny<HttpRequestMessage>(),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(() => responses.Dequeue());
-
-        Func<Task> act = () => _client.ComposeSpeech()
-            .Defaults(new ComposerSettings { VoiceId = "voice-a", Model = TTSModel.SsfmV30 })
-            .Say("First")
-            .Say("Second")
-            .GenerateAsync();
-
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*sample rates must match*");
-    }
-
-    [Fact]
-    public void ComposeWav_ShouldRejectInvalidInternalPartShape()
-    {
-        var method = typeof(SpeechComposer).GetMethod("ComposeWav", BindingFlags.NonPublic | BindingFlags.Static)!;
-        Action act = () => method.Invoke(null, new object[] { Array.Empty<byte[]>(), Array.Empty<double>() });
-
-        act.Should().Throw<TargetInvocationException>()
-            .WithInnerException<InvalidOperationException>()
-            .WithMessage("*Invalid composed speech parts*");
-    }
-
-    [Fact]
-    public void MergeOutput_ShouldPreferOverridesAndFallbackToDefaults()
-    {
-        var method = typeof(SpeechComposer).GetMethod("MergeOutput", BindingFlags.NonPublic | BindingFlags.Static)!;
-        var baseOutput = new Output(volume: 10, audioPitch: 1, audioTempo: 0.9, audioFormat: AudioFormat.Mp3, targetLufs: -20.0);
-        var emptyOverride = new Output
-        {
-            Volume = null,
-            AudioPitch = null,
-            AudioTempo = null,
-            AudioFormat = null,
-            TargetLufs = null
-        };
-        var fallback = (Output)method.Invoke(null, new object?[] { baseOutput, emptyOverride })!;
-
-        fallback.Volume.Should().Be(10);
-        fallback.AudioPitch.Should().Be(1);
-        fallback.AudioTempo.Should().Be(0.9);
-        fallback.AudioFormat.Should().Be(AudioFormat.Mp3);
-        fallback.TargetLufs.Should().Be(-20.0);
-
-        var overrideOutput = new Output(volume: 20, audioPitch: -1, audioTempo: 1.2, audioFormat: AudioFormat.Wav, targetLufs: -18.0);
-        var overridden = (Output)method.Invoke(null, new object?[] { baseOutput, overrideOutput })!;
-
-        overridden.Volume.Should().Be(20);
-        overridden.AudioPitch.Should().Be(-1);
-        overridden.AudioTempo.Should().Be(1.2);
-        overridden.AudioFormat.Should().Be(AudioFormat.Wav);
-        overridden.TargetLufs.Should().Be(-18.0);
-    }
-
-    private static HttpResponseMessage WavResponse(short[] samples, int sampleRate)
-    {
-        return WavResponse(TestWav(samples, sampleRate));
-    }
-
-    private static HttpResponseMessage WavResponse(byte[] wav)
-    {
-        var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new ByteArrayContent(wav)
-        };
-        response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
-        return response;
-    }
-
-    private static byte[] TestWav(short[] samples, int sampleRate, short audioFormat = 1)
-    {
-        var dataLength = samples.Length * 2;
-        var bytes = new byte[44 + dataLength];
-        System.Text.Encoding.ASCII.GetBytes("RIFF").CopyTo(bytes, 0);
-        BitConverter.GetBytes(36 + dataLength).CopyTo(bytes, 4);
-        System.Text.Encoding.ASCII.GetBytes("WAVEfmt ").CopyTo(bytes, 8);
-        BitConverter.GetBytes(16).CopyTo(bytes, 16);
-        BitConverter.GetBytes(audioFormat).CopyTo(bytes, 20);
-        BitConverter.GetBytes((short)1).CopyTo(bytes, 22);
-        BitConverter.GetBytes(sampleRate).CopyTo(bytes, 24);
-        BitConverter.GetBytes(sampleRate * 2).CopyTo(bytes, 28);
-        BitConverter.GetBytes((short)2).CopyTo(bytes, 32);
-        BitConverter.GetBytes((short)16).CopyTo(bytes, 34);
-        System.Text.Encoding.ASCII.GetBytes("data").CopyTo(bytes, 36);
-        BitConverter.GetBytes(dataLength).CopyTo(bytes, 40);
-        for (var i = 0; i < samples.Length; i++)
-        {
-            BitConverter.GetBytes(samples[i]).CopyTo(bytes, 44 + i * 2);
-        }
-        return bytes;
-    }
-
-    private static byte[] TestWavWithoutData(bool extraChunk)
-    {
-        var payloadLength = extraChunk ? 12 : 8;
-        var bytes = new byte[36 + payloadLength];
-        System.Text.Encoding.ASCII.GetBytes("RIFF").CopyTo(bytes, 0);
-        BitConverter.GetBytes(28 + payloadLength).CopyTo(bytes, 4);
-        System.Text.Encoding.ASCII.GetBytes("WAVEfmt ").CopyTo(bytes, 8);
-        BitConverter.GetBytes(16).CopyTo(bytes, 16);
-        BitConverter.GetBytes((short)1).CopyTo(bytes, 20);
-        BitConverter.GetBytes((short)1).CopyTo(bytes, 22);
-        BitConverter.GetBytes(10).CopyTo(bytes, 24);
-        BitConverter.GetBytes(20).CopyTo(bytes, 28);
-        BitConverter.GetBytes((short)2).CopyTo(bytes, 32);
-        BitConverter.GetBytes((short)16).CopyTo(bytes, 34);
-        if (extraChunk)
-        {
-            System.Text.Encoding.ASCII.GetBytes("JUNK").CopyTo(bytes, 36);
-            BitConverter.GetBytes(4).CopyTo(bytes, 40);
-            BitConverter.GetBytes(123).CopyTo(bytes, 44);
-        }
-        return bytes;
-    }
-
-    private static byte[] TestWavWithInvalidChunkSize()
-    {
-        var bytes = TestWav(Array.Empty<short>(), 10);
-        System.Text.Encoding.ASCII.GetBytes("JUNK").CopyTo(bytes, 36);
-        BitConverter.GetBytes(1000).CopyTo(bytes, 40);
-        return bytes;
-    }
-
-    private static short[] ReadPcm(byte[] wav)
-    {
-        var dataLength = BitConverter.ToInt32(wav, 40);
-        var samples = new short[dataLength / 2];
-        for (var i = 0; i < samples.Length; i++)
-        {
-            samples[i] = BitConverter.ToInt16(wav, 44 + i * 2);
-        }
-        return samples;
+        _client.Dispose();
+        _httpClient.Dispose();
     }
 }

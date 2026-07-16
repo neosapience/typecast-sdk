@@ -55,18 +55,28 @@ test "composer builds per-segment requests with WAV output" {
     try testing.expectEqual(@as(?f64, 1.1), requests.items[1].output.?.audio_tempo);
 }
 
-test "composeWav inserts silence between trimmed PCM segments" {
+test "composer validates pause, speech presence, and output format before network" {
     const allocator = testing.allocator;
-    const first = try composer.testWav(allocator, &.{ 0, 100, 0 }, 10);
-    defer allocator.free(first);
-    const second = try composer.testWav(allocator, &.{ 0, -200, 0 }, 10);
-    defer allocator.free(second);
+    var client = typecast.Client.init(allocator, .{ .api_key = "test-key", .base_url = "http://localhost:1" });
+    defer client.deinit();
 
-    const combined = try composer.composeWav(allocator, &.{ first, second }, &.{0.2});
-    defer allocator.free(combined);
+    var invalid_pause = client.composeSpeech();
+    defer invalid_pause.deinit();
+    try testing.expectError(error.InvalidPause, invalid_pause.pause(std.math.inf(f64)));
 
-    const pcm = try composer.testReadPcm(allocator, combined);
-    defer allocator.free(pcm);
+    var pause_only = client.composeSpeech();
+    defer pause_only.deinit();
+    try pause_only.pause(0.25);
+    try testing.expectError(error.MissingSpeechSegment, pause_only.generate(null));
 
-    try testing.expectEqualSlices(i16, &.{ 100, 0, 0, -200 }, pcm);
+    var conflicting = client.composeSpeech();
+    defer conflicting.deinit();
+    try conflicting.defaults(.{
+        .voice_id = "voice",
+        .model = .ssfm_v30,
+        .output = .{ .audio_format = .mp3 },
+    });
+    try conflicting.say("first", .{});
+    try conflicting.say("second", .{ .output = .{ .audio_format = .wav } });
+    try testing.expectError(error.ConflictingAudioFormats, conflicting.generate(null));
 }

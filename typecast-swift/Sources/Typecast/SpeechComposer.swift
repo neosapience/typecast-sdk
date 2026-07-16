@@ -35,15 +35,37 @@ private enum ComposerPart {
   case pause(Double)
 }
 
-private struct WAVSpec: Equatable {
-  let sampleRate: UInt32
-  let channels: UInt16
-  let bitsPerSample: UInt16
+struct ComposeSegment: Encodable {
+  let type: String
+  var voiceId: String?
+  var text: String?
+  var model: TTSModel?
+  var language: LanguageCode?
+  var prompt: TTSPrompt?
+  var output: OutputSettings?
+  var seed: Int?
+  var durationSeconds: Double?
+
+  enum CodingKeys: String, CodingKey {
+    case type, text, model, language, prompt, output, seed
+    case voiceId = "voice_id"
+    case durationSeconds = "duration_seconds"
+  }
+
+  static func tts(_ request: TTSRequest) -> Self {
+    Self(
+      type: "tts", voiceId: request.voiceId, text: request.text, model: request.model,
+      language: request.language, prompt: request.prompt, output: request.output, seed: request.seed
+    )
+  }
+
+  static func pause(_ seconds: Double) -> Self {
+    Self(type: "pause", durationSeconds: seconds)
+  }
 }
 
-private struct ParsedWAV {
-  let spec: WAVSpec
-  let samples: [Int16]
+struct ComposeRequest: Encodable {
+  let segments: [ComposeSegment]
 }
 
 public final class SpeechComposer {
@@ -60,7 +82,9 @@ public final class SpeechComposer {
     return self
   }
 
-  public func say(_ text: String, overrides: ComposerSettings = ComposerSettings()) -> SpeechComposer {
+  public func say(_ text: String, overrides: ComposerSettings = ComposerSettings())
+    -> SpeechComposer
+  {
     parts.append(.speech(text, mergeSettings(defaultSettings, overrides)))
     return self
   }
@@ -75,43 +99,34 @@ public final class SpeechComposer {
 
   public func generate() async throws -> TTSResponse {
     let plan = try buildPlan()
-    guard plan.contains(where: { if case .speech = $0 { return true }; return false }) else {
+    guard
+      plan.contains(where: {
+        if case .speech = $0 { return true }
+        return false
+      })
+    else {
       throw TypecastError.validationError("at least one speech segment is required")
     }
 
-    let outputFormat = defaultSettings.output?.audioFormat ?? .wav
-    var wavSpec: WAVSpec?
-    var outputSamples: [Int16] = []
-
+    let formats = plan.compactMap { part -> AudioFormat? in
+        if case .speech(_, let settings) = part { return settings.output?.audioFormat }
+        return nil
+      }
+    guard Set(formats.map(\.rawValue)).count <= 1 else {
+      throw TypecastError.validationError("composed speech segments must use one audio format")
+    }
+    let outputFormat = formats.first ?? .wav
+    var segments: [ComposeSegment] = []
     for part in plan {
       switch part {
       case .pause(let seconds):
-        guard let spec = wavSpec else {
-          throw TypecastError.validationError("pause cannot be the first composed part")
-        }
-        outputSamples.append(contentsOf: Array(repeating: 0, count: secondsToSamples(seconds, sampleRate: spec.sampleRate)))
+        segments.append(.pause(seconds))
 
       case .speech(let text, let settings):
-        let response = try await client.textToSpeech(try request(text: text, settings: settings))
-        let wav = try parseWAV(response.audioData)
-        if let spec = wavSpec, spec != wav.spec {
-          throw TypecastError.validationError("all composed WAV segments must use the same PCM format")
-        }
-        wavSpec = wav.spec
-        outputSamples.append(contentsOf: trimSilence(wav.samples))
+        segments.append(.tts(try request(text: text, settings: settings, format: outputFormat)))
       }
     }
-
-    let finalSpec = wavSpec!
-    let wavData = encodeWAV(samples: outputSamples, spec: finalSpec)
-    if outputFormat == .mp3 {
-      throw TypecastError.validationError("MP3 conversion is app-level responsibility for composed speech")
-    }
-    return TTSResponse(
-      audioData: wavData,
-      duration: Double(outputSamples.count) / Double(finalSpec.sampleRate),
-      format: .wav
-    )
+    return try await client.composeTextToSpeech(segments)
   }
 
   private func buildPlan() throws -> [ComposerPart] {
@@ -132,7 +147,8 @@ public final class SpeechComposer {
           case .text(let text):
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
             guard let voiceId = settings.voiceId, !voiceId.isEmpty else {
-              throw TypecastError.validationError("voiceId is required for composed speech segments")
+              throw TypecastError.validationError(
+                "voiceId is required for composed speech segments")
             }
             guard settings.model != nil else {
               throw TypecastError.validationError("model is required for composed speech segments")
@@ -145,14 +161,16 @@ public final class SpeechComposer {
     return plan
   }
 
-  private func request(text: String, settings: ComposerSettings) throws -> TTSRequest {
+  private func request(text: String, settings: ComposerSettings, format: AudioFormat) throws
+    -> TTSRequest
+  {
     return TTSRequest(
       voiceId: settings.voiceId!,
       text: text,
       model: settings.model!,
       language: settings.language,
       prompt: settings.prompt,
-      output: mergeOutput(settings.output, OutputSettings(audioFormat: .wav)),
+      output: mergeOutput(settings.output, OutputSettings(audioFormat: format)),
       seed: settings.seed
     )
   }
@@ -172,7 +190,9 @@ public func parsePauseMarkup(_ text: String) -> [SpeechPart] {
     let tokenBody = String(text[bodyStart..<endRange.lowerBound])
     if tokenBody.hasSuffix("s") {
       let secondsText = String(tokenBody.dropLast())
-      if validSecondsLiteral(secondsText), let seconds = Double(secondsText) {
+      if validSecondsLiteral(secondsText), let seconds = Double(secondsText),
+        seconds.isFinite, seconds > 0
+      {
         if startRange.lowerBound > lastEmit {
           parts.append(.text(String(text[lastEmit..<startRange.lowerBound])))
         }
@@ -192,8 +212,8 @@ public func parsePauseMarkup(_ text: String) -> [SpeechPart] {
   return parts
 }
 
-public extension TypecastClient {
-  func composeSpeech() -> SpeechComposer {
+extension TypecastClient {
+  public func composeSpeech() -> SpeechComposer {
     SpeechComposer(client: self)
   }
 }
@@ -210,7 +230,9 @@ private func validSecondsLiteral(_ value: String) -> Bool {
   return true
 }
 
-private func mergeSettings(_ base: ComposerSettings, _ override: ComposerSettings) -> ComposerSettings {
+private func mergeSettings(_ base: ComposerSettings, _ override: ComposerSettings)
+  -> ComposerSettings
+{
   ComposerSettings(
     voiceId: override.voiceId ?? base.voiceId,
     model: override.model ?? base.model,
@@ -230,108 +252,4 @@ private func mergeOutput(_ base: OutputSettings?, _ override: OutputSettings?) -
     audioTempo: override?.audioTempo ?? base?.audioTempo,
     audioFormat: override?.audioFormat ?? base?.audioFormat
   )
-}
-
-private func parseWAV(_ data: Data) throws -> ParsedWAV {
-  let bytes = [UInt8](data)
-  guard bytes.count >= 12,
-    String(bytes: bytes[0..<4], encoding: .ascii) == "RIFF",
-    String(bytes: bytes[8..<12], encoding: .ascii) == "WAVE"
-  else {
-    throw TypecastError.validationError("unsupported WAV data")
-  }
-
-  var offset = 12
-  var spec: WAVSpec?
-  var samples: [Int16]?
-  while offset + 8 <= bytes.count {
-    let chunkId = String(bytes: bytes[offset..<(offset + 4)], encoding: .ascii)
-    let chunkSize = Int(readUInt32(bytes, offset + 4))
-    let chunkDataOffset = offset + 8
-    let chunkEnd = chunkDataOffset + chunkSize
-    guard chunkEnd <= bytes.count else {
-      throw TypecastError.validationError("unsupported WAV data")
-    }
-
-    if chunkId == "fmt " {
-      guard chunkSize >= 16 else {
-        throw TypecastError.validationError("unsupported WAV data")
-      }
-      let audioFormat = readUInt16(bytes, chunkDataOffset)
-      let channels = readUInt16(bytes, chunkDataOffset + 2)
-      let sampleRate = readUInt32(bytes, chunkDataOffset + 4)
-      let bitsPerSample = readUInt16(bytes, chunkDataOffset + 14)
-      guard audioFormat == 1, channels == 1, bitsPerSample == 16 else {
-        throw TypecastError.validationError("only mono 16-bit PCM WAV is supported for composed speech")
-      }
-      spec = WAVSpec(sampleRate: sampleRate, channels: channels, bitsPerSample: bitsPerSample)
-    } else if chunkId == "data" {
-      guard chunkSize % 2 == 0 else {
-        throw TypecastError.validationError("unsupported WAV data")
-      }
-      samples = stride(from: chunkDataOffset, to: chunkEnd, by: 2).map {
-        Int16(littleEndian: Int16(bitPattern: readUInt16(bytes, $0)))
-      }
-    }
-
-    offset = chunkEnd + (chunkSize % 2)
-  }
-
-  guard let finalSpec = spec, let finalSamples = samples else {
-    throw TypecastError.validationError("unsupported WAV data")
-  }
-  return ParsedWAV(spec: finalSpec, samples: finalSamples)
-}
-
-private func encodeWAV(samples: [Int16], spec: WAVSpec) -> Data {
-  var data = Data()
-  data.append(contentsOf: "RIFF".utf8)
-  data.append(UInt32(36 + samples.count * 2).littleEndianData)
-  data.append(contentsOf: "WAVE".utf8)
-  data.append(contentsOf: "fmt ".utf8)
-  data.append(UInt32(16).littleEndianData)
-  data.append(UInt16(1).littleEndianData)
-  data.append(spec.channels.littleEndianData)
-  data.append(spec.sampleRate.littleEndianData)
-  data.append((spec.sampleRate * UInt32(spec.channels) * 2).littleEndianData)
-  data.append((spec.channels * 2).littleEndianData)
-  data.append(spec.bitsPerSample.littleEndianData)
-  data.append(contentsOf: "data".utf8)
-  data.append(UInt32(samples.count * 2).littleEndianData)
-  samples.forEach { data.append($0.littleEndianData) }
-  return data
-}
-
-private func trimSilence(_ samples: [Int16]) -> [Int16] {
-  var start = 0
-  var end = samples.count
-  while start < end, abs(Int(samples[start])) <= 0 {
-    start += 1
-  }
-  while end > start, abs(Int(samples[end - 1])) <= 0 {
-    end -= 1
-  }
-  return Array(samples[start..<end])
-}
-
-private func secondsToSamples(_ seconds: Double, sampleRate: UInt32) -> Int {
-  Int((seconds * Double(sampleRate)).rounded())
-}
-
-private func readUInt16(_ bytes: [UInt8], _ offset: Int) -> UInt16 {
-  UInt16(bytes[offset]) | (UInt16(bytes[offset + 1]) << 8)
-}
-
-private func readUInt32(_ bytes: [UInt8], _ offset: Int) -> UInt32 {
-  UInt32(bytes[offset])
-    | (UInt32(bytes[offset + 1]) << 8)
-    | (UInt32(bytes[offset + 2]) << 16)
-    | (UInt32(bytes[offset + 3]) << 24)
-}
-
-private extension FixedWidthInteger {
-  var littleEndianData: Data {
-    var value = self.littleEndian
-    return Data(bytes: &value, count: MemoryLayout<Self>.size)
-  }
 }

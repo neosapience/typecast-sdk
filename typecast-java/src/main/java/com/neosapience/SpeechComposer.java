@@ -1,12 +1,7 @@
 package com.neosapience;
 
-import com.neosapience.exceptions.TypecastException;
 import com.neosapience.models.*;
 
-import java.io.ByteArrayOutputStream;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,8 +13,8 @@ import java.util.List;
  * preserved as text. Multi-speaker composition is exposed through chaining only:
  * call {@link #defaults(ComposerSettings)}, {@link #say(String, ComposerSettings)},
  * and {@link #pause(double)}. Each speech segment may override voice, pitch,
- * tempo, prompt, seed, and output settings. Internal segment requests force WAV
- * so the SDK can trim leading/trailing silence and concatenate PCM.</p>
+ * tempo, prompt, seed, and output settings. Generation is performed by the
+ * Typecast Compose API in one request.</p>
  */
 public class SpeechComposer {
     private final TypecastClient client;
@@ -45,7 +40,7 @@ public class SpeechComposer {
     }
 
     public SpeechComposer pause(double seconds) {
-        if (seconds < 0) throw new IllegalArgumentException("Pause must be non-negative");
+        if (!Double.isFinite(seconds) || seconds <= 0) throw new IllegalArgumentException("Pause must be finite and greater than zero");
         this.parts.add(seconds);
         return this;
     }
@@ -65,28 +60,24 @@ public class SpeechComposer {
     }
 
     public TTSResponse generate(AudioFormat outputFormat) {
-        if (outputFormat == AudioFormat.MP3) {
-            throw new TypecastException("MP3 conversion is not available for composed speech in the Java SDK.");
-        }
-        List<byte[]> wavs = new ArrayList<>();
-        List<Double> pauses = new ArrayList<>();
-        double pendingPause = 0.0;
-        boolean hasAudio = false;
+        List<Object> segments = new ArrayList<>();
         for (Object part : parts) {
             if (part instanceof Double) {
-                pendingPause += (Double) part;
+                segments.add(part);
                 continue;
             }
             if (!(part instanceof ComposerSpeechPart)) continue;
-            if (hasAudio) pauses.add(pendingPause);
-            pendingPause = 0.0;
-            wavs.add(client.textToSpeech(buildRequest((ComposerSpeechPart) part)).getAudioData());
-            hasAudio = true;
+            ComposerSpeechPart speech = (ComposerSpeechPart) part;
+            for (SpeechPart parsed : parsePauseMarkup(speech.text)) {
+                if (parsed.isPause()) {
+                    segments.add(parsed.getPauseSeconds());
+                } else if (!parsed.getText().trim().isEmpty()) {
+                    segments.add(buildRequest(new ComposerSpeechPart(parsed.getText(), speech.settings), outputFormat));
+                }
+            }
         }
-        if (wavs.isEmpty()) throw new IllegalStateException("At least one speech segment is required");
-        byte[] audio = composeWav(wavs, pauses);
-        WavInfo info = parseWav(audio);
-        return new TTSResponse(audio, (info.pcmLen / 2.0) / info.sampleRate, "wav");
+        if (segments.stream().noneMatch(TTSRequest.class::isInstance)) throw new IllegalStateException("At least one speech segment is required");
+        return client.composeTextToSpeech(segments);
     }
 
     public static List<SpeechPart> parsePauseMarkup(String text) {
@@ -115,13 +106,17 @@ public class SpeechComposer {
     }
 
     private TTSRequest buildRequest(ComposerSpeechPart speech) {
+        return buildRequest(speech, AudioFormat.WAV);
+    }
+
+    private TTSRequest buildRequest(ComposerSpeechPart speech, AudioFormat outputFormat) {
         ComposerSettings settings = merge(defaults, speech.settings);
         if (settings.getVoiceId() == null || settings.getVoiceId().trim().isEmpty()) {
             throw new IllegalStateException("voiceId is required for composed speech segments");
         }
         Output output = copyOutput(settings.getOutput());
         if (output == null) output = Output.builder().volume(null).audioPitch(null).audioTempo(null).audioFormat(null).build();
-        output.setAudioFormat(AudioFormat.WAV);
+        output.setAudioFormat(outputFormat);
         TTSRequest request = new TTSRequest(settings.getVoiceId(), speech.text, settings.getModel() == null ? TTSModel.SSFM_V30 : settings.getModel());
         request.setLanguage(settings.getLanguage());
         if (settings.getPrompt() instanceof Prompt) request.setPrompt((Prompt) settings.getPrompt());
@@ -182,84 +177,11 @@ public class SpeechComposer {
             if (!Character.isDigit(c) && c != '.') return null;
         }
         try {
-            return Double.parseDouble(number);
+            double seconds = Double.parseDouble(number);
+            return Double.isFinite(seconds) && seconds > 0 ? seconds : null;
         } catch (NumberFormatException e) {
             return null;
         }
-    }
-
-    private static byte[] composeWav(List<byte[]> wavs, List<Double> pauses) {
-        if (pauses.size() + 1 != wavs.size()) throw new IllegalStateException("Invalid composed speech parts");
-        List<WavInfo> infos = new ArrayList<>();
-        for (byte[] wav : wavs) infos.add(parseWav(wav));
-        int sampleRate = infos.get(0).sampleRate;
-        int totalSamples = 0;
-        List<int[]> ranges = new ArrayList<>();
-        for (int i = 0; i < wavs.size(); i++) {
-            WavInfo info = infos.get(i);
-            if (info.sampleRate != sampleRate) throw new IllegalStateException("WAV segment sample rates must match");
-            int start = 0;
-            int end = info.pcmLen / 2;
-            while (start < end && readShort(wavs.get(i), info.pcmStart + start * 2) == 0) start++;
-            while (end > start && readShort(wavs.get(i), info.pcmStart + (end - 1) * 2) == 0) end--;
-            ranges.add(new int[]{start, end});
-            totalSamples += end - start;
-            if (i < pauses.size()) totalSamples += (int) Math.round(pauses.get(i) * sampleRate);
-        }
-        ByteBuffer out = ByteBuffer.allocate(44 + totalSamples * 2).order(ByteOrder.LITTLE_ENDIAN);
-        writeWavHeader(out, sampleRate, totalSamples * 2);
-        for (int i = 0; i < wavs.size(); i++) {
-            WavInfo info = infos.get(i);
-            int[] range = ranges.get(i);
-            out.put(wavs.get(i), info.pcmStart + range[0] * 2, (range[1] - range[0]) * 2);
-            if (i < pauses.size()) {
-                int pauseBytes = (int) Math.round(pauses.get(i) * sampleRate) * 2;
-                out.put(new byte[pauseBytes]);
-            }
-        }
-        return out.array();
-    }
-
-    private static WavInfo parseWav(byte[] wav) {
-        if (wav.length < 44 || !ascii(wav, 0, 4).equals("RIFF") || !ascii(wav, 8, 4).equals("WAVE")) {
-            throw new IllegalStateException("Composed speech requires WAV audio");
-        }
-        ByteBuffer b = ByteBuffer.wrap(wav).order(ByteOrder.LITTLE_ENDIAN);
-        if (b.getShort(20) != 1 || b.getShort(22) != 1 || b.getShort(34) != 16) {
-            throw new IllegalStateException("Composed speech requires mono 16-bit PCM WAV segments");
-        }
-        int cursor = 36;
-        while (cursor + 8 <= wav.length) {
-            String id = ascii(wav, cursor, 4);
-            int size = b.getInt(cursor + 4);
-            if (cursor + 8 + size > wav.length) throw new IllegalStateException("Invalid WAV data");
-            if (id.equals("data")) return new WavInfo(b.getInt(24), cursor + 8, size);
-            cursor += 8 + size;
-        }
-        throw new IllegalStateException("WAV data chunk is missing");
-    }
-
-    private static short readShort(byte[] data, int offset) {
-        return ByteBuffer.wrap(data, offset, 2).order(ByteOrder.LITTLE_ENDIAN).getShort();
-    }
-
-    private static String ascii(byte[] data, int offset, int length) {
-        return new String(data, offset, length, StandardCharsets.US_ASCII);
-    }
-
-    private static void writeWavHeader(ByteBuffer out, int sampleRate, int dataLength) {
-        out.put("RIFF".getBytes(StandardCharsets.US_ASCII));
-        out.putInt(36 + dataLength);
-        out.put("WAVEfmt ".getBytes(StandardCharsets.US_ASCII));
-        out.putInt(16);
-        out.putShort((short) 1);
-        out.putShort((short) 1);
-        out.putInt(sampleRate);
-        out.putInt(sampleRate * 2);
-        out.putShort((short) 2);
-        out.putShort((short) 16);
-        out.put("data".getBytes(StandardCharsets.US_ASCII));
-        out.putInt(dataLength);
     }
 
     private static class ComposerSpeechPart {
@@ -271,14 +193,4 @@ public class SpeechComposer {
         }
     }
 
-    private static class WavInfo {
-        final int sampleRate;
-        final int pcmStart;
-        final int pcmLen;
-        WavInfo(int sampleRate, int pcmStart, int pcmLen) {
-            this.sampleRate = sampleRate;
-            this.pcmStart = pcmStart;
-            this.pcmLen = pcmLen;
-        }
-    }
 }

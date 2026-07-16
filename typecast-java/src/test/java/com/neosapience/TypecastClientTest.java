@@ -132,7 +132,7 @@ class TypecastClientTest {
         byte[] audioBytes = new byte[]{0x00};
         mockServer.enqueue(new MockResponse()
                 .setResponseCode(200)
-                .setHeader("Content-Type", "audio/mp3")
+                .setHeader("Content-Type", "Audio/MPEG")
                 .setBody(new okio.Buffer().write(audioBytes)));
 
         TTSRequest request = TTSRequest.builder()
