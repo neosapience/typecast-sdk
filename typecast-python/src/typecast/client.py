@@ -197,10 +197,11 @@ class Typecast:
         if response.status_code != 200:
             self._handle_error(response.status_code, response.text)
 
+        content_type = response.headers.get("Content-Type", "audio/wav").lower()
         return TTSResponse(
             audio_data=response.content,
             duration=response.headers.get("X-Audio-Duration", 0),
-            format=response.headers.get("Content-Type", "audio/wav").split("/")[-1],
+            format="mp3" if "mp3" in content_type or "mpeg" in content_type else "wav",
         )
 
     def compose_speech(self) -> SpeechComposer:
@@ -216,10 +217,11 @@ class Typecast:
             f"{self.host}/v1/text-to-speech/compose",
             json={"segments": segments},
             headers=self._request_headers(),
+            timeout=(10, 300),
         )
         if response.status_code != 200:
             self._handle_error(response.status_code, response.text)
-        content_type = response.headers.get("Content-Type", "audio/wav")
+        content_type = response.headers.get("Content-Type", "audio/wav").lower()
         return TTSResponse(
             audio_data=response.content,
             duration=response.headers.get("X-Audio-Duration", 0),

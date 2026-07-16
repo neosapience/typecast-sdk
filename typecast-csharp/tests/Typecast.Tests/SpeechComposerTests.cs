@@ -135,6 +135,8 @@ public class SpeechComposerTests : IDisposable
 
         FluentActions.Invoking(() => _client.ComposeSpeech().Pause(-0.1))
             .Should().Throw<ArgumentOutOfRangeException>();
+        FluentActions.Invoking(() => _client.ComposeSpeech().Pause(double.NaN))
+            .Should().Throw<ArgumentOutOfRangeException>();
         FluentActions.Invoking(() => _client.ComposeSpeech().Say("Hello").SegmentRequests())
             .Should().Throw<InvalidOperationException>();
     }

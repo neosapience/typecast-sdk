@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -195,6 +196,7 @@ public class TypecastClient : IDisposable
         {
             if (part.Request is null)
                 return (object)new Dictionary<string, object> { ["type"] = "pause", ["duration_seconds"] = part.PauseSeconds!.Value };
+            part.Request.Validate();
             var segment = JsonSerializer.Deserialize<Dictionary<string, object>>(SerializeRequest(part.Request), JsonOptions)!;
             segment["type"] = "tts";
             return segment;
@@ -205,9 +207,12 @@ public class TypecastClient : IDisposable
             throw TypecastException.FromStatusCode((int)response.StatusCode, await response.Content.ReadAsStringAsync().ConfigureAwait(false));
         var audioData = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
         var duration = response.Headers.TryGetValues("x-audio-duration", out var values)
-            && double.TryParse(values.FirstOrDefault(), out var parsed) ? parsed : 0.0;
+            && double.TryParse(values.FirstOrDefault(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : 0.0;
         var contentType = response.Content.Headers.ContentType?.MediaType;
-        var format = contentType?.Contains("mp3") == true || contentType?.Contains("mpeg") == true
+        var format = contentType?.Contains("mp3", StringComparison.OrdinalIgnoreCase) == true
+            || contentType?.Contains("mpeg", StringComparison.OrdinalIgnoreCase) == true
             ? AudioFormat.Mp3
             : AudioFormat.Wav;
         return new TTSResponse(audioData, duration, format);

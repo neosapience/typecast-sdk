@@ -99,9 +99,18 @@ func (c *SpeechComposer) Generate(ctx context.Context) (*TTSResponse, error) {
 		return nil, fmt.Errorf("at least one speech segment is required")
 	}
 
+	formats := map[AudioFormat]struct{}{}
+	for _, part := range plan {
+		if part.kind == SpeechPartText && part.settings.Output != nil && part.settings.Output.AudioFormat != "" {
+			formats[part.settings.Output.AudioFormat] = struct{}{}
+		}
+	}
+	if len(formats) > 1 {
+		return nil, fmt.Errorf("composed speech segments must use one audio format")
+	}
 	outputFormat := AudioFormatWAV
-	if c.defaults.Output != nil && c.defaults.Output.AudioFormat != "" {
-		outputFormat = c.defaults.Output.AudioFormat
+	for format := range formats {
+		outputFormat = format
 	}
 
 	segments := make([]interface{}, 0, len(plan))

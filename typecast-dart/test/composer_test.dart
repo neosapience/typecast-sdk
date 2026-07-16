@@ -75,6 +75,26 @@ void main() {
       throwsA(predicate((e) =>
           e.toString().contains('pause seconds must be greater than 0'))),
     );
+    expect(
+      () => client
+          .composeSpeech()
+          .defaults(
+            const ComposerSettings(
+              voiceId: 'voice',
+              model: TtsModel.ssfmV30,
+              output: Output(audioFormat: AudioFormat.mp3),
+            ),
+          )
+          .say('first')
+          .say(
+            'second',
+            overrides: const ComposerSettings(
+              output: Output(audioFormat: AudioFormat.wav),
+            ),
+          )
+          .generate(),
+      throwsA(predicate((e) => e.toString().contains('one audio format'))),
+    );
   });
 
   test('parsePauseMarkup is lenient for invalid tokens', () {

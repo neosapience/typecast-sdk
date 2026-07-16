@@ -843,6 +843,15 @@ async fn compose_speech_composes_wav_and_merges_overrides() {
     let mut server = Server::new_async().await;
     let mock = server
         .mock("POST", "/v1/text-to-speech/compose")
+        .match_body(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::Regex(
+                r#"\"text\":\"Hello\".*\"type\":\"pause\".*\"text\":\"world\""#.to_string(),
+            ),
+            mockito::Matcher::Regex(r#"\"voice_id\":\"voice-b\""#.to_string()),
+            mockito::Matcher::Regex(r#"\"emotion_preset\":\"sad\""#.to_string()),
+            mockito::Matcher::Regex(r#"\"seed\":123"#.to_string()),
+            mockito::Matcher::Regex(r#"\"audio_format\":\"mp3\""#.to_string()),
+        ]))
         .with_status(200)
         .with_header("content-type", "audio/mpeg")
         .with_header("x-audio-duration", "1.25")
@@ -947,6 +956,16 @@ async fn compose_speech_validates_before_network() {
         .to_string()
         .contains("pause seconds must be greater than 0"));
 
+    let err = client
+        .compose_speech()
+        .pause(f64::NAN)
+        .generate()
+        .await
+        .unwrap_err();
+    assert!(err
+        .to_string()
+        .contains("pause seconds must be greater than 0"));
+
     let err = client.compose_speech().generate().await.unwrap_err();
     assert!(err
         .to_string()
@@ -973,6 +992,37 @@ async fn compose_speech_validates_before_network() {
         .await
         .unwrap_err();
     assert!(err.to_string().contains("voice_id is required"));
+
+    let err = client
+        .compose_speech()
+        .defaults(
+            ComposerSettings::new()
+                .voice_id("voice-a")
+                .model(TTSModel::SsfmV30)
+                .output(Output::new().audio_format(AudioFormat::Mp3)),
+        )
+        .say("first")
+        .say_with(
+            "second",
+            ComposerSettings::new().output(Output::new().audio_format(AudioFormat::Wav)),
+        )
+        .generate()
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("one audio format"));
+
+    let err = client
+        .compose_speech()
+        .defaults(
+            ComposerSettings::new()
+                .voice_id("voice-a")
+                .model(TTSModel::SsfmV30),
+        )
+        .say("x".repeat(2001))
+        .generate()
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("must not exceed 2000 characters"));
 }
 
 #[test]
@@ -993,6 +1043,9 @@ fn parse_pause_markup_is_lenient_for_invalid_tokens() {
         parse_pause_markup("hello<|0.3s"),
         vec![SpeechPart::Text("hello<|0.3s".to_string())]
     );
+    let overflow = "9".repeat(400);
+    let text = format!("a<|{overflow}s|>b");
+    assert_eq!(parse_pause_markup(&text), vec![SpeechPart::Text(text)]);
 }
 
 #[tokio::test]

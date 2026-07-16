@@ -43,7 +43,7 @@ export class SpeechComposer {
   }
 
   async generate(): Promise<TTSResponse> {
-    const outputFormat = this.defaultSettings.output?.audio_format ?? 'wav';
+    const outputFormat = this.resolveOutputFormat();
     const plan = this.buildPlan(outputFormat);
     if (!plan.some((part) => part.kind === 'speech')) {
       throw new Error('at least one speech segment is required');
@@ -56,6 +56,17 @@ export class SpeechComposer {
           : { type: 'tts', ...part.request },
       ),
     );
+  }
+
+  private resolveOutputFormat(): 'wav' | 'mp3' {
+    const formats = new Set<'wav' | 'mp3'>();
+    for (const part of this.parts) {
+      if (part.kind !== 'speech' || !part.text.trim()) continue;
+      const format = mergeSettings(this.defaultSettings, part.overrides ?? {}).output?.audio_format;
+      if (format) formats.add(format);
+    }
+    if (formats.size > 1) throw new Error('composed speech segments must use one audio format');
+    return formats.values().next().value ?? 'wav';
   }
 
   private buildPlan(
@@ -109,10 +120,12 @@ export function parsePauseMarkup(text: string): ParsedPart[] {
   let lastIndex = 0;
   for (const match of text.matchAll(PAUSE_TOKEN)) {
     const index = match.index;
+    const seconds = Number(match[1]);
+    if (!Number.isFinite(seconds) || seconds <= 0) continue;
     if (index > lastIndex) {
       parts.push({ kind: 'text', text: text.slice(lastIndex, index) });
     }
-    parts.push({ kind: 'pause', seconds: Number(match[1]) });
+    parts.push({ kind: 'pause', seconds });
     lastIndex = index + match[0].length;
   }
   if (lastIndex < text.length) {

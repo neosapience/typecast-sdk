@@ -156,6 +156,13 @@ func TestComposeSpeech_CoversBuilderAndResponseBranches(t *testing.T) {
 		Say("Hello<|0s|>world").Generate(context.Background()); err == nil {
 		t.Fatal("expected parsed pause error")
 	}
+	if _, err := NewClient(&ClientConfig{APIKey: "key", BaseURL: "http://127.0.0.1"}).
+		ComposeSpeech().
+		SayWith("One", ComposerSettings{VoiceID: "voice", Model: ModelSSFMV30, Output: &Output{AudioFormat: AudioFormatWAV}}).
+		SayWith("Two", ComposerSettings{VoiceID: "voice", Model: ModelSSFMV30, Output: &Output{AudioFormat: AudioFormatMP3}}).
+		Generate(context.Background()); err == nil {
+		t.Fatal("expected conflicting output format error")
+	}
 }
 
 func TestComposeSpeech_CoversHTTPResponseBranches(t *testing.T) {

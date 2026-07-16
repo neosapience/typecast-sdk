@@ -128,4 +128,47 @@ describe('SpeechComposer', () => {
 
     expect(JSON.parse(mockFetch.mock.calls[0][1].body).segments).toHaveLength(2);
   });
+
+  it('resolves one segment output format and rejects conflicts', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      headers: new Headers({ 'content-type': 'audio/mp3' }),
+      arrayBuffer: async () => new ArrayBuffer(0),
+    });
+
+    await client
+      .composeSpeech()
+      .say('Hello', {
+        voice_id: 'voice',
+        model: 'ssfm-v30',
+        output: { audio_format: 'mp3' },
+      })
+      .generate();
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).segments[0].output.audio_format).toBe(
+      'mp3',
+    );
+
+    await expect(
+      client
+        .composeSpeech()
+        .say('One', {
+          voice_id: 'voice',
+          model: 'ssfm-v30',
+          output: { audio_format: 'wav' },
+        })
+        .say('Two', {
+          voice_id: 'voice',
+          model: 'ssfm-v30',
+          output: { audio_format: 'mp3' },
+        })
+        .generate(),
+    ).rejects.toThrow('one audio format');
+  });
+
+  it('preserves non-finite inline pause markup as text', () => {
+    const overflow = '9'.repeat(400);
+    expect(parsePauseMarkup(`a<|${overflow}s|>b`)).toEqual([
+      { kind: 'text', text: `a<|${overflow}s|>b` },
+    ]);
+  });
 });

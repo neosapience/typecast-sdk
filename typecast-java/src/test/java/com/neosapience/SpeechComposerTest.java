@@ -84,6 +84,9 @@ class SpeechComposerTest {
         assertTrue(parts.get(3).isPause());
         assertEquals("plain", SpeechComposer.parsePauseMarkup("plain").get(0).getText());
         assertEquals("a<|1s", SpeechComposer.parsePauseMarkup("a<|1s").get(0).getText());
+        assertEquals("a<|0s|>b", SpeechComposer.parsePauseMarkup("a<|0s|>b").get(0).getText());
+        String overflow = String.join("", java.util.Collections.nCopies(400, "9"));
+        assertEquals("a<|" + overflow + "s|>b", SpeechComposer.parsePauseMarkup("a<|" + overflow + "s|>b").get(0).getText());
     }
 
     @Test
@@ -121,6 +124,7 @@ class SpeechComposerTest {
         assertTrue(defaults.get(0).getPrompt() instanceof SmartPrompt);
 
         assertThrows(IllegalArgumentException.class, () -> client.composeSpeech().pause(-0.1));
+        assertThrows(IllegalArgumentException.class, () -> client.composeSpeech().pause(Double.NaN));
         assertThrows(IllegalStateException.class, () -> client.composeSpeech().say("Hello").segmentRequests());
         assertThrows(IllegalStateException.class, () -> client.composeSpeech()
                 .defaults(new ComposerSettings().setVoiceId("   ")).say("Hello").segmentRequests());

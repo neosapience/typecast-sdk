@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
 #if !defined(_WIN32) && !defined(_WIN64)
     #include <sys/stat.h>
 #endif
@@ -480,6 +481,21 @@ static float parse_duration_header(const char* headers) {
     return 0.0f;
 }
 
+static TypecastAudioFormat parse_audio_format_header(const char* headers, TypecastAudioFormat fallback) {
+    if (!headers) return fallback;
+    for (const char* pos = headers; *pos; pos++) {
+        if (strncasecmp(pos, "content-type:", 13) != 0) continue;
+        const char* value = pos + 13;
+        while (*value == ' ') value++;
+        if (strncasecmp(value, "audio/mp3", 9) == 0 || strncasecmp(value, "audio/mpeg", 10) == 0) {
+            return TYPECAST_AUDIO_FORMAT_MP3;
+        }
+        if (strncasecmp(value, "audio/wav", 9) == 0) return TYPECAST_AUDIO_FORMAT_WAV;
+        return fallback;
+    }
+    return fallback;
+}
+
 /* ============================================
  * Voice Parsing
  * ============================================ */
@@ -837,7 +853,7 @@ static TypecastTTSResponse* post_compose_json(TypecastClient* client, cJSON* jso
     response->audio_data = response_buf.data;
     response->audio_size = response_buf.size;
     response->duration = parse_duration_header(header_buf.data);
-    response->format = format;
+    response->format = parse_audio_format_header(header_buf.data, format);
     free(header_buf.data);
     return response;
 }
@@ -857,7 +873,7 @@ static int parse_pause_token(const char* token, size_t len, float* seconds) {
     buf[len - 1] = '\0';
     char* end = NULL;
     float value = strtof(buf, &end);
-    if (!end || *end != '\0') return 0;
+    if (!end || *end != '\0' || !isfinite(value) || value <= 0.0f) return 0;
     *seconds = value;
     return 1;
 }
@@ -1085,7 +1101,7 @@ TYPECAST_API TypecastErrorCode typecast_speech_composer_say(
 }
 
 TYPECAST_API TypecastErrorCode typecast_speech_composer_pause(TypecastSpeechComposer* composer, float seconds) {
-    if (!composer || seconds < 0.0f) return TYPECAST_ERROR_INVALID_PARAM;
+    if (!composer || !isfinite(seconds) || seconds <= 0.0f) return TYPECAST_ERROR_INVALID_PARAM;
     ComposerPart part = {0};
     part.kind = COMPOSER_PART_PAUSE;
     part.pause_seconds = seconds;
@@ -1120,7 +1136,7 @@ TYPECAST_API TypecastErrorCode typecast_speech_composer_segment_requests(
     for (size_t i = 0; i < composer->count; i++) {
         if (composer->parts[i].kind != COMPOSER_PART_SPEECH) continue;
         TypecastComposerSettings merged = merge_composer_settings(composer->defaults, composer->parts[i].settings);
-        if (!merged.voice_id) {
+        if (is_blank_string(merged.voice_id)) {
             free(requests);
             free(outputs);
             set_error(composer->client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is required for composed speech");
@@ -1166,7 +1182,7 @@ TYPECAST_API TypecastTTSResponse* typecast_speech_composer_generate(
             continue;
         }
         TypecastComposerSettings merged = merge_composer_settings(composer->defaults, composer->parts[i].settings);
-        if (!merged.voice_id) {
+        if (is_blank_string(merged.voice_id)) {
             cJSON_Delete(root);
             set_error(composer->client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is required for composed speech");
             return NULL;

@@ -81,6 +81,7 @@ def test_compose_client_parses_response_and_errors(client, mocker):
     assert actual.duration == 0
     assert actual.audio_data == b"audio"
     assert post.call_args.kwargs["json"]["segments"][0]["type"] == "pause"
+    assert post.call_args.kwargs["timeout"] == (10, 300)
 
     response.headers = {"Content-Type": "audio/mpeg", "X-Audio-Duration": "1.5"}
     assert client.compose_text_to_speech([]).format == "mp3"
@@ -115,3 +116,25 @@ def test_compose_covers_builder_and_parser_boundaries(client, mocker):
 
     assert parse_pause_markup("<|1s|>")[-1].kind == "pause"
     assert parse_pause_markup("plain")[0].kind == "text"
+
+    mp3 = Output(audio_format="mp3")
+    client.compose_speech().say(
+        "Hello", voice_id="voice", model="ssfm-v30", output=mp3
+    ).generate()
+    assert compose.call_args.args[0][0]["output"]["audio_format"] == "mp3"
+
+    with pytest.raises(ValueError, match="one audio format"):
+        (
+            client.compose_speech()
+            .say(
+                "One",
+                voice_id="voice",
+                model="ssfm-v30",
+                output=Output(audio_format="wav"),
+            )
+            .say("Two", voice_id="voice", model="ssfm-v30", output=mp3)
+            .generate()
+        )
+
+    overflow = "9" * 400
+    assert parse_pause_markup(f"a<|{overflow}s|>b")[0].text == f"a<|{overflow}s|>b"

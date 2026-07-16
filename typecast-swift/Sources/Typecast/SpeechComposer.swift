@@ -108,7 +108,14 @@ public final class SpeechComposer {
       throw TypecastError.validationError("at least one speech segment is required")
     }
 
-    let outputFormat = defaultSettings.output?.audioFormat ?? .wav
+    let formats = plan.compactMap { part -> AudioFormat? in
+        if case .speech(_, let settings) = part { return settings.output?.audioFormat }
+        return nil
+      }
+    guard Set(formats.map(\.rawValue)).count <= 1 else {
+      throw TypecastError.validationError("composed speech segments must use one audio format")
+    }
+    let outputFormat = formats.first ?? .wav
     var segments: [ComposeSegment] = []
     for part in plan {
       switch part {
@@ -183,7 +190,9 @@ public func parsePauseMarkup(_ text: String) -> [SpeechPart] {
     let tokenBody = String(text[bodyStart..<endRange.lowerBound])
     if tokenBody.hasSuffix("s") {
       let secondsText = String(tokenBody.dropLast())
-      if validSecondsLiteral(secondsText), let seconds = Double(secondsText) {
+      if validSecondsLiteral(secondsText), let seconds = Double(secondsText),
+        seconds.isFinite, seconds > 0
+      {
         if startRange.lowerBound > lastEmit {
           parts.append(.text(String(text[lastEmit..<startRange.lowerBound])))
         }

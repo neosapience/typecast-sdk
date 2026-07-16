@@ -77,7 +77,7 @@ class SpeechComposer internal constructor(private val client: TypecastClient) {
      * Adds an explicit silent pause in seconds.
      */
     fun pause(seconds: Double): SpeechComposer = apply {
-        require(seconds >= 0) { "Pause must be non-negative" }
+        require(seconds.isFinite() && seconds > 0) { "Pause must be finite and greater than zero" }
         parts.add(seconds)
     }
 
@@ -88,17 +88,19 @@ class SpeechComposer internal constructor(private val client: TypecastClient) {
         return parts.filterIsInstance<ComposerSpeechPart>().map(::buildRequest)
     }
 
-    /**
-     * Generates composed speech as WAV.
-     */
+    /** Generates composed speech in the requested output format. */
     fun generate(outputFormat: AudioFormat = AudioFormat.WAV): TTSResponse {
         val segments = mutableListOf<Any>()
         for (part in parts) {
             when (part) {
-                is Double -> segments.add(part)
+                is Double -> {
+                    segments.add(part)
+                }
                 is ComposerSpeechPart -> parsePauseMarkup(part.text).forEach { parsed ->
                     when {
-                        parsed.isPause -> segments.add(parsed.pauseSeconds)
+                        parsed.isPause -> {
+                            segments.add(parsed.pauseSeconds)
+                        }
                         parsed.text.isNotBlank() -> segments.add(
                             buildRequest(ComposerSpeechPart(parsed.text, part.settings), outputFormat)
                         )
@@ -197,7 +199,7 @@ class SpeechComposer internal constructor(private val client: TypecastClient) {
             if (!token.endsWith("s") || token.length < 2) return null
             val number = token.dropLast(1)
             if (number.any { !it.isDigit() && it != '.' }) return null
-            return number.toDoubleOrNull()
+            return number.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0 }
         }
 
     }

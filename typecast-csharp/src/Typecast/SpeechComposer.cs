@@ -73,10 +73,10 @@ public class SpeechComposer
     /// <summary>Add an explicit silent pause in seconds.</summary>
     /// <param name="seconds">Pause duration in seconds. Use <c>0.3</c> for 300 ms or <c>3</c> for 3 seconds.</param>
     /// <returns>This composer so calls can be chained.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="seconds"/> is negative.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="seconds"/> is not finite and greater than zero.</exception>
     public SpeechComposer Pause(double seconds)
     {
-        if (seconds < 0) throw new ArgumentOutOfRangeException(nameof(seconds), "Pause must be non-negative.");
+        ValidatePause(seconds);
         _parts.Add(seconds);
         return this;
     }
@@ -113,6 +113,7 @@ public class SpeechComposer
         {
             if (part is double pause)
             {
+                ValidatePause(pause);
                 segments.Add(new ComposePart(null, pause));
                 continue;
             }
@@ -122,6 +123,7 @@ public class SpeechComposer
             {
                 if (parsed.IsPause)
                 {
+                    ValidatePause(parsed.PauseSeconds);
                     segments.Add(new ComposePart(null, parsed.PauseSeconds));
                 }
                 else if (!string.IsNullOrWhiteSpace(parsed.Text))
@@ -136,6 +138,12 @@ public class SpeechComposer
             throw new InvalidOperationException("At least one speech segment is required.");
         }
         return await _client.ComposeTextToSpeechAsync(segments, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static void ValidatePause(double seconds)
+    {
+        if (!double.IsFinite(seconds) || seconds <= 0)
+            throw new ArgumentOutOfRangeException(nameof(seconds), "Pause must be finite and greater than zero.");
     }
 
     /// <summary>
@@ -250,7 +258,8 @@ public class SpeechComposer
         if (!token.EndsWith("s", StringComparison.Ordinal) || token.Length < 2) return false;
         var number = token.Substring(0, token.Length - 1);
         if (number.Any(c => !char.IsDigit(c) && c != '.')) return false;
-        return double.TryParse(number, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out seconds);
+        return double.TryParse(number, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out seconds)
+            && double.IsFinite(seconds) && seconds > 0;
     }
 
 }

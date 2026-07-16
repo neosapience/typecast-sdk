@@ -40,7 +40,7 @@ public class SpeechComposer {
     }
 
     public SpeechComposer pause(double seconds) {
-        if (seconds < 0) throw new IllegalArgumentException("Pause must be non-negative");
+        if (!Double.isFinite(seconds) || seconds <= 0) throw new IllegalArgumentException("Pause must be finite and greater than zero");
         this.parts.add(seconds);
         return this;
     }
@@ -177,7 +177,8 @@ public class SpeechComposer {
             if (!Character.isDigit(c) && c != '.') return null;
         }
         try {
-            return Double.parseDouble(number);
+            double seconds = Double.parseDouble(number);
+            return Double.isFinite(seconds) && seconds > 0 ? seconds : null;
         } catch (NumberFormatException e) {
             return null;
         }

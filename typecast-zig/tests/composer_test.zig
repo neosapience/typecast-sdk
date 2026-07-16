@@ -54,3 +54,29 @@ test "composer builds per-segment requests with WAV output" {
     try testing.expectEqual(@as(?i32, -2), requests.items[1].output.?.audio_pitch);
     try testing.expectEqual(@as(?f64, 1.1), requests.items[1].output.?.audio_tempo);
 }
+
+test "composer validates pause, speech presence, and output format before network" {
+    const allocator = testing.allocator;
+    var client = typecast.Client.init(allocator, .{ .api_key = "test-key", .base_url = "http://localhost:1" });
+    defer client.deinit();
+
+    var invalid_pause = client.composeSpeech();
+    defer invalid_pause.deinit();
+    try testing.expectError(error.InvalidPause, invalid_pause.pause(std.math.inf(f64)));
+
+    var pause_only = client.composeSpeech();
+    defer pause_only.deinit();
+    try pause_only.pause(0.25);
+    try testing.expectError(error.MissingSpeechSegment, pause_only.generate(null));
+
+    var conflicting = client.composeSpeech();
+    defer conflicting.deinit();
+    try conflicting.defaults(.{
+        .voice_id = "voice",
+        .model = .ssfm_v30,
+        .output = .{ .audio_format = .mp3 },
+    });
+    try conflicting.say("first", .{});
+    try conflicting.say("second", .{ .output = .{ .audio_format = .wav } });
+    try testing.expectError(error.ConflictingAudioFormats, conflicting.generate(null));
+}

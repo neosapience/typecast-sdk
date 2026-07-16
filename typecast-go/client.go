@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -249,7 +250,8 @@ func (c *Client) composeTextToSpeech(ctx context.Context, request interface{}) (
 		return nil, fmt.Errorf("failed to read audio data: %w", err)
 	}
 	format := AudioFormatWAV
-	if contentType := resp.Header.Get("Content-Type"); contentType == "audio/mpeg" || contentType == "audio/mp3" {
+	contentType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if strings.EqualFold(contentType, "audio/mpeg") || strings.EqualFold(contentType, "audio/mp3") {
 		format = AudioFormatMP3
 	}
 	duration, _ := strconv.ParseFloat(resp.Header.Get("X-Audio-Duration"), 64)

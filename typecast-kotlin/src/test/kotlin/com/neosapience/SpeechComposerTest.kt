@@ -88,6 +88,8 @@ class SpeechComposerTest {
         assertTrue(parts[1].isPause)
         assertEquals("b<|abc|>c<|s|><|xs|><|.s|><|1.2.3s|>", parts[2].text)
         assertTrue(parts[3].isPause)
+        val overflow = "9".repeat(400)
+        assertEquals("a<|${overflow}s|>b", SpeechComposer.parsePauseMarkup("a<|${overflow}s|>b")[0].text)
     }
 
     @Test
@@ -129,6 +131,9 @@ class SpeechComposerTest {
         assertEquals(AudioFormat.WAV, defaults[0].output?.audioFormat)
 
         assertThrows(IllegalArgumentException::class.java) { client.composeSpeech().pause(-0.1) }
+        assertThrows(IllegalArgumentException::class.java) { client.composeSpeech().pause(0.0) }
+        assertThrows(IllegalArgumentException::class.java) { client.composeSpeech().pause(Double.NaN) }
+        assertThrows(IllegalArgumentException::class.java) { client.composeSpeech().pause(Double.POSITIVE_INFINITY) }
         assertThrows(IllegalStateException::class.java) { client.composeSpeech().say("Hello").segmentRequests() }
         assertThrows(IllegalStateException::class.java) {
             client.composeSpeech().defaults(ComposerSettings(voiceId = "   ")).say("Hello").segmentRequests()

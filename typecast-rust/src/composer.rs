@@ -137,12 +137,22 @@ impl<'a> SpeechComposer<'a> {
             });
         }
 
-        let output_format = self
-            .defaults
-            .output
-            .as_ref()
-            .and_then(|output| output.audio_format)
-            .unwrap_or(AudioFormat::Wav);
+        let mut output_format = None;
+        for format in plan.iter().filter_map(|part| match part {
+            ComposerPart::Speech { settings, .. } => settings
+                .output
+                .as_ref()
+                .and_then(|output| output.audio_format),
+            ComposerPart::Pause(_) => None,
+        }) {
+            if output_format.is_some_and(|current| current != format) {
+                return Err(TypecastError::ValidationError {
+                    detail: "composed speech segments must use one audio format".to_string(),
+                });
+            }
+            output_format = Some(format);
+        }
+        let output_format = output_format.unwrap_or(AudioFormat::Wav);
 
         let mut segments = Vec::with_capacity(plan.len());
         for part in plan {
@@ -177,9 +187,16 @@ impl<'a> SpeechComposer<'a> {
                 ComposerPart::Speech { text, settings } => {
                     for parsed in parse_pause_markup(text) {
                         match parsed {
-                            SpeechPart::Pause(seconds) => plan.push(ComposerPart::Pause(seconds)),
+                            SpeechPart::Pause(seconds) => {
+                                plan.push(ComposerPart::Pause(seconds));
+                            }
                             SpeechPart::Text(text) => {
                                 if !text.trim().is_empty() {
+                                    if text.chars().count() > 2000 {
+                                        return Err(TypecastError::ValidationError {
+                                            detail: "composed speech segment text must not exceed 2000 characters".to_string(),
+                                        });
+                                    }
                                     if settings.voice_id.as_deref().unwrap_or("").is_empty() {
                                         return Err(TypecastError::ValidationError {
                                             detail:
@@ -229,6 +246,10 @@ pub fn parse_pause_markup(text: &str) -> Vec<SpeechPart> {
                 let seconds = seconds_text
                     .parse::<f64>()
                     .expect("validated seconds literals parse as f64");
+                if !seconds.is_finite() || seconds <= 0.0 {
+                    search_from = body_start;
+                    continue;
+                }
                 if token_start > last_emit {
                     parts.push(SpeechPart::Text(text[last_emit..token_start].to_string()));
                 }

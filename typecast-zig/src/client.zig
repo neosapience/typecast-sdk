@@ -54,8 +54,8 @@ pub const Client = struct {
 
     /// Create a composed speech builder for multi-speaker audio and pauses.
     ///
-    /// Segment requests are generated as WAV internally so the SDK can trim
-    /// generate composed audio with one backend request.
+    /// All speech and pause segments are sent together to generate composed
+    /// audio with one backend request.
     pub fn composeSpeech(self: *Client) composer.SpeechComposer {
         return composer.SpeechComposer.init(self);
     }

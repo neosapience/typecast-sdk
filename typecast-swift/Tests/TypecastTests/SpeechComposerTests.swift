@@ -78,10 +78,37 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
     }
 
     do {
+      _ = try await client.composeSpeech().pause(.nan).generate()
+      XCTFail("expected error")
+    } catch let TypecastError.validationError(message) {
+      XCTAssertTrue(message.contains("pause seconds must be greater than 0"))
+    } catch {
+      XCTFail("unexpected error: \(error)")
+    }
+
+    do {
       _ = try await client.composeSpeech().pause(0.25).generate()
       XCTFail("expected error")
     } catch let TypecastError.validationError(message) {
       XCTAssertTrue(message.contains("at least one speech segment"))
+    } catch {
+      XCTFail("unexpected error: \(error)")
+    }
+
+    do {
+      _ = try await client.composeSpeech()
+        .defaults(
+          ComposerSettings(
+            voiceId: "voice", model: .ssfmV30,
+            output: OutputSettings(audioFormat: .mp3)
+          )
+        )
+        .say("first")
+        .say("second", overrides: ComposerSettings(output: OutputSettings(audioFormat: .wav)))
+        .generate()
+      XCTFail("expected error")
+    } catch let TypecastError.validationError(message) {
+      XCTAssertTrue(message.contains("one audio format"))
     } catch {
       XCTFail("unexpected error: \(error)")
     }
@@ -169,5 +196,7 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
     )
     XCTAssertEqual(parsePauseMarkup("hello<|0.3s"), [.text("hello<|0.3s")])
     XCTAssertEqual(parsePauseMarkup("a<|xs|>b<|1..2s|>c"), [.text("a<|xs|>b<|1..2s|>c")])
+    let overflow = String(repeating: "9", count: 400)
+    XCTAssertEqual(parsePauseMarkup("a<|\(overflow)s|>b"), [.text("a<|\(overflow)s|>b")])
   }
 }

@@ -1,6 +1,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,6 +34,7 @@ typedef struct {
     int listen_fd;
     int port;
     int status;
+    const char* content_type;
     pthread_t thread;
     char request[16384];
 } TinyServer;
@@ -56,17 +58,22 @@ static void* tiny_server_thread(void* arg) {
     const char* body = "composed-audio";
     char header[256];
     int header_len = snprintf(header, sizeof(header),
-        "HTTP/1.1 %d Test\r\nContent-Type: audio/mpeg\r\nX-Audio-Duration: 1.25\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n",
-        server->status, strlen(body));
+        "HTTP/1.1 %d Test\r\n%s%s%sX-Audio-Duration: 1.25\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n",
+        server->status,
+        server->content_type ? "Content-Type: " : "",
+        server->content_type ? server->content_type : "",
+        server->content_type ? "\r\n" : "",
+        strlen(body));
     (void)send(fd, header, (size_t)header_len, 0);
     (void)send(fd, body, strlen(body), 0);
     close(fd);
     return NULL;
 }
 
-static int tiny_server_start(TinyServer* server) {
+static int tiny_server_start(TinyServer* server, int status, const char* content_type) {
     memset(server, 0, sizeof(*server));
-    server->status = 200;
+    server->status = status;
+    server->content_type = content_type;
     server->listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server->listen_fd < 0) return 0;
     int opt = 1;
@@ -139,7 +146,7 @@ static void test_segment_requests_merge_defaults_and_overrides(void) {
 
 static void test_generate_uses_compose_api_once(void) {
     TinyServer server;
-    ASSERT(tiny_server_start(&server));
+    ASSERT(tiny_server_start(&server, 200, "audio/mpeg"));
     char host[128];
     snprintf(host, sizeof(host), "http://127.0.0.1:%d", server.port);
     TypecastClient* client = typecast_client_create_with_host("test-key", host);
@@ -175,6 +182,37 @@ static void test_generate_uses_compose_api_once(void) {
     typecast_client_destroy(client);
 }
 
+static void test_generate_uses_response_content_type(void) {
+    const char* content_types[] = {"audio/wav", "audio/ogg", NULL};
+    const TypecastAudioFormat expected[] = {
+        TYPECAST_AUDIO_FORMAT_WAV,
+        TYPECAST_AUDIO_FORMAT_MP3,
+        TYPECAST_AUDIO_FORMAT_MP3,
+    };
+    for (size_t i = 0; i < 3; i++) {
+        TinyServer server;
+        ASSERT(tiny_server_start(&server, 200, content_types[i]));
+        char host[128];
+        snprintf(host, sizeof(host), "http://127.0.0.1:%d", server.port);
+        TypecastClient* client = typecast_client_create_with_host("test-key", host);
+        TypecastSpeechComposer* composer = typecast_speech_composer_create(client);
+        TypecastComposerSettings defaults = {0};
+        defaults.voice_id = "voice-a";
+        defaults.use_model = 1;
+        defaults.model = TYPECAST_MODEL_SSFM_V30;
+        ASSERT_EQ(typecast_speech_composer_defaults(composer, &defaults), TYPECAST_OK);
+        ASSERT_EQ(typecast_speech_composer_say(composer, "Hello", NULL), TYPECAST_OK);
+
+        TypecastTTSResponse* response = typecast_speech_composer_generate(composer, TYPECAST_AUDIO_FORMAT_MP3);
+        ASSERT(response != NULL);
+        ASSERT_EQ(response->format, expected[i]);
+        tiny_server_stop(&server);
+        typecast_tts_response_free(response);
+        typecast_speech_composer_destroy(composer);
+        typecast_client_destroy(client);
+    }
+}
+
 static void test_generate_validates_before_network(void) {
     TypecastClient* client = typecast_client_create_with_host("test-key", "http://localhost:1");
     TypecastSpeechComposer* composer = typecast_speech_composer_create(client);
@@ -189,6 +227,7 @@ static void test_composer_validation_edges(void) {
     TypecastSpeechComposer* composer = typecast_speech_composer_create(client);
     ASSERT_EQ(typecast_speech_composer_pause(NULL, 0.1f), TYPECAST_ERROR_INVALID_PARAM);
     ASSERT_EQ(typecast_speech_composer_pause(composer, -0.1f), TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT_EQ(typecast_speech_composer_pause(composer, NAN), TYPECAST_ERROR_INVALID_PARAM);
     ASSERT_EQ(typecast_speech_composer_say(composer, "Hello", NULL), TYPECAST_OK);
 
     TypecastTTSRequest* requests = NULL;
@@ -220,8 +259,7 @@ static void test_generate_propagates_network_and_http_errors(void) {
     typecast_client_destroy(network_client);
 
     TinyServer server;
-    ASSERT(tiny_server_start(&server));
-    server.status = 422;
+    ASSERT(tiny_server_start(&server, 422, "audio/mpeg"));
     char host[128];
     snprintf(host, sizeof(host), "http://127.0.0.1:%d", server.port);
     TypecastClient* http_client = typecast_client_create_with_host("test-key", host);
@@ -239,6 +277,7 @@ int main(void) {
     RUN(parse_pause_markup_preserves_invalid_tokens);
     RUN(segment_requests_merge_defaults_and_overrides);
     RUN(generate_uses_compose_api_once);
+    RUN(generate_uses_response_content_type);
     RUN(generate_validates_before_network);
     RUN(composer_validation_edges);
     RUN(generate_propagates_network_and_http_errors);

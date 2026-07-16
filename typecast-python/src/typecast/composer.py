@@ -108,9 +108,16 @@ class SpeechComposer:
         if not any(isinstance(part, _SpeechPart) for part in plan):
             raise ValueError("at least one speech segment is required")
 
-        output_format = (
-            self._defaults.output.audio_format if self._defaults.output else "wav"
-        )
+        formats = {
+            part.settings.output.audio_format
+            for part in plan
+            if isinstance(part, _SpeechPart)
+            and part.settings.output
+            and part.settings.output.audio_format
+        }
+        if len(formats) > 1:
+            raise ValueError("composed speech segments must use one audio format")
+        output_format = next(iter(formats), "wav")
         if output_format not in ("wav", "mp3"):
             raise ValueError(
                 f"unsupported composed speech output format: {output_format}"
@@ -151,9 +158,12 @@ def parse_pause_markup(text: str) -> list[Union[_TextPart, _PausePart]]:
     parts: list[Union[_TextPart, _PausePart]] = []
     last_index = 0
     for match in _PAUSE_TOKEN.finditer(text):
+        seconds = float(match.group(1))
+        if not math.isfinite(seconds) or seconds <= 0:
+            continue
         if match.start() > last_index:
             parts.append(_TextPart(kind="text", text=text[last_index : match.start()]))
-        parts.append(_PausePart(kind="pause", seconds=float(match.group(1))))
+        parts.append(_PausePart(kind="pause", seconds=seconds))
         last_index = match.end()
     if last_index < len(text):
         parts.append(_TextPart(kind="text", text=text[last_index:]))

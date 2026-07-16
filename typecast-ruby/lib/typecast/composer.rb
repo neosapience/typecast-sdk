@@ -11,10 +11,12 @@ module Typecast
     last_index = 0
     text.to_s.scan(PAUSE_TOKEN) do |match|
       match_data = Regexp.last_match
+      seconds = match[0].to_f
+      next unless seconds.finite? && seconds.positive?
       if match_data.begin(0) > last_index
         parts << TextPart.new(kind: "text", text: text[last_index...match_data.begin(0)])
       end
-      parts << PausePart.new(kind: "pause", seconds: match[0].to_f)
+      parts << PausePart.new(kind: "pause", seconds: seconds)
       last_index = match_data.end(0)
     end
     if last_index < text.length
@@ -76,7 +78,13 @@ module Typecast
         raise ArgumentError, "at least one speech segment is required"
       end
 
-      output_format = @defaults.dig(:output, :audio_format) || Models::AUDIO_WAV
+      formats = plan.each_with_object([]) do |part, values|
+        format = part.is_a?(Hash) && part[:kind] == "speech" ? part.dig(:settings, :output, :audio_format) : nil
+        values << format if format
+      end.uniq
+      raise ArgumentError, "composed speech segments must use one audio format" if formats.length > 1
+
+      output_format = formats.first || Models::AUDIO_WAV
       unless [Models::AUDIO_WAV, Models::AUDIO_MP3].include?(output_format)
         raise ArgumentError, "unsupported composed speech output format: #{output_format}"
       end

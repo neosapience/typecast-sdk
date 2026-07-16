@@ -45,6 +45,19 @@ class ComposerTest < Minitest::Test
     error = assert_raises(ArgumentError) { client.compose_speech.say("Hello").generate }
     assert_match(/voice_id is required/, error.message)
     assert_raises(ArgumentError) { client.compose_speech.pause(0) }
+
+    error = assert_raises(ArgumentError) do
+      client.compose_speech
+        .defaults(
+          voice_id: "voice",
+          model: Typecast::Models::TTS_MODEL_V30,
+          output: Typecast::Models::Output.new(audio_format: Typecast::Models::AUDIO_MP3)
+        )
+        .say("first")
+        .say("second", output: Typecast::Models::Output.new(audio_format: Typecast::Models::AUDIO_WAV))
+        .generate
+    end
+    assert_match(/one audio format/, error.message)
   end
 
   def test_parse_pause_markup_is_lenient_for_invalid_tokens

@@ -72,7 +72,7 @@ pub const SpeechComposer = struct {
 
     /// Add a silent pause in seconds.
     pub fn pause(self: *SpeechComposer, seconds: f64) !void {
-        if (seconds < 0) return error.InvalidPause;
+        if (!std.math.isFinite(seconds) or seconds <= 0) return error.InvalidPause;
         try self.parts.append(self.client.allocator, .{ .pause = seconds });
     }
 
@@ -108,6 +108,7 @@ pub const SpeechComposer = struct {
 
     /// Generate composed audio with one Typecast Compose API request.
     pub fn generate(self: *SpeechComposer, requested_format: ?models.AudioFormat) !models.TtsResponse {
+        const output_format = try self.resolveOutputFormat(requested_format);
         var body: std.ArrayList(u8) = .empty;
         defer body.deinit(self.client.allocator);
         try body.appendSlice(self.client.allocator, "{\"segments\":[");
@@ -116,26 +117,28 @@ pub const SpeechComposer = struct {
         for (self.parts.items) |part| {
             switch (part) {
                 .pause => |seconds| {
+                    if (!std.math.isFinite(seconds) or seconds <= 0) return error.InvalidPause;
                     if (!first) try body.append(self.client.allocator, ',');
                     first = false;
                     try body.writer(self.client.allocator).print("{{\"type\":\"pause\",\"duration_seconds\":{d}}}", .{seconds});
                 },
                 .speech => |speech| {
                     const merged = mergeSettings(self.settings, speech.settings);
-                    const voice_id = merged.voice_id orelse return error.MissingVoiceId;
-                    const model = merged.model orelse .ssfm_v30;
-                    var output = toModelOutput(merged.output);
-                    output.audio_format = requested_format orelse .wav;
                     const parsed_parts = try parsePauseMarkup(self.client.allocator, speech.text);
                     defer freeSpeechParts(self.client.allocator, parsed_parts);
                     for (parsed_parts) |parsed| {
                         if (parsed.is_pause) {
+                            if (!std.math.isFinite(parsed.pause_seconds) or parsed.pause_seconds <= 0) return error.InvalidPause;
                             if (!first) try body.append(self.client.allocator, ',');
                             first = false;
                             try body.writer(self.client.allocator).print("{{\"type\":\"pause\",\"duration_seconds\":{d}}}", .{parsed.pause_seconds});
                             continue;
                         }
                         if (std.mem.trim(u8, parsed.text, " \t\r\n").len == 0) continue;
+                        const voice_id = merged.voice_id orelse return error.MissingVoiceId;
+                        const model = merged.model orelse .ssfm_v30;
+                        var output = toModelOutput(merged.output);
+                        output.audio_format = output_format;
                         const request_body = try @import("json.zig").serializeTtsRequest(self.client.allocator, .{
                             .voice_id = voice_id,
                             .text = parsed.text,
@@ -155,9 +158,33 @@ pub const SpeechComposer = struct {
                 },
             }
         }
-        if (!has_speech) return error.MissingVoiceId;
+        if (!has_speech) return error.MissingSpeechSegment;
         try body.appendSlice(self.client.allocator, "]}");
         return self.client.composeTextToSpeechBody(body.items);
+    }
+
+    fn resolveOutputFormat(self: *SpeechComposer, requested_format: ?models.AudioFormat) !models.AudioFormat {
+        var resolved = requested_format;
+        for (self.parts.items) |part| {
+            switch (part) {
+                .pause => {},
+                .speech => |speech| {
+                    const parsed_parts = try parsePauseMarkup(self.client.allocator, speech.text);
+                    defer freeSpeechParts(self.client.allocator, parsed_parts);
+                    const has_text = for (parsed_parts) |parsed| {
+                        if (!parsed.is_pause and std.mem.trim(u8, parsed.text, " \t\r\n").len > 0) break true;
+                    } else false;
+                    if (!has_text) continue;
+                    const merged = mergeSettings(self.settings, speech.settings);
+                    if (merged.output) |output| if (output.audio_format) |format| {
+                        if (resolved) |current| {
+                            if (current != format) return error.ConflictingAudioFormats;
+                        } else resolved = format;
+                    };
+                },
+            }
+        }
+        return resolved orelse .wav;
     }
 };
 
@@ -199,7 +226,8 @@ fn parsePauseToken(token: []const u8) ?f64 {
     for (number) |c| {
         if (!(std.ascii.isDigit(c) or c == '.')) return null;
     }
-    return std.fmt.parseFloat(f64, number) catch null;
+    const seconds = std.fmt.parseFloat(f64, number) catch return null;
+    return if (std.math.isFinite(seconds) and seconds > 0) seconds else null;
 }
 
 fn mergeSettings(base: ComposerSettings, overrides: ComposerSettings) ComposerSettings {

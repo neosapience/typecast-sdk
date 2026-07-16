@@ -323,7 +323,10 @@ impl TypecastClient {
             .headers()
             .get(CONTENT_TYPE)
             .and_then(|v| v.to_str().ok())
-            .filter(|v| v.contains("mp3") || v.contains("mpeg"))
+            .filter(|v| {
+                let normalized = v.to_ascii_lowercase();
+                normalized.contains("mp3") || normalized.contains("mpeg")
+            })
             .map(|_| AudioFormat::Mp3)
             .unwrap_or(AudioFormat::Wav);
         let duration = response

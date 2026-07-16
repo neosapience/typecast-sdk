@@ -29,7 +29,7 @@ module Typecast
       Models::TTSResponse.new(
         audio_data: response.body,
         duration: response["X-Audio-Duration"].to_f,
-        format: response["Content-Type"].to_s.include?("mp3") || response["Content-Type"].to_s.include?("mpeg") ? Models::AUDIO_MP3 : Models::AUDIO_WAV
+        format: response["Content-Type"].to_s.downcase.include?("mp3") || response["Content-Type"].to_s.downcase.include?("mpeg") ? Models::AUDIO_MP3 : Models::AUDIO_WAV
       )
     end
 
@@ -42,9 +42,10 @@ module Typecast
       Models::TTSResponse.new(
         audio_data: response.body,
         duration: response["X-Audio-Duration"].to_f,
-        format: response["Content-Type"].to_s.include?("mp3") || response["Content-Type"].to_s.include?("mpeg") ? Models::AUDIO_MP3 : Models::AUDIO_WAV
+        format: response["Content-Type"].to_s.downcase.include?("mp3") || response["Content-Type"].to_s.downcase.include?("mpeg") ? Models::AUDIO_MP3 : Models::AUDIO_WAV
       )
     end
+    private :compose_text_to_speech
 
     # Browse available API voices at https://typecast.ai/developers/api/voices.
     def generate_to_file(path, text:, voice_id:, model: Models::TTS_MODEL_V30, language: nil, prompt: nil, output: nil, seed: nil)

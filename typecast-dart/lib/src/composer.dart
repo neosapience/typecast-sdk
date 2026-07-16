@@ -79,7 +79,15 @@ class SpeechComposer {
       throw ArgumentError('at least one speech segment is required');
     }
 
-    final outputFormat = _defaults.output?.audioFormat ?? AudioFormat.wav;
+    final formats = plan
+        .where((part) => part.kind == 'speech')
+        .map((part) => part.settings.output?.audioFormat)
+        .whereType<AudioFormat>()
+        .toSet();
+    if (formats.length > 1) {
+      throw ArgumentError('composed speech segments must use one audio format');
+    }
+    final outputFormat = formats.isEmpty ? AudioFormat.wav : formats.single;
     final segments = <Map<String, dynamic>>[];
     for (final part in plan) {
       if (part.kind == 'pause') {

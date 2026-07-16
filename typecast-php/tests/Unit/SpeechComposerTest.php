@@ -52,6 +52,7 @@ class SpeechComposerTest extends TestCase
 
         $this->assertCount(1, $history);
         $request = $history[0]['request'];
+        $this->assertSame('POST', $request->getMethod());
         $this->assertSame('/v1/text-to-speech/compose', $request->getUri()->getPath());
         $body = json_decode((string) $request->getBody(), true);
         $this->assertSame(['tts', 'pause', 'tts'], array_column($body['segments'], 'type'));
@@ -65,6 +66,21 @@ class SpeechComposerTest extends TestCase
         $this->assertSame('composed-audio', $response->audioData);
         $this->assertSame('mp3', $response->format);
         $this->assertSame(1.25, $response->duration);
+    }
+
+    public function testComposeSpeechParsesWavResponse(): void
+    {
+        $client = $this->createClient(new MockHandler([
+            new Response(200, ['Content-Type' => 'audio/wav', 'X-Audio-Duration' => '0.75'], 'wav-audio'),
+        ]));
+
+        $response = $client->composeSpeech()
+            ->defaults(new ComposerSettings(voiceId: 'voice', model: 'ssfm-v30'))
+            ->say('Hello')
+            ->generate();
+
+        $this->assertSame('wav', $response->format);
+        $this->assertSame(0.75, $response->duration);
     }
 
     public function testComposeSpeechValidatesBeforeNetwork(): void
@@ -86,6 +102,28 @@ class SpeechComposerTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('pause seconds must be greater than 0');
         $client->composeSpeech()->pause(0)->generate();
+    }
+
+    public function testComposeSpeechRejectsConflictingFormatsBeforeNetwork(): void
+    {
+        $history = [];
+        $client = $this->createClient(new MockHandler([]), $history);
+
+        try {
+            $client->composeSpeech()
+                ->defaults(new ComposerSettings(
+                    voiceId: 'voice',
+                    model: 'ssfm-v30',
+                    output: new Output(audioFormat: 'mp3'),
+                ))
+                ->say('first')
+                ->say('second', new ComposerSettings(output: new Output(audioFormat: 'wav')))
+                ->generate();
+            $this->fail('Expected validation error');
+        } catch (\InvalidArgumentException $error) {
+            $this->assertStringContainsString('one audio format', $error->getMessage());
+        }
+        $this->assertCount(0, $history);
     }
 
     public function testParsePauseMarkupIsLenientForInvalidTokens(): void

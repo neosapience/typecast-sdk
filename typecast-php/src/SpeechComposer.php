@@ -87,7 +87,16 @@ class SpeechComposer
             throw new \InvalidArgumentException('at least one speech segment is required');
         }
 
-        $outputFormat = $this->defaults->output?->audioFormat ?? 'wav';
+        $formats = [];
+        foreach ($plan as $part) {
+            if ($part['kind'] === 'speech' && $part['settings']->output?->audioFormat !== null) {
+                $formats[$part['settings']->output->audioFormat] = true;
+            }
+        }
+        if (count($formats) > 1) {
+            throw new \InvalidArgumentException('composed speech segments must use one audio format');
+        }
+        $outputFormat = array_key_first($formats) ?? 'wav';
         $segments = [];
         foreach ($plan as $part) {
             if ($part['kind'] === 'pause') {
