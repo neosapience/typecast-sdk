@@ -113,7 +113,7 @@ mvn clean deploy
 A successful publish will look similar to:
 
 ```
-[INFO] --- central-publishing-maven-plugin:0.7.0:publish (default-cli) @ typecast-java ---
+[INFO] --- central-publishing-maven-plugin:0.11.0:publish (default-cli) @ typecast-java ---
 [INFO] Using Central baseUrl: https://central.sonatype.com
 [INFO] Using credentials from server id central in settings.xml
 [INFO] Staging files...
