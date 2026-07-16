@@ -2,6 +2,7 @@
 name = "typecast-rust"
 version = "0.3.7"
 edition = "2021"
+rust-version = "1.86"
 authors = ["Neosapience <help@typecast.ai>"]
 description = "Official Rust SDK for Typecast Text-to-Speech API"
 license = "MIT"
