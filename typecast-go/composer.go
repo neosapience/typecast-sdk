@@ -199,7 +199,8 @@ func ParsePauseMarkup(text string) []SpeechPart {
 		bodyEnd := bodyStart + relativeEnd
 		tokenEnd := bodyEnd + 2
 		tokenBody := text[bodyStart:bodyEnd]
-		if secondsText, ok := strings.CutSuffix(tokenBody, "s"); ok && validSecondsLiteral(secondsText) {
+		if strings.HasSuffix(tokenBody, "s") && validSecondsLiteral(tokenBody[:len(tokenBody)-1]) {
+			secondsText := tokenBody[:len(tokenBody)-1]
 			seconds, err := strconv.ParseFloat(secondsText, 64)
 			if err == nil {
 				if tokenStart > lastEmit {

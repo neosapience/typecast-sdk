@@ -118,7 +118,11 @@ func TestAudioBytes(t *testing.T) {
 	}
 	if resp.AudioFormat == AudioFormatWAV {
 		if len(b) < 4 || string(b[:4]) != "RIFF" {
-			t.Errorf("expected RIFF header, got %q (len=%d)", string(b[:min(4, len(b))]), len(b))
+			got := string(b)
+			if len(b) >= 4 {
+				got = string(b[:4])
+			}
+			t.Errorf("expected RIFF header, got %q (len=%d)", got, len(b))
 		}
 	}
 }
