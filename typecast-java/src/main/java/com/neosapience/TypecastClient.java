@@ -17,6 +17,7 @@ import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -270,9 +271,10 @@ public class TypecastClient {
             String contentType = response.header("Content-Type");
             String format = "wav";
             if (contentType != null) {
-                if (contentType.contains("mp3")) {
+                String normalizedContentType = contentType.toLowerCase(Locale.ROOT);
+                if (normalizedContentType.contains("mp3") || normalizedContentType.contains("mpeg")) {
                     format = "mp3";
-                } else if (contentType.contains("wav")) {
+                } else if (normalizedContentType.contains("wav")) {
                     format = "wav";
                 }
             }

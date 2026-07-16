@@ -80,10 +80,8 @@ class TypecastClient
         }
 
         $duration = (float) ($response->getHeaderLine('X-Audio-Duration') ?: '0');
-        $contentType = $response->getHeaderLine('Content-Type') ?: 'audio/wav';
-        $contentType = explode(';', $contentType)[0];
-        $format = explode('/', $contentType);
-        $format = end($format);
+        $contentType = strtolower($response->getHeaderLine('Content-Type') ?: 'audio/wav');
+        $format = str_contains($contentType, 'mp3') || str_contains($contentType, 'mpeg') ? 'mp3' : 'wav';
 
         return new TTSResponse(
             audioData: (string) $response->getBody(),

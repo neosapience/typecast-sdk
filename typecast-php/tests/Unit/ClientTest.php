@@ -78,7 +78,7 @@ class ClientTest extends TestCase
     {
         $mock = new MockHandler([
             new Response(200, [
-                'Content-Type' => 'audio/mp3',
+                'Content-Type' => 'Audio/MPEG; charset=binary',
                 'X-Audio-Duration' => '2.3',
             ], 'mp3-data'),
         ]);
