@@ -42,7 +42,7 @@ class RequestsCompatResponse:
 
 class RequestsCompatSession:
     def __init__(self, client: Optional[httpx.Client] = None):
-        self._client = client or httpx.Client()
+        self._client = client or httpx.Client(timeout=None)
         self.headers: Dict[str, str] = {}
 
     def _request(self, method: str, url: str, **kwargs: Any) -> RequestsCompatResponse:
@@ -152,7 +152,7 @@ class AiohttpCompatSession:
         headers: Optional[dict] = None,
         client: Optional[httpx.AsyncClient] = None,
     ):
-        self._client = client or httpx.AsyncClient()
+        self._client = client or httpx.AsyncClient(timeout=300)
         self.headers = dict(headers or {})
 
     async def _request(

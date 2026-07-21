@@ -71,6 +71,7 @@ def test_sync_client_selects_httpx_fallback(monkeypatch):
     )
     client = Typecast(host="https://example.test", api_key="key")
     assert isinstance(client.session, RequestsCompatSession)
+    assert client.session._client.timeout.read is None
     assert "httpx/" in client.session.headers["User-Agent"]
     assert "mode=sync" in httpx_user_agent(client.host, "sync")
     client.session.close()
@@ -78,7 +79,13 @@ def test_sync_client_selects_httpx_fallback(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_aiohttp_compat_session():
-    client = httpx.AsyncClient(transport=httpx.MockTransport(_handler))
+    captured_requests = []
+
+    def capture_request(request):
+        captured_requests.append(request)
+        return _handler(request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(capture_request))
     session = AiohttpCompatSession(headers={"X-Test": "yes"}, client=client)
 
     async with session.get("https://example.test/json") as response:
@@ -101,6 +108,13 @@ async def test_aiohttp_compat_session():
     ) as response:
         chunks = [chunk async for chunk in response.content.iter_chunked(2)]
         assert b"".join(chunks) == b"abcdef"
+    multipart_request = captured_requests[-1]
+    assert multipart_request.headers["content-type"].startswith(
+        "multipart/form-data; boundary="
+    )
+    assert b'name="name"' in multipart_request.content
+    assert b"voice" in multipart_request.content
+    assert b'filename="voice.wav"' in multipart_request.content
 
     async with session.delete("https://example.test/data") as response:
         assert response.status == 204
@@ -122,4 +136,5 @@ async def test_async_client_selects_httpx_fallback(monkeypatch):
     )
     async with AsyncTypecast(host="https://example.test", api_key="key") as client:
         assert isinstance(client.session, AiohttpCompatSession)
+        assert client.session._client.timeout.read == 300
         assert "httpx/" in client.session.headers["User-Agent"]
