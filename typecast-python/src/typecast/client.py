@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
-from typing import BinaryIO, Iterator, Optional, Union
+from typing import TYPE_CHECKING, Any, BinaryIO, Iterator, Optional, Union
 from urllib.parse import quote
 
-import requests
+if sys.version_info >= (3, 10):  # pragma: no cover - version-specific import
+    import requests
+else:  # pragma: no cover
+    requests = None  # type: ignore[assignment]
 
 from . import conf
 from ._voice_clone import (
@@ -12,7 +16,10 @@ from ._voice_clone import (
     validate_clone_inputs,
     validate_custom_voice_id,
 )
-from ._user_agent import requests_user_agent
+from ._user_agent import httpx_user_agent, requests_user_agent
+
+if TYPE_CHECKING or sys.version_info < (3, 10):  # pragma: no cover
+    from ._httpx_compat import RequestsCompatSession
 from .composer import SpeechComposer
 from .exceptions import (
     BadRequestError,
@@ -103,7 +110,7 @@ class Typecast:
         self,
         host: Optional[str] = None,
         api_key: Optional[str] = None,
-        session: Optional[requests.Session] = None,
+        session: Optional[Any] = None,
     ):
         """Initialize the Typecast client.
 
@@ -124,13 +131,18 @@ class Typecast:
         if not self.api_key and conf.is_default_host(self.host):
             raise ValueError("API key is required for the default Typecast API host")
         self._owns_session = session is None
+        self.session: Any
         if session is not None:
             self.session = session
         else:
-            self.session = requests.Session()
+            self.session = requests.Session() if requests else RequestsCompatSession()
             headers = {
                 "Content-Type": "application/json",
-                "User-Agent": requests_user_agent(self.host),
+                "User-Agent": (
+                    requests_user_agent(self.host)
+                    if requests
+                    else httpx_user_agent(self.host, "sync")
+                ),
             }
             if self.api_key:
                 headers["X-API-KEY"] = self.api_key

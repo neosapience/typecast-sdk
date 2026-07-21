@@ -2,9 +2,6 @@ import platform
 import sys
 from importlib import metadata
 
-import aiohttp
-import requests
-
 from . import conf
 
 
@@ -55,7 +52,7 @@ def build_user_agent(
 def requests_user_agent(host: str, transport: str = "rest") -> str:
     return build_user_agent(
         mode="sync",
-        http_library=f"requests/{requests.__version__}",
+        http_library=f"requests/{_package_version('requests')}",
         host=host,
         transport=transport,
     )
@@ -64,7 +61,16 @@ def requests_user_agent(host: str, transport: str = "rest") -> str:
 def aiohttp_user_agent(host: str, transport: str = "rest") -> str:
     return build_user_agent(
         mode="async",
-        http_library=f"aiohttp/{aiohttp.__version__}",
+        http_library=f"aiohttp/{_package_version('aiohttp')}",
+        host=host,
+        transport=transport,
+    )
+
+
+def httpx_user_agent(host: str, mode: str, transport: str = "rest") -> str:
+    return build_user_agent(
+        mode=mode,
+        http_library=f"httpx/{_package_version('httpx')}",
         host=host,
         transport=transport,
     )

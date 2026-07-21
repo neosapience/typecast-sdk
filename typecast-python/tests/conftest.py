@@ -5,6 +5,7 @@ Pytest configuration and fixtures.
 import shutil
 import socket
 import subprocess
+import sys
 import time
 import urllib.request
 import inspect
@@ -19,6 +20,18 @@ from aiohttp.helpers import TimerNoop
 from aioresponses.core import RequestMatch, stream_reader_factory
 from multidict import CIMultiDict, CIMultiDictProxy
 from dotenv import load_dotenv
+
+if sys.version_info < (3, 10):
+    import aiohttp
+    import requests
+
+    import typecast.async_client as async_client_module
+    import typecast.client as client_module
+
+    # The legacy mocks exercise the unchanged injected-session behavior. The
+    # HTTPX default used by 3.8/3.9 is covered separately in test_httpx_compat.
+    async_client_module.aiohttp = aiohttp
+    client_module.requests = requests
 
 
 def pytest_configure(config):
@@ -157,7 +170,9 @@ def mock_server():
     last_err = None
     while time.time() < deadline:
         if proc.poll() is not None:
-            pytest.skip(f"mock server process exited prematurely with code {proc.returncode}")
+            pytest.skip(
+                f"mock server process exited prematurely with code {proc.returncode}"
+            )
         try:
             with urllib.request.urlopen(f"{base_url}/__mock_health", timeout=1) as r:
                 if r.status == 200:

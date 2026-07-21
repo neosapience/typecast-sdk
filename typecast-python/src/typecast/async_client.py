@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
-from typing import AsyncIterator, BinaryIO, Optional, Union
+from typing import TYPE_CHECKING, Any, AsyncIterator, BinaryIO, Optional, Union
 from urllib.parse import quote
 
-import aiohttp
+if sys.version_info >= (3, 10):  # pragma: no cover - version-specific import
+    import aiohttp
+else:  # pragma: no cover
+    aiohttp = None  # type: ignore[assignment]
 
 from . import conf
 from ._voice_clone import (
@@ -13,7 +17,10 @@ from ._voice_clone import (
     validate_clone_inputs,
     validate_custom_voice_id,
 )
-from ._user_agent import aiohttp_user_agent
+from ._user_agent import aiohttp_user_agent, httpx_user_agent
+
+if TYPE_CHECKING or sys.version_info < (3, 10):  # pragma: no cover
+    from ._httpx_compat import AiohttpCompatSession, ClientTimeout, FormData
 from .client import _guess_audio_mime
 from .client import _output_with_inferred_format
 from .client import _validate_output_path
@@ -69,7 +76,7 @@ class AsyncTypecast:
         self,
         host: Optional[str] = None,
         api_key: Optional[str] = None,
-        session: Optional[aiohttp.ClientSession] = None,
+        session: Optional[Any] = None,
     ):
         """Initialize the async Typecast client.
 
@@ -91,16 +98,26 @@ class AsyncTypecast:
         if not self.api_key and conf.is_default_host(self.host):
             raise ValueError("API key is required for the default Typecast API host")
         self._owns_session = session is None
-        self.session: Optional[aiohttp.ClientSession] = session
+        self.session: Optional[Any] = session
 
     async def __aenter__(self):
         # When an external session is injected, do not create a new one.
         # Per-request auth headers are attached via _request_headers() on each call.
         if self.session is None:
-            headers = {"User-Agent": aiohttp_user_agent(self.host)}
+            headers = {
+                "User-Agent": (
+                    aiohttp_user_agent(self.host)
+                    if aiohttp
+                    else httpx_user_agent(self.host, "async")
+                )
+            }
             if self.api_key:
                 headers["X-API-KEY"] = self.api_key
-            self.session = aiohttp.ClientSession(headers=headers)
+            self.session = (
+                aiohttp.ClientSession(headers=headers)
+                if aiohttp
+                else AiohttpCompatSession(headers=headers)
+            )
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -247,7 +264,11 @@ class AsyncTypecast:
         if not self.session:
             raise TypecastError("Client session not initialized. Use async with.")
         endpoint = "/v1/text-to-speech/stream"
-        stream_timeout = aiohttp.ClientTimeout(sock_connect=10, sock_read=300)
+        stream_timeout = (
+            aiohttp.ClientTimeout(sock_connect=10, sock_read=300)
+            if aiohttp
+            else ClientTimeout(sock_connect=10, sock_read=300)
+        )
         async with self.session.post(
             f"{self.host}{endpoint}",
             json=request.model_dump(exclude_none=True),
@@ -258,7 +279,9 @@ class AsyncTypecast:
                 error_text = await response.text()
                 self._handle_error(response.status, error_text)
 
-            async for chunk in response.content.iter_chunked(chunk_size):  # pragma: no branch
+            async for chunk in response.content.iter_chunked(
+                chunk_size
+            ):  # pragma: no branch
                 yield chunk
 
     async def text_to_speech_with_timestamps(
@@ -332,7 +355,7 @@ class AsyncTypecast:
         audio_bytes, filename = validate_clone_inputs(audio, name)
         model_str = normalize_clone_model(model)
 
-        form = aiohttp.FormData()
+        form: Any = aiohttp.FormData() if aiohttp else FormData()
         form.add_field("name", name)
         form.add_field("model", model_str)
         form.add_field(
@@ -341,7 +364,11 @@ class AsyncTypecast:
             filename=filename,
             content_type=_guess_audio_mime(filename),
         )
-        timeout = aiohttp.ClientTimeout(total=300, connect=10)
+        timeout = (
+            aiohttp.ClientTimeout(total=300, connect=10)
+            if aiohttp
+            else ClientTimeout(total=300, connect=10)
+        )
         async with self.session.post(
             f"{self.host}/v1/voices/clone",
             data=form,
@@ -367,7 +394,11 @@ class AsyncTypecast:
             raise TypecastError("Client session not initialized; use 'async with'.")
 
         validate_custom_voice_id(voice_id)
-        timeout = aiohttp.ClientTimeout(total=60, connect=10)
+        timeout = (
+            aiohttp.ClientTimeout(total=60, connect=10)
+            if aiohttp
+            else ClientTimeout(total=60, connect=10)
+        )
         async with self.session.delete(
             f"{self.host}/v1/voices/{quote(voice_id, safe='')}",
             timeout=timeout,
