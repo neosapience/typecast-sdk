@@ -144,9 +144,7 @@ describe('SpeechComposer', () => {
         output: { audio_format: 'mp3' },
       })
       .generate();
-    expect(JSON.parse(mockFetch.mock.calls[0][1].body).segments[0].output.audio_format).toBe(
-      'mp3',
-    );
+    expect(JSON.parse(mockFetch.mock.calls[0][1].body).segments[0].output.audio_format).toBe('mp3');
 
     await expect(
       client

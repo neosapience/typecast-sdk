@@ -1,8 +1,7 @@
 import type { Output, TTSRequest, TTSResponse } from './types/TextToSpeech';
 
 export type ComposeSegment =
-  | ({ type: 'tts' } & TTSRequest)
-  | { type: 'pause'; duration_seconds: number };
+  ({ type: 'tts' } & TTSRequest) | { type: 'pause'; duration_seconds: number };
 type ComposeFn = (segments: ComposeSegment[]) => Promise<TTSResponse>;
 type ComposerSettings = Omit<Partial<TTSRequest>, 'text'>;
 

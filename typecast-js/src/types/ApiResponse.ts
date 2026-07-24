@@ -21,4 +21,3 @@ export interface ValidationError {
 export interface ValidationErrorResponse {
   detail: ValidationError[];
 }
-

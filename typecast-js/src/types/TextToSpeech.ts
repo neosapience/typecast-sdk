@@ -52,7 +52,8 @@ export type LanguageCode =
  * ssfm-v21: normal, happy, sad, angry
  * ssfm-v30: normal, happy, sad, angry, whisper, toneup, tonedown
  */
-export type EmotionPreset = 'normal' | 'happy' | 'sad' | 'angry' | 'whisper' | 'toneup' | 'tonedown';
+export type EmotionPreset =
+  'normal' | 'happy' | 'sad' | 'angry' | 'whisper' | 'toneup' | 'tonedown';
 
 /**
  * Emotion and style settings for ssfm-v21 model
@@ -127,21 +128,21 @@ export interface Output {
    * @max 0
    */
   target_lufs?: number;
-  /** 
+  /**
    * Audio pitch adjustment in semitones
    * @min -12
    * @max 12
    * @default 0
    */
   audio_pitch?: number;
-  /** 
+  /**
    * Audio tempo (speed multiplier)
    * @min 0.5
    * @max 2.0
    * @default 1.0
    */
   audio_tempo?: number;
-  /** 
+  /**
    * Audio output format
    * @default 'wav'
    */
@@ -152,7 +153,7 @@ export interface Output {
  * Text-to-Speech request parameters
  */
 export interface TTSRequest {
-  /** 
+  /**
    * Text to convert to speech
    * @maxLength 5000
    */
