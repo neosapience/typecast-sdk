@@ -38,6 +38,10 @@ updates:
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
     ignore:
+      # Use the lowest Node types major supported by the current Vitest/Vite toolchain.
+      - dependency-name: "@types/node"
+        update-types:
+          - "version-update:semver-major"
       # TypeScript 7 exceeds the current typescript-eslint peer range.
       - dependency-name: "typescript"
         update-types:
@@ -96,6 +100,10 @@ updates:
       - dependency-name: "plugin.serialization"
         versions:
           - ">=2.4.10"
+      # Kotlin 2.4.x is fully supported only through Gradle 9.5.
+      - dependency-name: "gradle-wrapper"
+        versions:
+          - ">=9.6.0"
     groups:
       kotlin-dependencies:
         patterns:
