@@ -6,7 +6,7 @@ plugins {
     `maven-publish`
     `java-library`
     signing
-    id("com.gradleup.nmcp") version "1.4.4"
+    id("com.gradleup.nmcp") version "1.6.1"
     id("com.gradleup.nmcp.aggregation") version "1.4.4"
     jacoco
 }
