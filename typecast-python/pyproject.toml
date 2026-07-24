@@ -43,7 +43,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=9.0.3,<10.0.0",
-    "pytest-cov>=5.0.0,<6.0.0",
+    "pytest-cov>=5.0.0,<8.0.0",
     "pytest-mock>=3.14.0",
     "pytest-asyncio>=1.4.0,<2.0.0",
     "aioresponses>=0.7.6",
@@ -93,7 +93,7 @@ multi_line_output = 3
 [dependency-groups]
 dev = [
     "pytest>=9.0.3,<10.0.0",
-    "pytest-cov>=5.0.0,<6.0.0",
+    "pytest-cov>=5.0.0,<8.0.0",
     "pytest-mock>=3.14.0",
     "pytest-asyncio>=1.4.0,<2.0.0",
     "aioresponses>=0.7.6",
