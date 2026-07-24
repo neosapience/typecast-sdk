@@ -27,7 +27,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     
     // JSON Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     
     // Environment Variables
     implementation("io.github.cdimascio:dotenv-kotlin:6.4.1")
