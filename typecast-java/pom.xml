@@ -45,7 +45,7 @@
         <gson.version>2.10.1</gson.version>
         <okhttp.version>4.12.0</okhttp.version>
         <junit.version>5.10.2</junit.version>
-        <dotenv.version>3.0.0</dotenv.version>
+        <dotenv.version>3.2.0</dotenv.version>
     </properties>
 
     <dependencies>
