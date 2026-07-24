@@ -21,6 +21,10 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "npm"
     directories:
@@ -33,6 +37,10 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    groups:
+      javascript-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "maven"
     directory: "/typecast-java"
@@ -42,6 +50,10 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    groups:
+      java-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "gradle"
     directory: "/typecast-kotlin"
@@ -51,6 +63,10 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    groups:
+      kotlin-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "nuget"
     directory: "/typecast-csharp"
@@ -60,6 +76,10 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    groups:
+      csharp-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "cargo"
     directory: "/typecast-rust"
@@ -69,6 +89,10 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    groups:
+      rust-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "bundler"
     directory: "/typecast-ruby"
@@ -78,6 +102,10 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    groups:
+      ruby-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "composer"
     directories:
@@ -89,6 +117,10 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    groups:
+      php-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "pub"
     directory: "/typecast-dart"
@@ -98,3 +130,7 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    groups:
+      dart-dependencies:
+        patterns:
+          - "*"
