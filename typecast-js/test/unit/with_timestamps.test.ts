@@ -1,18 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import {
-  WithTimestampsResult,
-  type TTSWithTimestampsResponse,
-} from '../../src/types/Timestamps';
+import { WithTimestampsResult, type TTSWithTimestampsResponse } from '../../src/types/Timestamps';
 import { TypecastClient } from '../../src/client';
 import { TypecastAPIError } from '../../src/errors';
 
 const FIX = resolve(__dirname, '../../../test-fixtures/with-timestamps');
 const load = (n: string): TTSWithTimestampsResponse =>
   JSON.parse(readFileSync(`${FIX}/${n}.json`, 'utf-8'));
-const loadText = (n: string): string =>
-  readFileSync(`${FIX}/expected/${n}`, 'utf-8');
+const loadText = (n: string): string => readFileSync(`${FIX}/expected/${n}`, 'utf-8');
 
 describe('WithTimestampsResult — SRT/VTT byte-equivalence', () => {
   it.each(['both', 'word_only', 'char_only', 'jpn_char'])(
@@ -68,7 +64,8 @@ describe('WithTimestampsResult — SRT/VTT byte-equivalence', () => {
       audio: '!!! not base64 !!!',
       audio_format: 'wav',
       audio_duration: 0,
-      words: null, characters: null,
+      words: null,
+      characters: null,
     });
     expect(() => result.audioBytes).toThrow(/[Ii]nvalid base64/);
   });
@@ -105,7 +102,9 @@ describe('TypecastClient.textToSpeechWithTimestamps', () => {
       json: async () => load('both'),
     });
     const result = await client.textToSpeechWithTimestamps({
-      voice_id: 'tc_x', text: 'Hi', model: 'ssfm-v30',
+      voice_id: 'tc_x',
+      text: 'Hi',
+      model: 'ssfm-v30',
     });
     expect(result.toSrt()).toBe(loadText('both.srt'));
     const url = mockFetch.mock.calls[0][0] as string;
@@ -114,8 +113,10 @@ describe('TypecastClient.textToSpeechWithTimestamps', () => {
 
   it('appends granularity query', async () => {
     mockFetch.mockResolvedValue({
-      ok: true, status: 200,
-      headers: new Headers(), json: async () => load('word_only'),
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: async () => load('word_only'),
     });
     await client.textToSpeechWithTimestamps(
       { voice_id: 'tc_x', text: 'Hi', model: 'ssfm-v30' },
@@ -137,7 +138,9 @@ describe('TypecastClient.textToSpeechWithTimestamps', () => {
 
   it('maps 402 to TypecastAPIError', async () => {
     mockFetch.mockResolvedValue({
-      ok: false, status: 402, statusText: 'Payment Required',
+      ok: false,
+      status: 402,
+      statusText: 'Payment Required',
       json: async () => ({ detail: 'Insufficient credit' }),
     });
     await expect(

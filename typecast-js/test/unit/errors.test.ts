@@ -27,9 +27,7 @@ describe('TypecastAPIError', () => {
       const err = TypecastAPIError.fromResponse(418, "I'm a teapot");
 
       expect(err.statusCode).toBe(418);
-      expect(err.message).toBe(
-        "API request failed with status 418: I'm a teapot",
-      );
+      expect(err.message).toBe("API request failed with status 418: I'm a teapot");
     });
   });
 
@@ -44,7 +42,9 @@ describe('TypecastAPIError', () => {
     });
 
     it('JSON-stringifies a non-string detail', () => {
-      const detail = [{ loc: ['body', 'voice_id'], msg: 'field required', type: 'value_error.missing' }];
+      const detail = [
+        { loc: ['body', 'voice_id'], msg: 'field required', type: 'value_error.missing' },
+      ];
       const err = TypecastAPIError.fromResponse(422, 'Unprocessable Entity', { detail });
 
       expect(err.message).toMatch(/Validation Error/);
@@ -55,17 +55,13 @@ describe('TypecastAPIError', () => {
     it('omits the detail suffix when no detail is provided', () => {
       const err = TypecastAPIError.fromResponse(500, 'Internal Server Error', {});
 
-      expect(err.message).toBe(
-        'Internal Server Error - Something went wrong on the server',
-      );
+      expect(err.message).toBe('Internal Server Error - Something went wrong on the server');
     });
 
     it('omits the detail suffix when data is undefined', () => {
       const err = TypecastAPIError.fromResponse(500, 'Internal Server Error');
 
-      expect(err.message).toBe(
-        'Internal Server Error - Something went wrong on the server',
-      );
+      expect(err.message).toBe('Internal Server Error - Something went wrong on the server');
     });
   });
 

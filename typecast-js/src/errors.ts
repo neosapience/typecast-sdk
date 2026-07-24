@@ -16,7 +16,11 @@ export class TypecastAPIError extends Error {
     }
   }
 
-  static fromResponse(statusCode: number, statusText: string, data?: ApiErrorResponse): TypecastAPIError {
+  static fromResponse(
+    statusCode: number,
+    statusText: string,
+    data?: ApiErrorResponse,
+  ): TypecastAPIError {
     let message: string;
 
     switch (statusCode) {
@@ -43,13 +47,10 @@ export class TypecastAPIError extends Error {
     }
 
     if (data?.detail) {
-      const detailStr = typeof data.detail === 'string' 
-        ? data.detail 
-        : JSON.stringify(data.detail);
+      const detailStr = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
       message += ` - ${detailStr}`;
     }
 
     return new TypecastAPIError(message, statusCode, data);
   }
 }
-

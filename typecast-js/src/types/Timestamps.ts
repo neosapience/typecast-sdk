@@ -79,8 +79,7 @@ function groupIntoCues(
   let curStart: number | null = null;
   let lastEnd: number | null = null;
 
-  const joined = (): string =>
-    wordMode ? parts.join(' ').trim() : parts.join('').trim();
+  const joined = (): string => (wordMode ? parts.join(' ').trim() : parts.join('').trim());
 
   const flush = (endTime: number): void => {
     const text = joined();

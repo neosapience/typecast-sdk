@@ -1,4 +1,11 @@
-import { ClientConfig, GenerateToFileRequest, TTSRequest, TTSResponse, TTSRequestStream, ApiErrorResponse } from './types';
+import {
+  ClientConfig,
+  GenerateToFileRequest,
+  TTSRequest,
+  TTSResponse,
+  TTSRequestStream,
+  ApiErrorResponse,
+} from './types';
 import { SubscriptionResponse } from './types/Subscription';
 import { VoicesResponse, VoiceV2Response, VoicesV2Filter, RecommendedVoice } from './types/Voices';
 import { TypecastAPIError } from './errors';
@@ -80,11 +87,7 @@ export class TypecastClient {
       } catch {
         // Response body is not JSON
       }
-      throw TypecastAPIError.fromResponse(
-        response.status,
-        response.statusText,
-        errorData
-      );
+      throw TypecastAPIError.fromResponse(response.status, response.statusText, errorData);
     }
     return response.json() as Promise<T>;
   }
@@ -123,11 +126,7 @@ export class TypecastClient {
       } catch {
         // Response body is not JSON
       }
-      throw TypecastAPIError.fromResponse(
-        response.status,
-        response.statusText,
-        errorData
-      );
+      throw TypecastAPIError.fromResponse(response.status, response.statusText, errorData);
     }
 
     const contentType = response.headers.get('content-type') || 'audio/wav';
@@ -187,9 +186,10 @@ export class TypecastClient {
     }
     const { writeFile } = await import('node:fs/promises');
     const audioFormat = TypecastClient.inferAudioFormatFromPath(path);
-    const output = audioFormat && !request.output?.audio_format
-      ? { ...request.output, audio_format: audioFormat }
-      : request.output;
+    const output =
+      audioFormat && !request.output?.audio_format
+        ? { ...request.output, audio_format: audioFormat }
+        : request.output;
     const response = await this.textToSpeech({
       ...request,
       model: request.model ?? 'ssfm-v30',
@@ -216,9 +216,7 @@ export class TypecastClient {
    * @param request - TTS streaming request parameters
    * @returns A `ReadableStream` of `Uint8Array` chunks containing the audio
    */
-  async textToSpeechStream(
-    request: TTSRequestStream,
-  ): Promise<ReadableStream<Uint8Array>> {
+  async textToSpeechStream(request: TTSRequestStream): Promise<ReadableStream<Uint8Array>> {
     const response = await fetch(this.buildUrl('/v1/text-to-speech/stream'), {
       method: 'POST',
       headers: this.headers,
@@ -232,18 +230,11 @@ export class TypecastClient {
       } catch {
         // Response body is not JSON
       }
-      throw TypecastAPIError.fromResponse(
-        response.status,
-        response.statusText,
-        errorData,
-      );
+      throw TypecastAPIError.fromResponse(response.status, response.statusText, errorData);
     }
 
     if (!response.body) {
-      throw new TypecastAPIError(
-        'Streaming response body was empty',
-        500,
-      );
+      throw new TypecastAPIError('Streaming response body was empty', 500);
     }
 
     return response.body;
@@ -285,10 +276,9 @@ export class TypecastClient {
    * @deprecated Use getVoicesV2() for enhanced metadata and filtering options
    */
   async getVoices(model?: string): Promise<VoicesResponse[]> {
-    const response = await fetch(
-      this.buildUrl('/v1/voices', model ? { model } : undefined),
-      { headers: this.headers }
-    );
+    const response = await fetch(this.buildUrl('/v1/voices', model ? { model } : undefined), {
+      headers: this.headers,
+    });
     return this.handleResponse<VoicesResponse[]>(response);
   }
 
@@ -302,7 +292,7 @@ export class TypecastClient {
   async getVoiceById(voiceId: string, model?: string): Promise<VoicesResponse[]> {
     const response = await fetch(
       this.buildUrl(`/v1/voices/${voiceId}`, model ? { model } : undefined),
-      { headers: this.headers }
+      { headers: this.headers },
     );
     return this.handleResponse<VoicesResponse[]>(response);
   }
@@ -315,7 +305,7 @@ export class TypecastClient {
   async getVoicesV2(filter?: VoicesV2Filter): Promise<VoiceV2Response[]> {
     const response = await fetch(
       this.buildUrl('/v2/voices', filter as Record<string, QueryParam>),
-      { headers: this.headers }
+      { headers: this.headers },
     );
     return this.handleResponse<VoiceV2Response[]>(response);
   }
@@ -326,10 +316,7 @@ export class TypecastClient {
    * @returns Voice information with model-grouped emotions and metadata
    */
   async getVoiceV2(voiceId: string): Promise<VoiceV2Response> {
-    const response = await fetch(
-      this.buildUrl(`/v2/voices/${voiceId}`),
-      { headers: this.headers }
-    );
+    const response = await fetch(this.buildUrl(`/v2/voices/${voiceId}`), { headers: this.headers });
     return this.handleResponse<VoiceV2Response>(response);
   }
 
@@ -347,10 +334,9 @@ export class TypecastClient {
     if (count < 1 || count > 10) {
       throw new RangeError('count must be between 1 and 10');
     }
-    const response = await fetch(
-      this.buildUrl('/v1/voices/recommendations', { query, count }),
-      { headers: this.headers }
-    );
+    const response = await fetch(this.buildUrl('/v1/voices/recommendations', { query, count }), {
+      headers: this.headers,
+    });
     return this.handleResponse<RecommendedVoice[]>(response);
   }
 
@@ -360,10 +346,9 @@ export class TypecastClient {
    * check remaining credits or verify your plan before making TTS calls.
    */
   async getMySubscription(): Promise<SubscriptionResponse> {
-    const response = await fetch(
-      this.buildUrl('/v1/users/me/subscription'),
-      { headers: this.headers }
-    );
+    const response = await fetch(this.buildUrl('/v1/users/me/subscription'), {
+      headers: this.headers,
+    });
     return this.handleResponse<SubscriptionResponse>(response);
   }
 
@@ -394,11 +379,7 @@ export class TypecastClient {
     const form = new FormData();
     form.append('name', req.name);
     form.append('model', req.model);
-    form.append(
-      'file',
-      new Blob([audioBuffer], { type: guessAudioMime(filename) }),
-      filename,
-    );
+    form.append('file', new Blob([audioBuffer], { type: guessAudioMime(filename) }), filename);
 
     // Strip Content-Type so fetch can set multipart/form-data with boundary.
     const headers = { ...this.headers };
@@ -409,7 +390,9 @@ export class TypecastClient {
       headers,
       body: form,
     });
-    const body = await this.handleResponse<{ voice_id: string; name: string; model: string }>(response);
+    const body = await this.handleResponse<{ voice_id: string; name: string; model: string }>(
+      response,
+    );
     return { voiceId: body.voice_id, name: body.name, model: body.model };
   }
 
@@ -427,7 +410,7 @@ export class TypecastClient {
       method: 'DELETE',
       headers: this.headers,
     });
-    /* c8 ignore start */  // handleResponse always throws on !ok; the post-call brace is unreachable
+    /* c8 ignore start */ // handleResponse always throws on !ok; the post-call brace is unreachable
     if (!response.ok) {
       await this.handleResponse(response);
     }

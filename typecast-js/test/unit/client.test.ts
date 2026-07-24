@@ -120,8 +120,7 @@ describe('TypecastClient', () => {
         ok: false,
         status: 422,
         statusText: 'Unprocessable Entity',
-        json: () =>
-          Promise.resolve({ detail: 'voice_id is required' }),
+        json: () => Promise.resolve({ detail: 'voice_id is required' }),
       });
 
       await expect(client.textToSpeech(baseRequest)).rejects.toMatchObject({
@@ -138,9 +137,7 @@ describe('TypecastClient', () => {
         json: () => Promise.reject(new SyntaxError('not json')),
       });
 
-      await expect(client.textToSpeech(baseRequest)).rejects.toBeInstanceOf(
-        TypecastAPIError,
-      );
+      await expect(client.textToSpeech(baseRequest)).rejects.toBeInstanceOf(TypecastAPIError);
     });
   });
 
@@ -280,9 +277,7 @@ describe('TypecastClient', () => {
         body: null,
       });
 
-      await expect(
-        client.textToSpeechStream(streamRequest),
-      ).rejects.toMatchObject({
+      await expect(client.textToSpeechStream(streamRequest)).rejects.toMatchObject({
         name: 'TypecastAPIError',
         statusCode: 500,
       });
@@ -296,24 +291,19 @@ describe('TypecastClient', () => {
       [422, 'Unprocessable Entity'],
       [429, 'Too Many Requests'],
       [500, 'Internal Server Error'],
-    ])(
-      'throws TypecastAPIError on %i',
-      async (status, statusText) => {
-        mockFetch.mockResolvedValue({
-          ok: false,
-          status,
-          statusText,
-          json: () => Promise.resolve({ detail: `err ${status}` }),
-        });
+    ])('throws TypecastAPIError on %i', async (status, statusText) => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status,
+        statusText,
+        json: () => Promise.resolve({ detail: `err ${status}` }),
+      });
 
-        await expect(
-          client.textToSpeechStream(streamRequest),
-        ).rejects.toMatchObject({
-          name: 'TypecastAPIError',
-          statusCode: status,
-        });
-      },
-    );
+      await expect(client.textToSpeechStream(streamRequest)).rejects.toMatchObject({
+        name: 'TypecastAPIError',
+        statusCode: status,
+      });
+    });
 
     it('throws TypecastAPIError when the error body is not JSON', async () => {
       mockFetch.mockResolvedValue({
@@ -323,17 +313,27 @@ describe('TypecastClient', () => {
         json: () => Promise.reject(new SyntaxError('not json')),
       });
 
-      await expect(
-        client.textToSpeechStream(streamRequest),
-      ).rejects.toBeInstanceOf(TypecastAPIError);
+      await expect(client.textToSpeechStream(streamRequest)).rejects.toBeInstanceOf(
+        TypecastAPIError,
+      );
     });
   });
 
   describe('voices V1', () => {
     it('getVoices returns the array on success', async () => {
       const mockVoices = [
-        { voice_id: 'voice1', voice_name: 'Voice 1', model: 'ssfm-v21', emotions: ['normal', 'happy'] },
-        { voice_id: 'voice2', voice_name: 'Voice 2', model: 'ssfm-v30', emotions: ['normal', 'sad'] },
+        {
+          voice_id: 'voice1',
+          voice_name: 'Voice 1',
+          model: 'ssfm-v21',
+          emotions: ['normal', 'happy'],
+        },
+        {
+          voice_id: 'voice2',
+          voice_name: 'Voice 2',
+          model: 'ssfm-v30',
+          emotions: ['normal', 'sad'],
+        },
       ];
       mockFetch.mockResolvedValue({
         ok: true,
@@ -452,10 +452,7 @@ describe('TypecastClient', () => {
 
       expect(voices).toHaveLength(1);
       expect(voices[0].voice_id).toBe('tc_v2_001');
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://dummy-api.ai/v2/voices',
-        expect.anything(),
-      );
+      expect(mockFetch).toHaveBeenCalledWith('https://dummy-api.ai/v2/voices', expect.anything());
     });
 
     it('getVoicesV2 forwards filter parameters in the query string', async () => {
@@ -516,9 +513,7 @@ describe('TypecastClient', () => {
         ok: true,
         status: 200,
         json: () =>
-          Promise.resolve([
-            { voice_id: 'tc_v2_001', voice_name: 'V2 Voice', score: 0.98 },
-          ]),
+          Promise.resolve([{ voice_id: 'tc_v2_001', voice_name: 'V2 Voice', score: 0.98 }]),
       });
 
       const recommendations = await client.recommendVoices('warm narrator', 2);
@@ -585,22 +580,19 @@ describe('TypecastClient', () => {
       [401, 'Unauthorized'],
       [429, 'Too Many Requests'],
       [500, 'Internal Server Error'],
-    ])(
-      'getMySubscription throws TypecastAPIError on %i',
-      async (status, statusText) => {
-        mockFetch.mockResolvedValue({
-          ok: false,
-          status,
-          statusText,
-          json: () => Promise.resolve({ detail: `err ${status}` }),
-        });
+    ])('getMySubscription throws TypecastAPIError on %i', async (status, statusText) => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status,
+        statusText,
+        json: () => Promise.resolve({ detail: `err ${status}` }),
+      });
 
-        await expect(client.getMySubscription()).rejects.toMatchObject({
-          name: 'TypecastAPIError',
-          statusCode: status,
-        });
-      },
-    );
+      await expect(client.getMySubscription()).rejects.toMatchObject({
+        name: 'TypecastAPIError',
+        statusCode: status,
+      });
+    });
   });
 
   describe('constructor defaults', () => {

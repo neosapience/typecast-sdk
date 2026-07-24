@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { validateCloneInputs, CLONING_MAX_FILE_SIZE, guessAudioMime } from '../../src/types/QuickCloning';
+import {
+  validateCloneInputs,
+  CLONING_MAX_FILE_SIZE,
+  guessAudioMime,
+} from '../../src/types/QuickCloning';
 
 describe('validateCloneInputs', () => {
   it('rejects file too large', () => {
@@ -53,8 +57,12 @@ const FIXTURE_DIR = path.resolve(
   '../../../test-fixtures/quick-cloning',
 );
 
-const SUCCESS_V30 = JSON.parse(fs2.readFileSync(path.join(FIXTURE_DIR, 'success_v30.json'), 'utf-8'));
-const SUCCESS_V21 = JSON.parse(fs2.readFileSync(path.join(FIXTURE_DIR, 'success_v21.json'), 'utf-8'));
+const SUCCESS_V30 = JSON.parse(
+  fs2.readFileSync(path.join(FIXTURE_DIR, 'success_v30.json'), 'utf-8'),
+);
+const SUCCESS_V21 = JSON.parse(
+  fs2.readFileSync(path.join(FIXTURE_DIR, 'success_v21.json'), 'utf-8'),
+);
 
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
@@ -73,9 +81,9 @@ describe('validateCloneInputsAsync', () => {
   });
 
   it('throws audio file not found for missing path', async () => {
-    await expect(
-      validateCloneInputsAsync('/no/such/file.wav', 'demo'),
-    ).rejects.toThrow(/audio file not found/);
+    await expect(validateCloneInputsAsync('/no/such/file.wav', 'demo')).rejects.toThrow(
+      /audio file not found/,
+    );
   });
 
   it('accepts Uint8Array via async path', async () => {
@@ -131,7 +139,9 @@ describe('TypecastClient.cloneVoice', () => {
     expect(init.headers).toHaveProperty('X-API-KEY', 'test-api-key');
     expect(init.headers).toHaveProperty(
       'User-Agent',
-      expect.stringMatching(/^typecast-js\/0\.4\.8 Node\/\d+\.\d+ fetch \(runtime=node; base=custom; os=[a-z0-9_-]+; arch=[a-z0-9_-]+; sdk_env=node; platform=server\)$/),
+      expect.stringMatching(
+        /^typecast-js\/0\.4\.8 Node\/\d+\.\d+ fetch \(runtime=node; base=custom; os=[a-z0-9_-]+; arch=[a-z0-9_-]+; sdk_env=node; platform=server\)$/,
+      ),
     );
     expect(init.body).toBeInstanceOf(FormData);
     const form = init.body;
