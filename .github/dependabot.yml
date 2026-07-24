@@ -37,6 +37,22 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    ignore:
+      # TypeScript 7 exceeds the current typescript-eslint peer range.
+      - dependency-name: "typescript"
+        update-types:
+          - "version-update:semver-major"
+      # ESLint 9+ requires migrating the existing eslintrc configuration.
+      - dependency-name: "eslint"
+        update-types:
+          - "version-update:semver-major"
+      # Vitest 4 changes branch instrumentation and breaks the 100% coverage gate.
+      - dependency-name: "vitest"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "@vitest/coverage-v8"
+        update-types:
+          - "version-update:semver-major"
     groups:
       javascript-dependencies:
         patterns:
@@ -50,6 +66,11 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    ignore:
+      # JUnit 6 requires Java 17 while this SDK targets Java 8.
+      - dependency-name: "org.junit.jupiter:junit-jupiter"
+        update-types:
+          - "version-update:semver-major"
     groups:
       java-dependencies:
         patterns:
@@ -63,6 +84,11 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    ignore:
+      # JUnit 5.12+ conflicts with Kotlin test overloads; JUnit 6 also requires Java 17.
+      - dependency-name: "org.junit.jupiter:junit-jupiter"
+        versions:
+          - ">=5.12.0"
     groups:
       kotlin-dependencies:
         patterns:
@@ -76,6 +102,18 @@ updates:
       time: "09:00"
       timezone: "Asia/Seoul"
     open-pull-requests-limit: 5
+    ignore:
+      # Coverlet 8+ changes instrumentation and breaks the 100% coverage gate.
+      - dependency-name: "coverlet.collector"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "coverlet.msbuild"
+        update-types:
+          - "version-update:semver-major"
+      # FluentAssertions 8 changed from Apache-2.0 to a commercial license.
+      - dependency-name: "FluentAssertions"
+        update-types:
+          - "version-update:semver-major"
     groups:
       csharp-dependencies:
         patterns:

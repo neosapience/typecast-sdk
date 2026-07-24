@@ -11,8 +11,7 @@
     "jest": true
   },
   "parserOptions": {
-    "project": ["./tsconfig.json", "./examples/tsconfig.json"],
-    "tsconfigRootDir": "."
+    "project": ["./tsconfig.json", "./examples/tsconfig.json"]
   },
   "rules": {
     "@typescript-eslint/explicit-function-return-type": "off",
@@ -22,4 +21,4 @@
     "no-console": ["warn", { "allow": ["warn", "error"] }]
   },
   "ignorePatterns": ["lib/", "node_modules/", "coverage/"]
-} 
+}

@@ -3,11 +3,13 @@
       "target": "es2020",
       "module": "es2020",
       "moduleResolution": "bundler",
+      "ignoreDeprecations": "6.0",
       "strict": true,
       "esModuleInterop": true,
       "declaration": true,
       "declarationMap": true,
       "types": [
+        "node",
         "vitest/globals"
       ]
     },

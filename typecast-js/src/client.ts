@@ -17,6 +17,7 @@ import { SpeechComposer, type ComposeSegment } from './composer';
 
 const SDK_VERSION = '0.4.8';
 const DEFAULT_BASE_HOST = 'https://api.typecast.ai';
+type QueryParam = string | number | boolean | null | undefined;
 
 export class TypecastClient {
   private baseHost: string;
@@ -91,7 +92,7 @@ export class TypecastClient {
   /**
    * Build URL with query parameters
    */
-  private buildUrl(path: string, params?: Record<string, unknown>): string {
+  private buildUrl(path: string, params?: Record<string, QueryParam>): string {
     const url = new URL(path, this.baseHost);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -313,7 +314,7 @@ export class TypecastClient {
    */
   async getVoicesV2(filter?: VoicesV2Filter): Promise<VoiceV2Response[]> {
     const response = await fetch(
-      this.buildUrl('/v2/voices', filter as Record<string, unknown>),
+      this.buildUrl('/v2/voices', filter as Record<string, QueryParam>),
       { headers: this.headers }
     );
     return this.handleResponse<VoiceV2Response[]>(response);

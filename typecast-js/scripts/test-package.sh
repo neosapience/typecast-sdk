@@ -48,7 +48,7 @@ const client = new TypecastClient({ apiKey: 'test' });
 console.log('✓ TypeScript import works');
 console.log('✓ TypeScript types available');
 EOF
-npx tsc --noEmit test-ts.ts
+npx tsc --noEmit --types node test-ts.ts
 
 echo "🎉 All package tests passed!"
 echo "📍 Test directory: $TEST_DIR"
@@ -57,4 +57,3 @@ rm -f "$TARBALL"
 
 echo ""
 echo "To clean up test directory, run: rm -rf $TEST_DIR"
-
