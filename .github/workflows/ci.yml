@@ -327,17 +327,17 @@ jobs:
     steps:
       - name: Check all jobs
         run: |
-          if [[ "${{ needs.test-python.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-js.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-go.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-java.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-kotlin.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-csharp.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-rust.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-swift.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-c.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-dart.result }}" == "failure" ]] || \
-             [[ "${{ needs.test-ruby.result }}" == "failure" ]]; then
+          if [[ "${{ needs.test-python.result }}" != "success" ]] || \
+             [[ "${{ needs.test-js.result }}" != "success" ]] || \
+             [[ "${{ needs.test-go.result }}" != "success" ]] || \
+             [[ "${{ needs.test-java.result }}" != "success" ]] || \
+             [[ "${{ needs.test-kotlin.result }}" != "success" ]] || \
+             [[ "${{ needs.test-csharp.result }}" != "success" ]] || \
+             [[ "${{ needs.test-rust.result }}" != "success" ]] || \
+             [[ "${{ needs.test-swift.result }}" != "success" ]] || \
+             [[ "${{ needs.test-c.result }}" != "success" ]] || \
+             [[ "${{ needs.test-dart.result }}" != "success" ]] || \
+             [[ "${{ needs.test-ruby.result }}" != "success" ]]; then
             echo "One or more SDK coverage gates failed"
             exit 1
           fi
