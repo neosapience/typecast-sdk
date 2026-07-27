@@ -13,6 +13,21 @@ updates:
         patterns:
           - "*"
 
+  - package-ecosystem: "docker"
+    directories:
+      - "/typecast-c"
+      - "/typecast-python/docker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Seoul"
+    open-pull-requests-limit: 5
+    groups:
+      docker-dependencies:
+        patterns:
+          - "*"
+
   - package-ecosystem: "uv"
     directory: "/typecast-python"
     schedule:
