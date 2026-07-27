@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
@@ -10,12 +10,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/root/.local/bin:/root/.cargo/bin:$PATH" \
     UV_SYSTEM_PYTHON=1
 
 # Copy dependency files
@@ -31,5 +30,8 @@ COPY . .
 # Install package in development mode
 RUN uv pip install -e .
 
+RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
+USER app
+
 # Default command for development
-CMD ["/bin/bash"] 
+CMD ["/bin/bash"]
