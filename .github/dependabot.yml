@@ -72,7 +72,7 @@ updates:
     open-pull-requests-limit: 5
     ignore:
       # JUnit 6 requires Java 17 while this SDK targets Java 8.
-      - dependency-name: "org.junit.jupiter:junit-jupiter"
+      - dependency-name: "org.junit.jupiter:*"
         update-types:
           - "version-update:semver-major"
     groups:
