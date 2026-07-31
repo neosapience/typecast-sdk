@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.9
+
+- Preserve structured 422 API error messages such as `TEXT_NOT_SYNTHESIZABLE`.
+
 ## 0.1.8
 
 - Updated speech composition to use the Typecast Compose API.
