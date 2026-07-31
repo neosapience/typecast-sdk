@@ -184,12 +184,19 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body interf
 
 // handleErrorResponse parses an error response and returns an APIError
 func (c *Client) handleErrorResponse(resp *http.Response) error {
-	var errResp ErrorResponse
+	var errResp struct {
+		Detail  string `json:"detail"`
+		Message string `json:"message"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 		// If we can't decode the error response, just use the status code
 		return NewAPIError(resp.StatusCode, "")
 	}
-	return NewAPIError(resp.StatusCode, errResp.Detail)
+	detail := errResp.Detail
+	if detail == "" {
+		detail = errResp.Message
+	}
+	return NewAPIError(resp.StatusCode, detail)
 }
 
 // TextToSpeech converts text to speech using the Typecast API

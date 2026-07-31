@@ -441,6 +441,22 @@ fn enums_serialize_with_expected_strings() {
     let _ = er.clone();
 }
 
+#[test]
+fn text_not_synthesizable_uses_structured_message() {
+    let response: ErrorResponse = serde_json::from_str(
+        r#"{"error_code":"TEXT_NOT_SYNTHESIZABLE","message":"The input text contains characters or symbols that cannot be synthesized into speech. Please check your input text."}"#,
+    )
+    .unwrap();
+    let err = TypecastError::from_response(422, Some(response));
+
+    match err {
+        TypecastError::ValidationError { detail } => {
+            assert!(detail.contains("cannot be synthesized"));
+        }
+        other => panic!("unexpected variant: {other:?}"),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // client.rs - construction and accessors
 // ---------------------------------------------------------------------------

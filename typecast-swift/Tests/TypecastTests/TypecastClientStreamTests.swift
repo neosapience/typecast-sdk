@@ -204,6 +204,28 @@ final class TypecastClientStreamTests: TypecastClientMockTestCase {
         }
     }
 
+    func testTextToSpeechStreamTextNotSynthesizable() async {
+        MockURLProtocol.requestHandler = { req in
+            (
+                self.httpResponse(url: req.url!, status: 422),
+                #"{"error_code":"TEXT_NOT_SYNTHESIZABLE","message":"The input text contains characters or symbols that cannot be synthesized into speech. Please check your input text."}"#.data(using: .utf8)
+            )
+        }
+        do {
+            _ = try await client.textToSpeechStream(
+                TTSRequestStream(voiceId: "tc_1", text: "????", model: .ssfmV30)
+            )
+            XCTFail("expected error")
+        } catch let error as TypecastError {
+            guard case .validationError(let message) = error else {
+                XCTFail("wrong case: \(error)"); return
+            }
+            XCTAssertTrue(message.contains("cannot be synthesized"))
+        } catch {
+            XCTFail("unexpected error type: \(error)")
+        }
+    }
+
     func testTextToSpeechStreamRateLimited() async {
         MockURLProtocol.requestHandler = { req in
             (

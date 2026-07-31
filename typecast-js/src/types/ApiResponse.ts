@@ -5,6 +5,7 @@
 export interface ApiErrorResponse {
   detail?: string | string[] | Record<string, unknown>;
   message?: string;
+  error_code?: string;
   error?: string;
   [key: string]: unknown;
 }

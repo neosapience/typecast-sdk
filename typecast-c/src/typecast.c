@@ -310,6 +310,21 @@ static void clear_error(TypecastClient* client) {
     }
 }
 
+static char* extract_error_message(const char* response_data) {
+    if (!response_data) return NULL;
+
+    cJSON* err_json = cJSON_Parse(response_data);
+    if (!err_json) return NULL;
+
+    cJSON* field = cJSON_GetObjectItem(err_json, "detail");
+    if (!cJSON_IsString(field)) {
+        field = cJSON_GetObjectItem(err_json, "message");
+    }
+    char* message = cJSON_IsString(field) ? strdup_safe(field->valuestring) : NULL;
+    cJSON_Delete(err_json);
+    return message;
+}
+
 /* ============================================
  * CURL Callbacks
  * ============================================ */
@@ -756,14 +771,7 @@ TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
         /* Try to parse error message from response */
         char* err_msg = NULL;
         if (response_buf.data && response_buf.size > 0) {
-            cJSON* err_json = cJSON_Parse((const char*)response_buf.data);
-            if (err_json) {
-                cJSON* detail = cJSON_GetObjectItem(err_json, "detail");
-                if (cJSON_IsString(detail)) {
-                    err_msg = strdup_safe(detail->valuestring);
-                }
-                cJSON_Delete(err_json);
-            }
+            err_msg = extract_error_message((const char*)response_buf.data);
         }
         
         set_error(client, err_code, err_msg ? err_msg : typecast_error_message(err_code));
@@ -2800,14 +2808,7 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps(
         TypecastErrorCode err_code = http_status_to_error(http_code);
         char* err_msg = NULL;
         if (response_buf.data && response_buf.size > 0) {
-            cJSON* err_json = cJSON_Parse((const char*)response_buf.data);
-            if (err_json) {
-                cJSON* detail = cJSON_GetObjectItem(err_json, "detail");
-                if (cJSON_IsString(detail)) {
-                    err_msg = strdup_safe(detail->valuestring);
-                }
-                cJSON_Delete(err_json);
-            }
+            err_msg = extract_error_message((const char*)response_buf.data);
         }
         set_error(client, err_code, err_msg ? err_msg : typecast_error_message(err_code));
         if (err_msg) free(err_msg);
@@ -3190,14 +3191,7 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
         TypecastErrorCode err_code = http_status_to_error(http_code);
         char* err_msg = NULL;
         if (response_buf.data && response_buf.size > 0) {
-            cJSON* err_json = cJSON_Parse((const char*)response_buf.data);
-            if (err_json) {
-                cJSON* detail = cJSON_GetObjectItem(err_json, "detail");
-                if (cJSON_IsString(detail)) {
-                    err_msg = strdup_safe(detail->valuestring);
-                }
-                cJSON_Delete(err_json);
-            }
+            err_msg = extract_error_message((const char*)response_buf.data);
         }
         set_error(client, err_code, err_msg ? err_msg : typecast_error_message(err_code));
         if (err_msg) free(err_msg);
