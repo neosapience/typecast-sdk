@@ -723,6 +723,7 @@ pub struct SubscriptionResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorResponse {
     /// Error message describing the issue
+    #[serde(alias = "message")]
     pub detail: String,
 }
 

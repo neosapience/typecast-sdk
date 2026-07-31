@@ -393,6 +393,33 @@ func TestTextToSpeech_MalformedErrorBody(t *testing.T) {
 	}
 }
 
+func TestTextToSpeech_TextNotSynthesizable(t *testing.T) {
+	const message = "The input text contains characters or symbols that cannot be synthesized into speech. Please check your input text."
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error_code": "TEXT_NOT_SYNTHESIZABLE",
+			"message":    message,
+		})
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv, "k")
+	_, err := c.TextToSpeech(context.Background(), &TTSRequest{
+		VoiceID: "v", Text: "????", Model: ModelSSFMV30,
+	})
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected APIError, got %T", err)
+	}
+	if apiErr.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status 422, got %d", apiErr.StatusCode)
+	}
+	if apiErr.Detail != message {
+		t.Fatalf("expected API message %q, got %q", message, apiErr.Detail)
+	}
+}
+
 // errReader always fails reads.
 type errReader struct{}
 

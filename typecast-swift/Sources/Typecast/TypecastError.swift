@@ -3,6 +3,48 @@ import Foundation
 /// Error response from the Typecast API
 public struct APIErrorResponse: Codable, Sendable {
     public let detail: String
+    public let errorCode: String?
+
+    public init(
+        detail: String,
+        errorCode: String? = nil
+    ) {
+        self.detail = detail
+        self.errorCode = errorCode
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case detail
+        case message
+        case errorCode = "error_code"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        guard let detail =
+            try container.decodeIfPresent(String.self, forKey: .detail)
+                ?? container.decodeIfPresent(String.self, forKey: .message)
+        else {
+            throw DecodingError.keyNotFound(
+                CodingKeys.detail,
+                .init(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "Expected detail or message"
+                )
+            )
+        }
+        self.detail = detail
+        self.errorCode = try container.decodeIfPresent(
+            String.self,
+            forKey: .errorCode
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(detail, forKey: .detail)
+        try container.encodeIfPresent(errorCode, forKey: .errorCode)
+    }
 }
 
 /// Typecast API errors

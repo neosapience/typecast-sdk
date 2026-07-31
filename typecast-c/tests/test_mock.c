@@ -929,6 +929,12 @@ static void check_tts_error(int http_status, TypecastErrorCode want, const char*
     const TypecastError* e = typecast_client_get_error(c);
     ASSERT_NOT_NULL(e);
     ASSERT_EQ(e->code, want);
+    if (strstr(detail_body ? detail_body : "", "\"message\"")) {
+        ASSERT_STREQ(
+            e->message,
+            "The input text contains characters or symbols that cannot be synthesized into speech. Please check your input text."
+        );
+    }
 
     typecast_client_destroy(c);
 }
@@ -937,7 +943,13 @@ static void test_tts_400(void) { check_tts_error(400, TYPECAST_ERROR_BAD_REQUEST
 static void test_tts_401(void) { check_tts_error(401, TYPECAST_ERROR_UNAUTHORIZED, "{\"detail\":\"no key\"}"); }
 static void test_tts_402(void) { check_tts_error(402, TYPECAST_ERROR_PAYMENT_REQUIRED, "{}"); }
 static void test_tts_404(void) { check_tts_error(404, TYPECAST_ERROR_NOT_FOUND, ""); }
-static void test_tts_422(void) { check_tts_error(422, TYPECAST_ERROR_UNPROCESSABLE_ENTITY, "not-json"); }
+static void test_tts_422(void) {
+    check_tts_error(
+        422,
+        TYPECAST_ERROR_UNPROCESSABLE_ENTITY,
+        "{\"error_code\":\"TEXT_NOT_SYNTHESIZABLE\",\"message\":\"The input text contains characters or symbols that cannot be synthesized into speech. Please check your input text.\"}"
+    );
+}
 static void test_tts_429(void) { check_tts_error(429, TYPECAST_ERROR_RATE_LIMIT, "{\"detail\":42}"); }
 static void test_tts_500(void) { check_tts_error(500, TYPECAST_ERROR_INTERNAL_SERVER, "{\"detail\":\"oops\"}"); }
 static void test_tts_503(void) { check_tts_error(503, TYPECAST_ERROR_NETWORK, NULL); }

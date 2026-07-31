@@ -46,8 +46,10 @@ export class TypecastAPIError extends Error {
         message = `API request failed with status ${statusCode}: ${statusText}`;
     }
 
-    if (data?.detail) {
-      const detailStr = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+    const responseMessage = data?.message ?? data?.error ?? data?.detail;
+    if (responseMessage) {
+      const detailStr =
+        typeof responseMessage === 'string' ? responseMessage : JSON.stringify(responseMessage);
       message += ` - ${detailStr}`;
     }
 

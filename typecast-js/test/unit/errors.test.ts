@@ -52,6 +52,19 @@ describe('TypecastAPIError', () => {
       expect(err.message).toMatch(/field required/);
     });
 
+    it('preserves TEXT_NOT_SYNTHESIZABLE code and message', () => {
+      const data = {
+        error_code: 'TEXT_NOT_SYNTHESIZABLE',
+        message:
+          'The input text contains characters or symbols that cannot be synthesized into speech. Please check your input text.',
+      };
+      const err = TypecastAPIError.fromResponse(422, 'Unprocessable Entity', data);
+
+      expect(err.statusCode).toBe(422);
+      expect(err.response?.error_code).toBe('TEXT_NOT_SYNTHESIZABLE');
+      expect(err.message).toContain(data.message);
+    });
+
     it('omits the detail suffix when no detail is provided', () => {
       const err = TypecastAPIError.fromResponse(500, 'Internal Server Error', {});
 

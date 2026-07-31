@@ -67,6 +67,41 @@ void main() {
       );
     });
 
+    test('preserves TEXT_NOT_SYNTHESIZABLE message on 422', () async {
+      const message =
+          'The input text contains characters or symbols that cannot be synthesized into speech. Please check your input text.';
+      final client = TypecastClient(
+        apiKey: 'key',
+        baseUrl: 'https://api.test',
+        httpClient: MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'error_code': 'TEXT_NOT_SYNTHESIZABLE',
+              'message': message,
+            }),
+            422,
+          ),
+        ),
+      );
+
+      expect(
+        () => client.textToSpeech(
+          const TtsRequest(
+            voiceId: 'tc_123',
+            text: '????',
+            model: TtsModel.ssfmV30,
+          ),
+        ),
+        throwsA(
+          isA<UnprocessableEntityException>().having(
+            (error) => error.detail,
+            'detail',
+            message,
+          ),
+        ),
+      );
+    });
+
     test(
       'generateToFile infers format, defaults model, and writes file',
       () async {

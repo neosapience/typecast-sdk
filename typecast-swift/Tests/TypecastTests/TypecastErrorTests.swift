@@ -152,9 +152,26 @@ final class TypecastErrorTests: XCTestCase {
     }
 
     func testAPIErrorResponseRoundTrip() throws {
-        let original = APIErrorResponse(detail: "msg")
+        let original = APIErrorResponse(
+            detail: "msg",
+            errorCode: "TEXT_NOT_SYNTHESIZABLE"
+        )
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(APIErrorResponse.self, from: data)
         XCTAssertEqual(decoded.detail, "msg")
+        XCTAssertEqual(decoded.errorCode, "TEXT_NOT_SYNTHESIZABLE")
+
+        let structured = try JSONDecoder().decode(
+            APIErrorResponse.self,
+            from: #"{"message":"structured"}"#.data(using: .utf8)!
+        )
+        XCTAssertEqual(structured.detail, "structured")
+
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                APIErrorResponse.self,
+                from: Data("{}".utf8)
+            )
+        )
     }
 }

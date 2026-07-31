@@ -237,6 +237,27 @@ class TestSyncClient:
         with pytest.raises(exc_class):
             client.text_to_speech(sample_request)
 
+    def test_text_not_synthesizable_is_not_retried(
+        self, client, sample_request, mocker
+    ):
+        message = (
+            "The input text contains characters or symbols that cannot be "
+            "synthesized into speech. Please check your input text."
+        )
+        mock_resp = self._mock_response(
+            mocker,
+            status_code=422,
+            text=(f'{{"error_code":"TEXT_NOT_SYNTHESIZABLE","message":"{message}"}}'),
+        )
+        post_mock = mocker.patch.object(client.session, "post", return_value=mock_resp)
+
+        from typecast.exceptions import UnprocessableEntityError
+
+        with pytest.raises(UnprocessableEntityError, match="TEXT_NOT_SYNTHESIZABLE"):
+            client.text_to_speech(sample_request)
+
+        post_mock.assert_called_once()
+
     def test_voices_success_no_filter(self, client, mocker):
         mock_resp = self._mock_response(
             mocker,

@@ -297,6 +297,9 @@ String? _extractDetail(String body) {
     if (decoded is Map && decoded['detail'] != null) {
       return decoded['detail'].toString();
     }
+    if (decoded is Map && decoded['message'] != null) {
+      return decoded['message'].toString();
+    }
     if (decoded is Map && decoded['error'] != null) {
       return decoded['error'].toString();
     }
