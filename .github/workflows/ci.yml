@@ -201,8 +201,8 @@ jobs:
 
       - name: Check MSRV
         run: |
-          rustup toolchain install 1.86.0 --profile minimal
-          cargo +1.86.0 test --all-targets --no-default-features
+          rustup toolchain install 1.88.0 --profile minimal
+          cargo +1.88.0 test --all-targets --no-default-features
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
