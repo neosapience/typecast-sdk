@@ -98,6 +98,49 @@ public class TypecastClientTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_WithAttribution_ShouldAppendAndValidateUserAgent()
+    {
+        using var httpClient = new HttpClient(new Mock<HttpMessageHandler>().Object);
+        using var client = new TypecastClient(new TypecastClientConfig
+        {
+            ApiKey = "test-api-key",
+            HttpClient = httpClient,
+            Source = "skill",
+            GeneratedBy = "codex"
+        });
+
+        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().EndWith(
+            " typecast-integration/1 (source=skill; generated_by=codex)");
+        Action invalid = () => new TypecastClient(new TypecastClientConfig
+        {
+            ApiKey = "test-api-key",
+            Source = "skill"
+        });
+        invalid.Should().Throw<ArgumentException>();
+        foreach (var invalidConfig in new[]
+        {
+            new TypecastClientConfig { ApiKey = "test-api-key", GeneratedBy = "codex" },
+            new TypecastClientConfig { ApiKey = "test-api-key", Source = "other", GeneratedBy = "codex" },
+            new TypecastClientConfig { ApiKey = "test-api-key", Source = "skill", GeneratedBy = "Codex" }
+        })
+        {
+            Action create = () => new TypecastClient(invalidConfig);
+            create.Should().Throw<ArgumentException>();
+        }
+
+        using var callerOwnedClient = new HttpClient();
+        callerOwnedClient.DefaultRequestHeaders.Add("X-Existing", "preserved");
+        Action invalidExternal = () => new TypecastClient(new TypecastClientConfig
+        {
+            ApiKey = "test-api-key",
+            HttpClient = callerOwnedClient,
+            Source = "skill"
+        });
+        invalidExternal.Should().Throw<ArgumentException>();
+        callerOwnedClient.DefaultRequestHeaders.Contains("X-Existing").Should().BeTrue();
+    }
+
+    [Fact]
     public async Task TextToSpeechAsync_WithNullRequest_ShouldThrow()
     {
         // Act & Assert

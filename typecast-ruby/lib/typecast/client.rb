@@ -16,12 +16,13 @@ module Typecast
 
     attr_reader :api_key, :base_url
 
-    def initialize(api_key: ENV["TYPECAST_API_KEY"], base_url: ENV["TYPECAST_API_HOST"] || DEFAULT_BASE_URL, open_timeout: 10, read_timeout: 30)
+    def initialize(api_key: ENV["TYPECAST_API_KEY"], base_url: ENV["TYPECAST_API_HOST"] || DEFAULT_BASE_URL, open_timeout: 10, read_timeout: 30, source: nil, generated_by: nil)
       @api_key = api_key.to_s.strip
       @base_url = normalize_base_url(base_url)
       validate_api_key!
       @open_timeout = open_timeout
       @read_timeout = read_timeout
+      @attribution = attribution_suffix(source, generated_by)
     end
 
     def text_to_speech(request)
@@ -190,7 +191,16 @@ module Typecast
       base = default_base_url? ? "default" : "custom"
       timeout = @read_timeout == 30 ? "default" : "#{@read_timeout}s"
       "typecast-ruby/#{VERSION} Ruby/#{RUBY_VERSION} net-http " \
-        "(base=#{base}; timeout=#{timeout}; os=#{os_name}; arch=#{arch_name}; sdk_env=ruby; platform=server)"
+        "(base=#{base}; timeout=#{timeout}; os=#{os_name}; arch=#{arch_name}; sdk_env=ruby; platform=server)#{@attribution}"
+    end
+
+    def attribution_suffix(source, generated_by)
+      return "" if source.nil? && generated_by.nil?
+      unless %w[llms skill].include?(source) && generated_by&.match?(/\A[a-z0-9][a-z0-9._-]{0,31}\z/)
+        raise ArgumentError, "source (llms or skill) and generated_by must be valid and provided together"
+      end
+
+      " typecast-integration/1 (source=#{source}; generated_by=#{generated_by})"
     end
 
     def os_name

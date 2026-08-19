@@ -10,12 +10,14 @@ import 'timestamps.dart';
 
 class TypecastClient {
   static const defaultBaseUrl = 'https://api.typecast.ai';
-  static const _sdkVersion = '0.1.8';
+  static const _sdkVersion = '0.1.10';
 
   TypecastClient({
     String? apiKey,
     String? baseUrl,
     http.Client? httpClient,
+    this.source,
+    this.generatedBy,
     this.requestTimeout = const Duration(seconds: 30),
   })  : apiKey = _resolveApiKey(apiKey),
         baseUrl = _normalizeBaseUrl(
@@ -27,11 +29,14 @@ class TypecastClient {
     if (this.apiKey.isEmpty && _isDefaultBaseUrl(this.baseUrl)) {
       throw ArgumentError('TYPECAST_API_KEY must be provided');
     }
+    _attributionSuffix();
   }
 
   final String apiKey;
   final String baseUrl;
   final Duration requestTimeout;
+  final String? source;
+  final String? generatedBy;
   final http.Client _httpClient;
 
   Future<TtsResponse> textToSpeech(TtsRequest request) async {
@@ -242,7 +247,18 @@ class TypecastClient {
         : '${requestTimeout.inMilliseconds}ms';
     return 'typecast-dart/$_sdkVersion Dart/${Platform.version.split(' ').first} '
         'http (runtime=dart; base=$base; timeout=$timeout; os=${_osName()}; '
-        'arch=${_archName()}; sdk_env=dart; platform=server)';
+        'arch=${_archName()}; sdk_env=dart; platform=server)${_attributionSuffix()}';
+  }
+
+  String _attributionSuffix() {
+    if (source == null && generatedBy == null) return '';
+    if ((source != 'llms' && source != 'skill') ||
+        generatedBy == null ||
+        !RegExp(r'^[a-z0-9][a-z0-9._-]{0,31}$').hasMatch(generatedBy!)) {
+      throw ArgumentError(
+          'source (llms or skill) and generatedBy must be valid and provided together');
+    }
+    return ' typecast-integration/1 (source=$source; generated_by=$generatedBy)';
   }
 
   static String _osName() {

@@ -22,7 +22,7 @@ import {
 } from './types/QuickCloning';
 import { SpeechComposer, type ComposeSegment } from './composer';
 
-const SDK_VERSION = '0.4.8';
+const SDK_VERSION = '0.4.10';
 const DEFAULT_BASE_HOST = 'https://api.typecast.ai';
 type QueryParam = string | number | boolean | null | undefined;
 
@@ -40,7 +40,11 @@ export class TypecastClient {
     this.baseHost = TypecastClient.normalizeBaseHost(finalConfig.baseHost);
     this.headers = {
       'Content-Type': 'application/json',
-      'User-Agent': TypecastClient.buildUserAgent(this.baseHost),
+      'User-Agent': TypecastClient.buildUserAgent(
+        this.baseHost,
+        finalConfig.source,
+        finalConfig.generatedBy,
+      ),
     };
     if (apiKey) {
       this.headers['X-API-KEY'] = apiKey;
@@ -55,12 +59,31 @@ export class TypecastClient {
     return normalized;
   }
 
-  private static buildUserAgent(baseHost: string): string {
+  private static buildUserAgent(
+    baseHost: string,
+    source?: 'llms' | 'skill',
+    generatedBy?: string,
+  ): string {
     const nodeVersion = process.versions.node.split('.').slice(0, 2).join('.');
     const base = baseHost.toLowerCase() === DEFAULT_BASE_HOST ? 'default' : 'custom';
     const os = TypecastClient.normalizeOS(process.platform);
     const arch = TypecastClient.normalizeArch(process.arch);
-    return `typecast-js/${SDK_VERSION} Node/${nodeVersion} fetch (runtime=node; base=${base}; os=${os}; arch=${arch}; sdk_env=node; platform=server)`;
+    return `typecast-js/${SDK_VERSION} Node/${nodeVersion} fetch (runtime=node; base=${base}; os=${os}; arch=${arch}; sdk_env=node; platform=server)${TypecastClient.attributionSuffix(source, generatedBy)}`;
+  }
+
+  private static attributionSuffix(source?: string, generatedBy?: string): string {
+    if (source === undefined && generatedBy === undefined) return '';
+    if (
+      !['llms', 'skill'].includes(source || '') ||
+      typeof generatedBy !== 'string' ||
+      !generatedBy
+    ) {
+      throw new Error('source (llms or skill) and generatedBy must be provided together');
+    }
+    if (!/^[a-z0-9][a-z0-9._-]{0,31}$/.test(generatedBy)) {
+      throw new Error('generatedBy must be a lowercase token of at most 32 characters');
+    }
+    return ` typecast-integration/1 (source=${source}; generated_by=${generatedBy})`;
   }
 
   private static normalizeOS(os: string): string {

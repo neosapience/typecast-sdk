@@ -28,6 +28,23 @@ use PHPUnit\Framework\TestCase;
 
 class ClientTest extends TestCase
 {
+    public function testUserAgentAttribution(): void
+    {
+        $client = new TypecastClient(
+            apiKey: 'test-api-key',
+            source: 'skill',
+            generatedBy: 'codex',
+        );
+        $method = new \ReflectionMethod($client, 'userAgent');
+
+        $this->assertStringEndsWith(
+            ' typecast-integration/1 (source=skill; generated_by=codex)',
+            $method->invoke($client),
+        );
+        $this->expectException(\InvalidArgumentException::class);
+        new TypecastClient(apiKey: 'test-api-key', source: 'skill');
+    }
+
     private function createClient(MockHandler $mock): TypecastClient
     {
         $handler = HandlerStack::create($mock);
@@ -57,6 +74,8 @@ class ClientTest extends TestCase
             apiKey: 'test-api-key',
             baseUrl: 'https://api.typecast.ai',
             httpClient: $httpClient,
+            source: 'skill',
+            generatedBy: 'codex',
         );
 
         $request = new TTSRequest(
@@ -71,6 +90,10 @@ class ClientTest extends TestCase
         $this->assertSame(1.5, $response->duration);
         $this->assertSame('wav', $response->format);
         $this->assertStringContainsString('typecast-php/', $history[0]['request']->getHeaderLine('User-Agent'));
+        $this->assertStringEndsWith(
+            ' typecast-integration/1 (source=skill; generated_by=codex)',
+            $history[0]['request']->getHeaderLine('User-Agent'),
+        );
         $this->assertStringContainsString('sdk_env=php', $history[0]['request']->getHeaderLine('User-Agent'));
     }
 

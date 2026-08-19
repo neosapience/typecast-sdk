@@ -12,12 +12,18 @@ void main() {
       final client = TypecastClient(
         apiKey: 'key',
         baseUrl: 'https://api.test',
+        source: 'skill',
+        generatedBy: 'codex',
         httpClient: MockClient((request) async {
           expect(request.method, 'POST');
           expect(request.url.path, '/v1/text-to-speech');
           expect(request.headers['X-API-KEY'], 'key');
           expect(request.headers['User-Agent'], contains('typecast-dart/'));
           expect(request.headers['User-Agent'], contains('sdk_env=dart'));
+          expect(
+              request.headers['User-Agent'],
+              endsWith(
+                  ' typecast-integration/1 (source=skill; generated_by=codex)'));
           final body = jsonDecode(request.body) as Map<String, dynamic>;
           expect(body['voice_id'], 'tc_123');
           expect(body['language'], 'eng');
@@ -44,6 +50,17 @@ void main() {
       expect(response.audioData, [1, 2, 3]);
       expect(response.duration, 1.25);
       expect(response.format, AudioFormat.wav);
+    });
+
+    test('rejects partial attribution', () {
+      expect(
+        () => TypecastClient(
+          apiKey: 'key',
+          baseUrl: 'https://api.test',
+          source: 'skill',
+        ),
+        throwsArgumentError,
+      );
     });
 
     test('throws typed API errors', () async {

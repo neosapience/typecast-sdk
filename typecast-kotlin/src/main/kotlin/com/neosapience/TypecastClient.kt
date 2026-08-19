@@ -43,7 +43,8 @@ import java.util.concurrent.TimeUnit
 class TypecastClient private constructor(
     private val apiKey: String,
     private val baseUrl: String,
-    private val httpClient: OkHttpClient
+    private val httpClient: OkHttpClient,
+    private val attribution: String
 ) : Closeable {
     
     @OptIn(ExperimentalSerializationApi::class)
@@ -67,12 +68,12 @@ class TypecastClient private constructor(
         val base = if (baseUrl.equals(DEFAULT_BASE_URL, ignoreCase = true)) "default" else "custom"
         val timeout = if (httpClient.readTimeoutMillis == 60_000) "default" else "${httpClient.readTimeoutMillis}ms"
         return "typecast-kotlin/${SDK_VERSION} Kotlin/${KotlinVersion.CURRENT} OkHttp/4.x " +
-            "(base=$base; timeout=$timeout; os=${osName()}; arch=${archName()}; sdk_env=kotlin; platform=server)"
+            "(base=$base; timeout=$timeout; os=${osName()}; arch=${archName()}; sdk_env=kotlin; platform=server)$attribution"
     }
 
     companion object {
         private const val DEFAULT_BASE_URL = "https://api.typecast.ai"
-        private const val SDK_VERSION = "1.2.9"
+        private const val SDK_VERSION = "1.2.10"
         private const val API_KEY_HEADER = "X-API-KEY"
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 
@@ -620,6 +621,8 @@ class TypecastClient private constructor(
         private var apiKey: String? = null
         private var baseUrl: String? = null
         private var httpClient: OkHttpClient? = null
+        private var source: String? = null
+        private var generatedBy: String? = null
 
         /**
          * Sets the API key.
@@ -636,6 +639,12 @@ class TypecastClient private constructor(
          */
         fun httpClient(value: OkHttpClient) = apply { httpClient = value }
 
+        /** Sets coding-agent attribution for the integration. */
+        fun attribution(source: String, generatedBy: String) = apply {
+            this.source = source
+            this.generatedBy = generatedBy
+        }
+
         /**
          * Builds the TypecastClient instance.
          *
@@ -650,7 +659,12 @@ class TypecastClient private constructor(
                 .writeTimeout(60, TimeUnit.SECONDS)
                 .build()
 
-            return TypecastClient(resolvedApiKey, resolvedBaseUrl, resolvedHttpClient)
+            return TypecastClient(
+                resolvedApiKey,
+                resolvedBaseUrl,
+                resolvedHttpClient,
+                attributionSuffix(source, generatedBy)
+            )
         }
 
         private fun resolveApiKey(resolvedBaseUrl: String): String {
@@ -680,6 +694,16 @@ class TypecastClient private constructor(
 
         private fun isDefaultBaseUrl(value: String): Boolean =
             value.trim().trimEnd('/').equals(DEFAULT_BASE_URL, ignoreCase = true)
+
+        private fun attributionSuffix(source: String?, generatedBy: String?): String {
+            if (source == null && generatedBy == null) return ""
+            require((source == "llms" || source == "skill") && generatedBy?.matches(
+                Regex("[a-z0-9][a-z0-9._-]{0,31}")
+            ) == true) {
+                "source (llms or skill) and generatedBy must be valid and provided together"
+            }
+            return " typecast-integration/1 (source=$source; generated_by=$generatedBy)"
+        }
 
         private fun resolveBaseUrl(): String {
             baseUrl?.takeIf { it.isNotBlank() }?.let { 

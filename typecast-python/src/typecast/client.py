@@ -16,7 +16,7 @@ from ._voice_clone import (
     validate_clone_inputs,
     validate_custom_voice_id,
 )
-from ._user_agent import httpx_user_agent, requests_user_agent
+from ._user_agent import attribution_suffix, httpx_user_agent, requests_user_agent
 
 if TYPE_CHECKING or sys.version_info < (3, 10):  # pragma: no cover
     from ._httpx_compat import RequestsCompatSession
@@ -111,6 +111,8 @@ class Typecast:
         host: Optional[str] = None,
         api_key: Optional[str] = None,
         session: Optional[Any] = None,
+        source: Optional[str] = None,
+        generated_by: Optional[str] = None,
     ):
         """Initialize the Typecast client.
 
@@ -122,12 +124,17 @@ class Typecast:
                 the client will not create a new session nor close it; auth headers
                 (`X-API-KEY`, `User-Agent`) are attached per-request via
                 `_request_headers()`.
+            source: Integration source, either 'llms' or 'skill'.
+            generated_by: Lowercase token identifying the coding agent.
 
         Raises:
             ValueError: If no API key is provided and TYPECAST_API_KEY is not set.
         """
         self.host = conf.get_host(host)
         self.api_key = conf.get_api_key(api_key)
+        attribution_suffix(source, generated_by)
+        self.source = source
+        self.generated_by = generated_by
         if not self.api_key and conf.is_default_host(self.host):
             raise ValueError("API key is required for the default Typecast API host")
         self._owns_session = session is None
@@ -139,9 +146,9 @@ class Typecast:
             headers = {
                 "Content-Type": "application/json",
                 "User-Agent": (
-                    requests_user_agent(self.host)
+                    requests_user_agent(self.host, source=source, generated_by=generated_by)
                     if requests
-                    else httpx_user_agent(self.host, "sync")
+                    else httpx_user_agent(self.host, "sync", source=source, generated_by=generated_by)
                 ),
             }
             if self.api_key:
@@ -179,7 +186,11 @@ class Typecast:
         """
         if self._owns_session:
             return None
-        headers = {"User-Agent": requests_user_agent(self.host)}
+        headers = {
+            "User-Agent": requests_user_agent(
+                self.host, source=self.source, generated_by=self.generated_by
+            )
+        }
         if self.api_key:
             headers["X-API-KEY"] = self.api_key
         return headers

@@ -8,14 +8,29 @@ public struct TypecastConfiguration: Sendable {
   public let apiKey: String?
   /// Base URL for the API (default: https://api.typecast.ai)
   public let baseURL: String
+  /// Integration source, either "llms" or "skill".
+  public let source: String?
+  /// Lowercase token identifying the coding agent.
+  public let generatedBy: String?
 
-  public init(apiKey: String? = nil, baseURL: String = TypecastConfiguration.defaultBaseURL) {
+  public init(
+    apiKey: String? = nil,
+    baseURL: String = TypecastConfiguration.defaultBaseURL,
+    source: String? = nil,
+    generatedBy: String? = nil
+  ) {
     let trimmedApiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
     self.apiKey = trimmedApiKey?.isEmpty == true ? nil : trimmedApiKey
     self.baseURL =
       baseURL
       .trimmingCharacters(in: .whitespacesAndNewlines)
       .trimmingTrailingSlashes()
+    let validAttribution =
+      (source == "llms" || source == "skill")
+      && generatedBy?.range(
+        of: "\\A[a-z0-9][a-z0-9._-]{0,31}\\z", options: .regularExpression) != nil
+    self.source = validAttribution ? source : nil
+    self.generatedBy = validAttribution ? generatedBy : nil
   }
 }
 

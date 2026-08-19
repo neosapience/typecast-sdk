@@ -43,6 +43,12 @@ public class TypecastClientConfig
     /// </summary>
     public HttpClient? HttpClient { get; set; }
 
+    /// <summary>Integration source: "llms" or "skill".</summary>
+    public string? Source { get; set; }
+
+    /// <summary>Lowercase token identifying the coding agent.</summary>
+    public string? GeneratedBy { get; set; }
+
     /// <summary>
     /// Gets the effective API key, falling back to environment variable if not set.
     /// Returns null when a proxy API host is configured and no key is available.

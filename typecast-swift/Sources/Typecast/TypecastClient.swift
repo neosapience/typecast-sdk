@@ -2,7 +2,7 @@ import Foundation
 
 /// Typecast API client for text-to-speech and voice operations
 public final class TypecastClient: Sendable {
-  private static let sdkVersion = "0.3.9"
+  private static let sdkVersion = "0.3.11"
   private let configuration: TypecastConfiguration
   private let session: URLSession
   private let decoder: JSONDecoder
@@ -24,9 +24,14 @@ public final class TypecastClient: Sendable {
   ///   - apiKey: API key for authentication. Optional when using a proxy base URL.
   ///   - baseURL: Base URL for the API (default: https://api.typecast.ai)
   public convenience init(
-    apiKey: String? = nil, baseURL: String = TypecastConfiguration.defaultBaseURL
+    apiKey: String? = nil,
+    baseURL: String = TypecastConfiguration.defaultBaseURL,
+    source: String? = nil,
+    generatedBy: String? = nil
   ) {
-    self.init(configuration: TypecastConfiguration(apiKey: apiKey, baseURL: baseURL))
+    self.init(
+      configuration: TypecastConfiguration(
+        apiKey: apiKey, baseURL: baseURL, source: source, generatedBy: generatedBy))
   }
 
   // MARK: - Private Helpers
@@ -73,6 +78,14 @@ public final class TypecastClient: Sendable {
         == .orderedSame ? "default" : "custom"
     return "typecast-swift/\(Self.sdkVersion) Swift/unknown URLSession "
       + "(base=\(base); os=\(Self.osName()); arch=\(Self.archName()); sdk_env=swift; platform=server)"
+      + attributionSuffix()
+  }
+
+  private func attributionSuffix() -> String {
+    guard let source = configuration.source, let generatedBy = configuration.generatedBy else {
+      return ""
+    }
+    return " typecast-integration/1 (source=\(source); generated_by=\(generatedBy))"
   }
 
   private static func osName() -> String {

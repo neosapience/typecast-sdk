@@ -17,7 +17,7 @@ from ._voice_clone import (
     validate_clone_inputs,
     validate_custom_voice_id,
 )
-from ._user_agent import aiohttp_user_agent, httpx_user_agent
+from ._user_agent import aiohttp_user_agent, attribution_suffix, httpx_user_agent
 
 if TYPE_CHECKING or sys.version_info < (3, 10):  # pragma: no cover
     from ._httpx_compat import AiohttpCompatSession, ClientTimeout, FormData
@@ -77,6 +77,8 @@ class AsyncTypecast:
         host: Optional[str] = None,
         api_key: Optional[str] = None,
         session: Optional[Any] = None,
+        source: Optional[str] = None,
+        generated_by: Optional[str] = None,
     ):
         """Initialize the async Typecast client.
 
@@ -88,6 +90,8 @@ class AsyncTypecast:
                 __aenter__ will not create a new session and __aexit__ will not close it
                 (the caller owns its lifecycle). Auth headers (`X-API-KEY`, `User-Agent`)
                 are attached per-request via `_request_headers()`.
+            source: Integration source, either 'llms' or 'skill'.
+            generated_by: Lowercase token identifying the coding agent.
 
         Raises:
             ValueError: If no API key is provided and TYPECAST_API_KEY is not set
@@ -95,6 +99,9 @@ class AsyncTypecast:
         """
         self.host = conf.get_host(host)
         self.api_key = conf.get_api_key(api_key)
+        attribution_suffix(source, generated_by)
+        self.source = source
+        self.generated_by = generated_by
         if not self.api_key and conf.is_default_host(self.host):
             raise ValueError("API key is required for the default Typecast API host")
         self._owns_session = session is None
@@ -106,9 +113,16 @@ class AsyncTypecast:
         if self.session is None:
             headers = {
                 "User-Agent": (
-                    aiohttp_user_agent(self.host)
+                    aiohttp_user_agent(
+                        self.host, source=self.source, generated_by=self.generated_by
+                    )
                     if aiohttp
-                    else httpx_user_agent(self.host, "async")
+                    else httpx_user_agent(
+                        self.host,
+                        "async",
+                        source=self.source,
+                        generated_by=self.generated_by,
+                    )
                 )
             }
             if self.api_key:
@@ -157,7 +171,11 @@ class AsyncTypecast:
         """
         if self._owns_session:
             return None
-        headers = {"User-Agent": aiohttp_user_agent(self.host)}
+        headers = {
+            "User-Agent": aiohttp_user_agent(
+                self.host, source=self.source, generated_by=self.generated_by
+            )
+        }
         if self.api_key:
             headers["X-API-KEY"] = self.api_key
         return headers

@@ -48,6 +48,7 @@ public class TypecastClient {
     private final String apiKey;
     private final OkHttpClient httpClient;
     private final Gson gson;
+    private final String attribution;
 
     /**
      * Creates a new TypecastClient with API key from environment.
@@ -82,18 +83,11 @@ public class TypecastClient {
      * @throws IllegalArgumentException if no API key is found and the default Typecast API host is used
      */
     public TypecastClient(String apiKey, String baseUrl) {
-        this.baseUrl = resolveBaseUrl(baseUrl);
-        this.apiKey = resolveApiKey(apiKey, this.baseUrl);
-        
-        this.httpClient = new OkHttpClient.Builder()
+        this(apiKey, baseUrl, new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
                 .writeTimeout(60, TimeUnit.SECONDS)
-                .build();
-
-        this.gson = new GsonBuilder()
-                .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
-                .create();
+                .build(), null, null);
     }
 
     /**
@@ -104,9 +98,18 @@ public class TypecastClient {
      * @param httpClient custom OkHttpClient instance
      */
     public TypecastClient(String apiKey, String baseUrl, OkHttpClient httpClient) {
+        this(apiKey, baseUrl, httpClient, null, null);
+    }
+
+    /**
+     * Creates a client with coding-agent attribution appended to User-Agent.
+     */
+    public TypecastClient(String apiKey, String baseUrl, OkHttpClient httpClient,
+                          String source, String generatedBy) {
         this.baseUrl = resolveBaseUrl(baseUrl);
         this.apiKey = resolveApiKey(apiKey, this.baseUrl);
         this.httpClient = httpClient;
+        this.attribution = attributionSuffix(source, generatedBy);
         
         this.gson = new GsonBuilder()
                 .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
@@ -186,7 +189,20 @@ public class TypecastClient {
                 + "; timeout=30-60-60"
                 + "; os=" + normalizedOs(System.getProperty("os.name", "unknown"))
                 + "; arch=" + normalizedArch(System.getProperty("os.arch", "unknown"))
-                + "; sdk_env=java; platform=server)";
+                + "; sdk_env=java; platform=server)" + attribution;
+    }
+
+    private static String attributionSuffix(String source, String generatedBy) {
+        if (source == null && generatedBy == null) {
+            return "";
+        }
+        if (!("llms".equals(source) || "skill".equals(source))
+                || generatedBy == null
+                || !generatedBy.matches("[a-z0-9][a-z0-9._-]{0,31}")) {
+            throw new IllegalArgumentException(
+                    "source (llms or skill) and generatedBy must be valid and provided together");
+        }
+        return " typecast-integration/1 (source=" + source + "; generated_by=" + generatedBy + ")";
     }
 
     static String versionOrFallback(String version, String fallback) {

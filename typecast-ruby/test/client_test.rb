@@ -6,6 +6,18 @@ require "thread"
 require "typecast"
 
 class ClientTest < Minitest::Test
+  def test_user_agent_attribution
+    client = Typecast::Client.new(
+      api_key: "key", source: "skill", generated_by: "codex"
+    )
+    assert client.send(:user_agent).end_with?(
+      " typecast-integration/1 (source=skill; generated_by=codex)"
+    )
+    assert_raises(ArgumentError) do
+      Typecast::Client.new(api_key: "key", source: "skill")
+    end
+  end
+
   def with_server(response_status: 200, response_headers: {}, response_body: "", &block)
     server = TCPServer.new("127.0.0.1", 0)
     port = server.addr[1]
@@ -45,7 +57,9 @@ class ClientTest < Minitest::Test
 
   def test_text_to_speech_posts_json_and_parses_audio
     with_server(response_headers: { "Content-Type" => "audio/wav", "X-Audio-Duration" => "1.25" }, response_body: "WAV") do |url, captured|
-      client = Typecast::Client.new(api_key: "key", base_url: url)
+      client = Typecast::Client.new(
+        api_key: "key", base_url: url, source: "skill", generated_by: "codex"
+      )
       response = client.text_to_speech(
         Typecast::Models::TTSRequest.new(
           voice_id: "tc_123",
@@ -64,6 +78,10 @@ class ClientTest < Minitest::Test
       request = captured.pop
       assert_includes request, "POST /v1/text-to-speech"
       assert_match(/^X-Api-Key: key\r?$/im, request, "expected API key header")
+      assert_match(
+        %r{^User-Agent: .* typecast-integration/1 \(source=skill; generated_by=codex\)\r?$}im,
+        request
+      )
       assert_includes request, "\"language\":\"eng\""
     end
   end

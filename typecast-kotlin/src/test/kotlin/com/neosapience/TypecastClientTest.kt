@@ -909,4 +909,29 @@ class TypecastClientTest {
         assertNull(output.volume)
         assertEquals(-14.0, output.targetLufs)
     }
+
+    @Test
+    fun userAgent_attribution() {
+        TypecastClient.builder().apiKey("key").attribution("skill", "codex").build().use {
+            assertTrue(it.buildUserAgent().endsWith(
+                " typecast-integration/1 (source=skill; generated_by=codex)"
+            ))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            TypecastClient.builder().apiKey("key").attribution("other", "codex").build()
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            TypecastClient.builder().apiKey("key").attribution("skill", "Codex").build()
+        }
+        TypecastClient.builder().apiKey("key").attribution("llms", "codex").build().close()
+
+        for ((fieldName, value) in listOf("source" to "skill", "generatedBy" to "codex")) {
+            val builder = TypecastClient.builder().apiKey("key")
+            builder.javaClass.getDeclaredField(fieldName).apply {
+                isAccessible = true
+                set(builder, value)
+            }
+            assertThrows(IllegalArgumentException::class.java) { builder.build() }
+        }
+    }
 }

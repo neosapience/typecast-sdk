@@ -39,6 +39,8 @@
 struct TypecastClient {
     char* api_key;
     char* host;
+    char* source;
+    char* generated_by;
     CURL* curl;
     TypecastError last_error;
 };
@@ -270,18 +272,40 @@ static const char* arch_name(void) {
 #endif
 }
 
+static int valid_generated_by_token(const char* value) {
+    size_t i;
+    size_t length;
+    if (!value) return 0;
+    length = strlen(value);
+    if (length == 0 || length > 32) return 0;
+    for (i = 0; i < length; i++) {
+        unsigned char c = (unsigned char)value[i];
+        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+            (i > 0 && (c == '.' || c == '_' || c == '-'))) continue;
+        return 0;
+    }
+    return 1;
+}
+
 static struct curl_slist* append_user_agent_header(struct curl_slist* headers, const TypecastClient* client, long timeout_secs) {
     const char* base = (client && client->host && strcmp(client->host, "https://api.typecast.ai") == 0) ? "default" : "custom";
-    char header[256];
+    char header[384];
+    char attribution[96] = "";
+    if (client && client->source) {
+        snprintf(attribution, sizeof(attribution),
+            " typecast-integration/1 (source=%s; generated_by=%s)",
+            client->source, client->generated_by);
+    }
     snprintf(
         header,
         sizeof(header),
-        "User-Agent: typecast-c/%s C/unknown libcurl (base=%s; timeout=%lds; os=%s; arch=%s; sdk_env=c; platform=server)",
+        "User-Agent: typecast-c/%s C/unknown libcurl (base=%s; timeout=%lds; os=%s; arch=%s; sdk_env=c; platform=server)%s",
         TYPECAST_VERSION,
         base,
         timeout_secs,
         os_name(),
-        arch_name()
+        arch_name(),
+        attribution
     );
     return curl_slist_append(headers, header);
 }
@@ -666,10 +690,51 @@ TYPECAST_API void typecast_client_destroy(TypecastClient* client) {
     
     if (client->api_key) free(client->api_key);
     if (client->host) free(client->host);
+    if (client->source) free(client->source);
+    if (client->generated_by) free(client->generated_by);
     if (client->last_error.message) free(client->last_error.message);
     if (client->curl) curl_easy_cleanup(client->curl);
     
     free(client);
+}
+
+TYPECAST_API TypecastErrorCode typecast_client_set_attribution(
+    TypecastClient* client,
+    const char* source,
+    const char* generated_by
+) {
+    char* source_copy;
+    char* generated_by_copy;
+    if (!client) return TYPECAST_ERROR_INVALID_PARAM;
+    clear_error(client);
+    if (!source && !generated_by) {
+        free(client->source);
+        free(client->generated_by);
+        client->source = NULL;
+        client->generated_by = NULL;
+        return TYPECAST_OK;
+    }
+    if ((!source || (strcmp(source, "llms") != 0 && strcmp(source, "skill") != 0))
+        || !valid_generated_by_token(generated_by)) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM,
+            "source (llms or skill) and generated_by must be valid and provided together");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
+    source_copy = strdup_safe(source);
+    generated_by_copy = strdup_safe(generated_by);
+    /* LCOV_EXCL_START - allocation failure is not deterministic in unit tests. */
+    if (!source_copy || !generated_by_copy) {
+        free(source_copy);
+        free(generated_by_copy);
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to store attribution");
+        return TYPECAST_ERROR_OUT_OF_MEMORY;
+    }
+    /* LCOV_EXCL_STOP */
+    free(client->source);
+    free(client->generated_by);
+    client->source = source_copy;
+    client->generated_by = generated_by_copy;
+    return TYPECAST_OK;
 }
 
 TYPECAST_API const TypecastError* typecast_client_get_error(const TypecastClient* client) {

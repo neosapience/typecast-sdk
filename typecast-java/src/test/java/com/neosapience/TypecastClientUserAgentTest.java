@@ -1,9 +1,11 @@
 package com.neosapience;
 
 import org.junit.jupiter.api.Test;
+import okhttp3.OkHttpClient;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class TypecastClientUserAgentTest {
 
@@ -16,6 +18,30 @@ class TypecastClientUserAgentTest {
         } finally {
             client.close();
         }
+    }
+
+    @Test
+    void buildUserAgent_appendsAndValidatesAttribution() {
+        TypecastClient client = new TypecastClient(
+                "key", null, new OkHttpClient(), "skill", "codex");
+        try {
+            assertTrue(client.buildUserAgent().endsWith(
+                    " typecast-integration/1 (source=skill; generated_by=codex)"));
+        } finally {
+            client.close();
+        }
+        assertThrows(IllegalArgumentException.class,
+                () -> new TypecastClient("key", null, new OkHttpClient(), "skill", null));
+        assertThrows(IllegalArgumentException.class,
+                () -> new TypecastClient("key", null, new OkHttpClient(), "other", "codex"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new TypecastClient("key", null, new OkHttpClient(), "skill", "Codex"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new TypecastClient("key", null, new OkHttpClient(), null, "codex"));
+
+        TypecastClient llmsClient = new TypecastClient(
+                "key", null, new OkHttpClient(), "llms", "codex");
+        llmsClient.close();
     }
 
     @Test
