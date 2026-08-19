@@ -777,6 +777,10 @@ describe('User-Agent attribution', () => {
       source: 'llms',
       generatedBy: 'a'.repeat(32),
     }) as unknown as { headers: Record<string, string> };
-    expect(boundary.headers['User-Agent']).toContain('source=llms; generated_by=');
+    expect(
+      boundary.headers['User-Agent'].endsWith(
+        ` typecast-integration/1 (source=llms; generated_by=${'a'.repeat(32)})`,
+      ),
+    ).toBe(true);
   });
 });
