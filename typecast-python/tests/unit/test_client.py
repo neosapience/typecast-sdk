@@ -610,6 +610,8 @@ class TestExternalSessionInjection:
         try:
             client = Typecast(host=HOST, api_key="key", session=external)
             assert client.session is external
+            with pytest.raises(ValueError):
+                Typecast(host=HOST, api_key="key", session=external, source="skill")
         finally:
             external.close()
 
@@ -638,7 +640,13 @@ class TestExternalSessionInjection:
         from typecast.models import TTSModel
 
         external = requests.Session()
-        client = Typecast(host=HOST, api_key="key", session=external)
+        client = Typecast(
+            host=HOST,
+            api_key="key",
+            session=external,
+            source="skill",
+            generated_by="codex",
+        )
         # Swap to a mock to capture the per-request headers kwarg. _owns_session
         # is already False (external session injected at construction).
         mock_response = MagicMock()
@@ -659,7 +667,9 @@ class TestExternalSessionInjection:
         kwargs = client.session.post.call_args.kwargs
         headers = kwargs.get("headers") or {}
         assert headers.get("X-API-KEY") == "key", "per-request X-API-KEY missing"
-        assert headers.get("User-Agent"), "per-request User-Agent missing"
+        assert headers.get("User-Agent", "").endswith(
+            " typecast-integration/1 (source=skill; generated_by=codex)"
+        )
         external.close()
 
     def test_external_session_without_api_key_omits_x_api_key_header(self):

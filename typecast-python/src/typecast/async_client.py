@@ -17,7 +17,7 @@ from ._voice_clone import (
     validate_clone_inputs,
     validate_custom_voice_id,
 )
-from ._user_agent import aiohttp_user_agent, httpx_user_agent
+from ._user_agent import aiohttp_user_agent, attribution_suffix, httpx_user_agent
 
 if TYPE_CHECKING or sys.version_info < (3, 10):  # pragma: no cover
     from ._httpx_compat import AiohttpCompatSession, ClientTimeout, FormData
@@ -99,6 +99,7 @@ class AsyncTypecast:
         """
         self.host = conf.get_host(host)
         self.api_key = conf.get_api_key(api_key)
+        attribution_suffix(source, generated_by)
         self.source = source
         self.generated_by = generated_by
         if not self.api_key and conf.is_default_host(self.host):

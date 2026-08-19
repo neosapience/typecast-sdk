@@ -73,7 +73,11 @@ export class TypecastClient {
 
   private static attributionSuffix(source?: string, generatedBy?: string): string {
     if (source === undefined && generatedBy === undefined) return '';
-    if (!['llms', 'skill'].includes(source || '') || !generatedBy) {
+    if (
+      !['llms', 'skill'].includes(source || '') ||
+      typeof generatedBy !== 'string' ||
+      !generatedBy
+    ) {
       throw new Error('source (llms or skill) and generatedBy must be provided together');
     }
     if (!/^[a-z0-9][a-z0-9._-]{0,31}$/.test(generatedBy)) {

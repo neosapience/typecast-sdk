@@ -1056,6 +1056,14 @@ static void test_http_with_timestamps_happy(void) {
     free(bytes);
 
     typecast_tts_with_timestamps_response_free(resp);
+
+    ASSERT(typecast_client_set_attribution(client, NULL, NULL) == TYPECAST_OK);
+    mini_mock_enqueue_json(200, build_word_only_response_json());
+    resp = NULL;
+    rc = typecast_text_to_speech_with_timestamps(client, &req, &resp);
+    ASSERT(rc == TYPECAST_OK);
+    ASSERT(strstr(g_mock.last_headers, "typecast-integration/1") == NULL);
+    typecast_tts_with_timestamps_response_free(resp);
     typecast_client_destroy(client);
 }
 

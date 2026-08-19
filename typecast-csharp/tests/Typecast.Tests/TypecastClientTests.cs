@@ -119,6 +119,7 @@ public class TypecastClientTests : IDisposable
         invalid.Should().Throw<ArgumentException>();
         foreach (var invalidConfig in new[]
         {
+            new TypecastClientConfig { ApiKey = "test-api-key", GeneratedBy = "codex" },
             new TypecastClientConfig { ApiKey = "test-api-key", Source = "other", GeneratedBy = "codex" },
             new TypecastClientConfig { ApiKey = "test-api-key", Source = "skill", GeneratedBy = "Codex" }
         })
@@ -126,6 +127,17 @@ public class TypecastClientTests : IDisposable
             Action create = () => new TypecastClient(invalidConfig);
             create.Should().Throw<ArgumentException>();
         }
+
+        using var callerOwnedClient = new HttpClient();
+        callerOwnedClient.DefaultRequestHeaders.Add("X-Existing", "preserved");
+        Action invalidExternal = () => new TypecastClient(new TypecastClientConfig
+        {
+            ApiKey = "test-api-key",
+            HttpClient = callerOwnedClient,
+            Source = "skill"
+        });
+        invalidExternal.Should().Throw<ArgumentException>();
+        callerOwnedClient.DefaultRequestHeaders.Contains("X-Existing").Should().BeTrue();
     }
 
     [Fact]

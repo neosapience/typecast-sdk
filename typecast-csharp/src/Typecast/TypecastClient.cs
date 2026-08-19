@@ -53,6 +53,7 @@ public class TypecastClient : IDisposable
 
         _apiHost = config.GetEffectiveApiHost().TrimEnd('/');
         var apiKey = config.GetEffectiveApiKey(_apiHost);
+        var attribution = AttributionSuffix(config.Source, config.GeneratedBy);
 
         if (config.HttpClient != null)
         {
@@ -73,11 +74,11 @@ public class TypecastClient : IDisposable
         {
             _httpClient.DefaultRequestHeaders.Add("X-API-KEY", apiKey);
         }
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(BuildUserAgent(config));
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(BuildUserAgent(config, attribution));
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
     }
 
-    private string BuildUserAgent(TypecastClientConfig config)
+    private string BuildUserAgent(TypecastClientConfig config, string attribution)
     {
         var version = typeof(TypecastClient).Assembly.GetName().Version!.ToString(3);
         var baseKind = string.Equals(
@@ -87,7 +88,7 @@ public class TypecastClient : IDisposable
             ? "default"
             : "custom";
         var timeout = config.TimeoutSeconds == 30 ? "default" : $"{config.TimeoutSeconds}s";
-        return $"typecast-csharp/{version} dotnet/{Environment.Version.Major}.{Environment.Version.Minor} HttpClient (tfm={TargetFramework}; base={baseKind}; timeout={timeout}; os={OSName}; arch={ArchitectureName}; sdk_env=dotnet; platform=server){AttributionSuffix(config.Source, config.GeneratedBy)}";
+        return $"typecast-csharp/{version} dotnet/{Environment.Version.Major}.{Environment.Version.Minor} HttpClient (tfm={TargetFramework}; base={baseKind}; timeout={timeout}; os={OSName}; arch={ArchitectureName}; sdk_env=dotnet; platform=server){attribution}";
     }
 
     private static string AttributionSuffix(string? source, string? generatedBy)

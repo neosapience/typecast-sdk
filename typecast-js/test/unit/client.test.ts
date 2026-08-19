@@ -755,5 +755,28 @@ describe('User-Agent attribution', () => {
           generatedBy: 'Codex',
         }),
     ).toThrow(/lowercase/);
+    expect(
+      () =>
+        new TypecastClient({
+          baseHost: 'https://dummy-api.ai',
+          source: 'skill',
+          generatedBy: 123 as unknown as string,
+        }),
+    ).toThrow(/provided together/);
+    expect(
+      () =>
+        new TypecastClient({
+          baseHost: 'https://dummy-api.ai',
+          source: 'llms',
+          generatedBy: 'a'.repeat(33),
+        }),
+    ).toThrow(/at most 32/);
+
+    const boundary = new TypecastClient({
+      baseHost: 'https://dummy-api.ai',
+      source: 'llms',
+      generatedBy: 'a'.repeat(32),
+    }) as unknown as { headers: Record<string, string> };
+    expect(boundary.headers['User-Agent']).toContain('source=llms; generated_by=');
   });
 });

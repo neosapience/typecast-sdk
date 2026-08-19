@@ -74,6 +74,8 @@ class ClientTest extends TestCase
             apiKey: 'test-api-key',
             baseUrl: 'https://api.typecast.ai',
             httpClient: $httpClient,
+            source: 'skill',
+            generatedBy: 'codex',
         );
 
         $request = new TTSRequest(
@@ -88,6 +90,10 @@ class ClientTest extends TestCase
         $this->assertSame(1.5, $response->duration);
         $this->assertSame('wav', $response->format);
         $this->assertStringContainsString('typecast-php/', $history[0]['request']->getHeaderLine('User-Agent'));
+        $this->assertStringEndsWith(
+            ' typecast-integration/1 (source=skill; generated_by=codex)',
+            $history[0]['request']->getHeaderLine('User-Agent'),
+        );
         $this->assertStringContainsString('sdk_env=php', $history[0]['request']->getHeaderLine('User-Agent'));
     }
 

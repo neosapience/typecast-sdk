@@ -525,6 +525,8 @@ async def test_external_session_is_not_recreated():
     try:
         async with AsyncTypecast(host=HOST, api_key="key", session=external) as client:
             assert client.session is external
+        with pytest.raises(ValueError):
+            AsyncTypecast(host=HOST, api_key="key", session=external, source="skill")
         assert not external.closed
     finally:
         if not external.closed:
@@ -564,7 +566,13 @@ async def test_external_session_sends_per_request_auth_header():
     try:
         with aioresponses() as m:
             m.post(f"{HOST}/v1/text-to-speech", status=200, body=b"", repeat=True)
-            async with AsyncTypecast(host=HOST, api_key="key", session=external) as client:
+            async with AsyncTypecast(
+                host=HOST,
+                api_key="key",
+                session=external,
+                source="skill",
+                generated_by="codex",
+            ) as client:
                 request = TTSRequest(
                     text="hi",
                     voice_id="tc_62a8975e695ad26f7fb514d1",
@@ -577,8 +585,8 @@ async def test_external_session_sends_per_request_auth_header():
                     assert headers.get("X-API-KEY") == "key", (
                         f"per-request X-API-KEY missing on {method} {url}"
                     )
-                    assert headers.get("User-Agent"), (
-                        f"per-request User-Agent missing on {method} {url}"
+                    assert headers.get("User-Agent", "").endswith(
+                        " typecast-integration/1 (source=skill; generated_by=codex)"
                     )
     finally:
         if not external.closed:

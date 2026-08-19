@@ -16,7 +16,12 @@ def attribution_suffix(
 ) -> str:
     if source is None and generated_by is None:
         return ""
-    if source not in {"llms", "skill"} or not generated_by:
+    if (
+        not isinstance(source, str)
+        or not isinstance(generated_by, str)
+        or source not in {"llms", "skill"}
+        or not generated_by
+    ):
         raise ValueError("source (llms or skill) and generated_by must be provided together")
     if not _GENERATED_BY_PATTERN.fullmatch(generated_by):
         raise ValueError("generated_by must be a lowercase token of at most 32 characters")

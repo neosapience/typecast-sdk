@@ -64,3 +64,9 @@ def test_user_agent_rejects_partial_attribution():
         _user_agent.requests_user_agent(
             "https://proxy.example", source="skill", generated_by="Codex"
         )
+
+    with pytest.raises(ValueError):
+        _user_agent.attribution_suffix([], "codex")
+
+    with pytest.raises(ValueError):
+        _user_agent.attribution_suffix("skill", 1)
