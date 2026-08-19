@@ -117,6 +117,15 @@ public class TypecastClientTests : IDisposable
             Source = "skill"
         });
         invalid.Should().Throw<ArgumentException>();
+        foreach (var invalidConfig in new[]
+        {
+            new TypecastClientConfig { ApiKey = "test-api-key", Source = "other", GeneratedBy = "codex" },
+            new TypecastClientConfig { ApiKey = "test-api-key", Source = "skill", GeneratedBy = "Codex" }
+        })
+        {
+            Action create = () => new TypecastClient(invalidConfig);
+            create.Should().Throw<ArgumentException>();
+        }
     }
 
     [Fact]

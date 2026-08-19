@@ -32,6 +32,16 @@ class TypecastClientUserAgentTest {
         }
         assertThrows(IllegalArgumentException.class,
                 () -> new TypecastClient("key", null, new OkHttpClient(), "skill", null));
+        assertThrows(IllegalArgumentException.class,
+                () -> new TypecastClient("key", null, new OkHttpClient(), "other", "codex"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new TypecastClient("key", null, new OkHttpClient(), "skill", "Codex"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new TypecastClient("key", null, new OkHttpClient(), null, "codex"));
+
+        TypecastClient llmsClient = new TypecastClient(
+                "key", null, new OkHttpClient(), "llms", "codex");
+        llmsClient.close();
     }
 
     @Test

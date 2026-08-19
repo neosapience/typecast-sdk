@@ -744,5 +744,16 @@ describe('User-Agent attribution', () => {
     expect(() => new TypecastClient({ baseHost: 'https://dummy-api.ai', source: 'skill' })).toThrow(
       /provided together/,
     );
+    expect(
+      () => new TypecastClient({ baseHost: 'https://dummy-api.ai', generatedBy: 'codex' }),
+    ).toThrow(/provided together/);
+    expect(
+      () =>
+        new TypecastClient({
+          baseHost: 'https://dummy-api.ai',
+          source: 'skill',
+          generatedBy: 'Codex',
+        }),
+    ).toThrow(/lowercase/);
   });
 });

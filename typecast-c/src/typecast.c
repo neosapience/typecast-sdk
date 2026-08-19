@@ -722,12 +722,14 @@ TYPECAST_API TypecastErrorCode typecast_client_set_attribution(
     }
     source_copy = strdup_safe(source);
     generated_by_copy = strdup_safe(generated_by);
+    /* LCOV_EXCL_START - allocation failure is not deterministic in unit tests. */
     if (!source_copy || !generated_by_copy) {
         free(source_copy);
         free(generated_by_copy);
         set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to store attribution");
         return TYPECAST_ERROR_OUT_OF_MEMORY;
     }
+    /* LCOV_EXCL_STOP */
     free(client->source);
     free(client->generated_by);
     client->source = source_copy;

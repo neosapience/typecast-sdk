@@ -998,6 +998,15 @@ static char* build_word_only_response_json(void) {
 static void test_http_with_timestamps_happy(void) {
     TypecastClient* client = mini_new_client();
     ASSERT_NOT_NULL(client);
+    ASSERT(typecast_client_set_attribution(NULL, "skill", "codex") == TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT(typecast_client_set_attribution(client, NULL, NULL) == TYPECAST_OK);
+    ASSERT(typecast_client_set_attribution(client, NULL, "codex") == TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT(typecast_client_set_attribution(client, "other", "codex") == TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT(typecast_client_set_attribution(client, "skill", NULL) == TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT(typecast_client_set_attribution(client, "skill", "") == TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT(typecast_client_set_attribution(client, "skill", "abcdefghijklmnopqrstuvwxyz1234567") == TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT(typecast_client_set_attribution(client, "skill", ".codex") == TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT(typecast_client_set_attribution(client, "llms", "co.dex_1-a") == TYPECAST_OK);
     ASSERT(typecast_client_set_attribution(client, "skill", "codex") == TYPECAST_OK);
 
     mini_mock_enqueue_json(200, build_word_only_response_json());

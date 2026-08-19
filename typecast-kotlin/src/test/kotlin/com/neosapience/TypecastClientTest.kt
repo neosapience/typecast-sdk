@@ -920,5 +920,18 @@ class TypecastClientTest {
         assertThrows(IllegalArgumentException::class.java) {
             TypecastClient.builder().apiKey("key").attribution("other", "codex").build()
         }
+        assertThrows(IllegalArgumentException::class.java) {
+            TypecastClient.builder().apiKey("key").attribution("skill", "Codex").build()
+        }
+        TypecastClient.builder().apiKey("key").attribution("llms", "codex").build().close()
+
+        for ((fieldName, value) in listOf("source" to "skill", "generatedBy" to "codex")) {
+            val builder = TypecastClient.builder().apiKey("key")
+            builder.javaClass.getDeclaredField(fieldName).apply {
+                isAccessible = true
+                set(builder, value)
+            }
+            assertThrows(IllegalArgumentException::class.java) { builder.build() }
+        }
     }
 }

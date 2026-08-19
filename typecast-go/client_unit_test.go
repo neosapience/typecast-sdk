@@ -142,9 +142,19 @@ func TestSetUserAgent_Attribution(t *testing.T) {
 }
 
 func TestNewClient_InvalidAttributionIsOmitted(t *testing.T) {
-	c := NewClientWithAttribution(&ClientConfig{APIKey: "k"}, "skill", "")
-	if c.attribution != "" {
-		t.Fatalf("expected invalid attribution to be omitted, got %q", c.attribution)
+	for _, tc := range []struct {
+		source, generatedBy string
+	}{
+		{"", ""},
+		{"other", "codex"},
+		{"skill", ""},
+		{"skill", strings.Repeat("a", 33)},
+		{"skill", ".codex"},
+	} {
+		c := NewClientWithAttribution(&ClientConfig{APIKey: "k"}, tc.source, tc.generatedBy)
+		if c.attribution != "" {
+			t.Fatalf("expected invalid attribution to be omitted, got %q", c.attribution)
+		}
 	}
 }
 
