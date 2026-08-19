@@ -13,12 +13,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "ws": "^8.21.2"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.2.0",
     "@types/ws": "^8.5.13",
-    "tsx": "^4.23.9",
+    "tsx": "^4.23.12",
     "typescript": "^6.0.3"
   }
 }
