@@ -63,7 +63,7 @@ describe('TypecastClient', () => {
             'X-API-KEY': 'test-api-key',
             'Content-Type': 'application/json',
             'User-Agent': expect.stringMatching(
-              /^typecast-js\/0\.4\.8 Node\/\d+\.\d+ fetch \(runtime=node; base=custom; os=[a-z0-9_-]+; arch=[a-z0-9_-]+; sdk_env=node; platform=server\)$/,
+              /^typecast-js\/0\.4\.10 Node\/\d+\.\d+ fetch \(runtime=node; base=custom; os=[a-z0-9_-]+; arch=[a-z0-9_-]+; sdk_env=node; platform=server\)$/,
             ),
           },
           body: JSON.stringify(baseRequest),
@@ -727,5 +727,22 @@ describe('TypecastClient', () => {
         mockFetch.mockClear();
       }
     });
+  });
+});
+
+describe('User-Agent attribution', () => {
+  it('appends valid attribution and rejects partial attribution', () => {
+    const attributed = new TypecastClient({
+      baseHost: 'https://dummy-api.ai',
+      source: 'skill',
+      generatedBy: 'codex',
+    }) as unknown as { headers: Record<string, string> };
+
+    expect(attributed.headers['User-Agent']).toMatch(
+      / typecast-integration\/1 \(source=skill; generated_by=codex\)$/,
+    );
+    expect(() => new TypecastClient({ baseHost: 'https://dummy-api.ai', source: 'skill' })).toThrow(
+      /provided together/,
+    );
   });
 });

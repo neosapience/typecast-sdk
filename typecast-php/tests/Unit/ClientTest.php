@@ -28,6 +28,23 @@ use PHPUnit\Framework\TestCase;
 
 class ClientTest extends TestCase
 {
+    public function testUserAgentAttribution(): void
+    {
+        $client = new TypecastClient(
+            apiKey: 'test-api-key',
+            source: 'skill',
+            generatedBy: 'codex',
+        );
+        $method = new \ReflectionMethod($client, 'userAgent');
+
+        $this->assertStringEndsWith(
+            ' typecast-integration/1 (source=skill; generated_by=codex)',
+            $method->invoke($client),
+        );
+        $this->expectException(\InvalidArgumentException::class);
+        new TypecastClient(apiKey: 'test-api-key', source: 'skill');
+    }
+
     private function createClient(MockHandler $mock): TypecastClient
     {
         $handler = HandlerStack::create($mock);

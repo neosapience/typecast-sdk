@@ -137,6 +137,19 @@ pub struct TypecastClient {
 impl TypecastClient {
     /// Create a new TypecastClient with the given configuration
     pub fn new(config: ClientConfig) -> Result<Self> {
+        Self::new_inner(config, None)
+    }
+
+    /// Create a client with coding-agent attribution appended to User-Agent.
+    pub fn new_with_attribution(
+        config: ClientConfig,
+        source: &str,
+        generated_by: &str,
+    ) -> Result<Self> {
+        Self::new_inner(config, Some((source, generated_by)))
+    }
+
+    fn new_inner(config: ClientConfig, attribution: Option<(&str, &str)>) -> Result<Self> {
         let api_key = config.api_key.trim().to_string();
         let base_url = config.base_url.trim().trim_end_matches('/').to_string();
         if api_key.is_empty() && is_default_base_url(&base_url) {
@@ -149,8 +162,12 @@ impl TypecastClient {
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         headers.insert(
             USER_AGENT,
-            HeaderValue::from_str(&build_user_agent(&base_url, config.timeout))
-                .expect("SDK-generated User-Agent is valid ASCII"),
+            HeaderValue::from_str(&format!(
+                "{}{}",
+                build_user_agent(&base_url, config.timeout),
+                attribution_suffix(attribution)?
+            ))
+            .expect("SDK-generated User-Agent is valid ASCII"),
         );
         if !api_key.is_empty() {
             headers.insert(
@@ -805,6 +822,28 @@ fn build_user_agent(base_url: &str, timeout: Duration) -> String {
     )
 }
 
+fn attribution_suffix(attribution: Option<(&str, &str)>) -> Result<String> {
+    let Some((source, generated_by)) = attribution else {
+        return Ok(String::new());
+    };
+    let valid_token = !generated_by.is_empty()
+        && generated_by.len() <= 32
+        && generated_by.bytes().enumerate().all(|(index, byte)| {
+            byte.is_ascii_lowercase()
+                || byte.is_ascii_digit()
+                || index > 0 && matches!(byte, b'.' | b'_' | b'-')
+        });
+    if !matches!(source, "llms" | "skill") || !valid_token {
+        return Err(TypecastError::BadRequest {
+            detail: "source (llms or skill) and generated_by must be valid and provided together"
+                .to_string(),
+        });
+    }
+    Ok(format!(
+        " typecast-integration/1 (source={source}; generated_by={generated_by})"
+    ))
+}
+
 fn rust_version() -> &'static str {
     "unknown"
 }
@@ -854,6 +893,15 @@ mod tests {
         let custom_user_agent = build_user_agent("https://proxy.example", Duration::from_secs(5));
         assert!(custom_user_agent.contains("base=custom"));
         assert!(custom_user_agent.contains("timeout=5000ms"));
+    }
+
+    #[test]
+    fn user_agent_attribution_is_validated() {
+        assert_eq!(
+            attribution_suffix(Some(("skill", "codex"))).unwrap(),
+            " typecast-integration/1 (source=skill; generated_by=codex)"
+        );
+        assert!(attribution_suffix(Some(("skill", "Codex"))).is_err());
     }
 
     #[test]

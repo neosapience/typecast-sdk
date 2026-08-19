@@ -27,7 +27,7 @@ const (
 
 // SDKVersion is the Typecast Go SDK version reported in User-Agent.
 // Release builds may override it with -ldflags "-X github.com/neosapience/typecast-sdk/typecast-go.SDKVersion=<version>".
-var SDKVersion = "dev"
+var SDKVersion = "0.3.11"
 
 // ClientConfig holds configuration options for the TypecastClient
 type ClientConfig struct {
@@ -43,13 +43,23 @@ type ClientConfig struct {
 
 // Client is the Typecast API client
 type Client struct {
-	apiKey     string
-	baseURL    string
-	httpClient *http.Client
+	apiKey      string
+	baseURL     string
+	httpClient  *http.Client
+	attribution string
 }
 
 // NewClient creates a new Typecast API client
 func NewClient(config *ClientConfig) *Client {
+	return newClient(config, "")
+}
+
+// NewClientWithAttribution creates a client with coding-agent attribution in User-Agent.
+func NewClientWithAttribution(config *ClientConfig, source, generatedBy string) *Client {
+	return newClient(config, attributionSuffix(source, generatedBy))
+}
+
+func newClient(config *ClientConfig, attribution string) *Client {
 	// Use environment variables as defaults
 	apiKey := strings.TrimSpace(os.Getenv("TYPECAST_API_KEY"))
 	baseURL := strings.TrimSpace(os.Getenv("TYPECAST_API_HOST"))
@@ -59,7 +69,6 @@ func NewClient(config *ClientConfig) *Client {
 	}
 
 	timeout := DefaultTimeout
-
 	// Override with provided config
 	if config != nil {
 		if config.APIKey != "" {
@@ -79,9 +88,10 @@ func NewClient(config *ClientConfig) *Client {
 	}
 
 	return &Client{
-		apiKey:     apiKey,
-		baseURL:    baseURL,
-		httpClient: httpClient,
+		apiKey:      apiKey,
+		baseURL:     baseURL,
+		httpClient:  httpClient,
+		attribution: attribution,
 	}
 }
 
@@ -116,8 +126,31 @@ func (c *Client) setUserAgent(headers http.Header) {
 			timeout,
 			normalizedOS(runtime.GOOS),
 			normalizedArch(runtime.GOARCH),
-		),
+		)+c.attribution,
 	)
+}
+
+func attributionSuffix(source, generatedBy string) string {
+	if source == "" && generatedBy == "" {
+		return ""
+	}
+	if source != "llms" && source != "skill" || !validGeneratedBy(generatedBy) {
+		return ""
+	}
+	return fmt.Sprintf(" typecast-integration/1 (source=%s; generated_by=%s)", source, generatedBy)
+}
+
+func validGeneratedBy(value string) bool {
+	if len(value) == 0 || len(value) > 32 {
+		return false
+	}
+	for i, char := range value {
+		if char >= 'a' && char <= 'z' || char >= '0' && char <= '9' || i > 0 && (char == '.' || char == '_' || char == '-') {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func normalizedOS(os string) string {

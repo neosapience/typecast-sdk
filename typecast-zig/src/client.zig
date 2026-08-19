@@ -5,19 +5,35 @@ const json_helpers = @import("json.zig");
 const timestamps = @import("timestamps.zig");
 const composer = @import("composer.zig");
 
-const SDK_VERSION = "0.2.8";
+const SDK_VERSION = "0.2.9";
 const USER_AGENT_DEFAULT = "typecast-zig/" ++ SDK_VERSION ++ " Zig/unknown std-http (base=default; os=" ++ osName() ++ "; arch=" ++ archName() ++ "; sdk_env=zig; platform=server)";
 const USER_AGENT_CUSTOM = "typecast-zig/" ++ SDK_VERSION ++ " Zig/unknown std-http (base=custom; os=" ++ osName() ++ "; arch=" ++ archName() ++ "; sdk_env=zig; platform=server)";
+
+fn validAttribution(source: []const u8, generated_by: []const u8) bool {
+    if (source.len == 0 and generated_by.len == 0) return true;
+    if (!(std.mem.eql(u8, source, "llms") or std.mem.eql(u8, source, "skill"))) return false;
+    if (generated_by.len == 0 or generated_by.len > 32) return false;
+    for (generated_by, 0..) |char, index| {
+        if (std.ascii.isLower(char) or std.ascii.isDigit(char) or
+            (index > 0 and (char == '.' or char == '_' or char == '-'))) continue;
+        return false;
+    }
+    return true;
+}
 
 pub const Client = struct {
     allocator: std.mem.Allocator,
     http_client: std.http.Client,
     api_key: []const u8,
     base_url: []const u8,
+    source: []const u8,
+    generated_by: []const u8,
 
     pub const Config = struct {
         api_key: []const u8 = "",
         base_url: []const u8 = "https://api.typecast.ai",
+        source: []const u8 = "",
+        generated_by: []const u8 = "",
     };
 
     pub const ApiError = error{
@@ -32,6 +48,7 @@ pub const Client = struct {
     };
 
     pub fn init(allocator: std.mem.Allocator, config: Config) Client {
+        const valid_attribution = validAttribution(config.source, config.generated_by);
         return .{
             .allocator = allocator,
             .http_client = .{
@@ -39,6 +56,8 @@ pub const Client = struct {
             },
             .api_key = config.api_key,
             .base_url = config.base_url,
+            .source = if (valid_attribution) config.source else "",
+            .generated_by = if (valid_attribution) config.generated_by else "",
         };
     }
 
@@ -46,8 +65,14 @@ pub const Client = struct {
         self.http_client.deinit();
     }
 
-    fn userAgent(self: *const Client) []const u8 {
-        return if (isDefaultBaseUrl(self.base_url)) USER_AGENT_DEFAULT else USER_AGENT_CUSTOM;
+    fn userAgent(self: *const Client, buffer: []u8) []const u8 {
+        const base = if (isDefaultBaseUrl(self.base_url)) USER_AGENT_DEFAULT else USER_AGENT_CUSTOM;
+        if (self.source.len == 0) return base;
+        return std.fmt.bufPrint(
+            buffer,
+            "{s} typecast-integration/1 (source={s}; generated_by={s})",
+            .{ base, self.source, self.generated_by },
+        ) catch @panic("User-Agent buffer is too small");
     }
 
     // ── Public API methods ────────────────────────────────────────────
@@ -69,14 +94,15 @@ pub const Client = struct {
         try self.validateApiKey();
         const uri = try buildUri(self.base_url, path, null);
 
+        var user_agent_buffer: [384]u8 = undefined;
         const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
             &.{
-                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) },
                 .{ .name = "Content-Type", .value = "application/json" },
             }
         else
             &.{
-                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) },
                 .{ .name = "X-API-KEY", .value = self.api_key },
                 .{ .name = "Content-Type", .value = "application/json" },
             };
@@ -109,10 +135,11 @@ pub const Client = struct {
     pub fn composeTextToSpeechBody(self: *Client, body: []const u8) !models.TtsResponse {
         try self.validateApiKey();
         const uri = try buildUri(self.base_url, "/v1/text-to-speech/compose", null);
+        var user_agent_buffer: [384]u8 = undefined;
         const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
-            &.{ .{ .name = "User-Agent", .value = self.userAgent() }, .{ .name = "Content-Type", .value = "application/json" } }
+            &.{ .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) }, .{ .name = "Content-Type", .value = "application/json" } }
         else
-            &.{ .{ .name = "User-Agent", .value = self.userAgent() }, .{ .name = "X-API-KEY", .value = self.api_key }, .{ .name = "Content-Type", .value = "application/json" } };
+            &.{ .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) }, .{ .name = "X-API-KEY", .value = self.api_key }, .{ .name = "Content-Type", .value = "application/json" } };
         var req = try self.http_client.request(.POST, uri, .{ .extra_headers = headers });
         defer req.deinit();
         try req.sendBodyComplete(@constCast(body));
@@ -179,14 +206,15 @@ pub const Client = struct {
         try self.validateApiKey();
         const uri = try buildUri(self.base_url, path, null);
 
+        var user_agent_buffer: [384]u8 = undefined;
         const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
             &.{
-                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) },
                 .{ .name = "Content-Type", .value = "application/json" },
             }
         else
             &.{
-                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) },
                 .{ .name = "X-API-KEY", .value = self.api_key },
                 .{ .name = "Content-Type", .value = "application/json" },
             };
@@ -252,14 +280,15 @@ pub const Client = struct {
         try self.validateApiKey();
         const uri = try buildUri(self.base_url, path, query);
 
+        var user_agent_buffer: [384]u8 = undefined;
         const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
             &.{
-                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) },
                 .{ .name = "Content-Type", .value = "application/json" },
             }
         else
             &.{
-                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) },
                 .{ .name = "X-API-KEY", .value = self.api_key },
                 .{ .name = "Content-Type", .value = "application/json" },
             };
@@ -428,14 +457,15 @@ pub const Client = struct {
         try self.validateApiKey();
         const uri = try buildUri(self.base_url, path, null);
 
+        var user_agent_buffer: [384]u8 = undefined;
         const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
             &.{
-                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) },
                 .{ .name = "Content-Type", .value = ct },
             }
         else
             &.{
-                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) },
                 .{ .name = "X-API-KEY", .value = self.api_key },
                 .{ .name = "Content-Type", .value = ct },
             };
@@ -465,11 +495,12 @@ pub const Client = struct {
         try self.validateApiKey();
         const uri = try buildUri(self.base_url, path, null);
 
+        var user_agent_buffer: [384]u8 = undefined;
         const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
-            &.{.{ .name = "User-Agent", .value = self.userAgent() }}
+            &.{.{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) }}
         else
             &.{
-                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) },
                 .{ .name = "X-API-KEY", .value = self.api_key },
             };
         var req = try self.http_client.request(.DELETE, uri, .{ .extra_headers = headers });
@@ -495,11 +526,12 @@ pub const Client = struct {
         try self.validateApiKey();
         const uri = try buildUri(self.base_url, path, query);
 
+        var user_agent_buffer: [384]u8 = undefined;
         const headers: []const std.http.Header = if (!hasApiKey(self.api_key))
-            &.{.{ .name = "User-Agent", .value = self.userAgent() }}
+            &.{.{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) }}
         else
             &.{
-                .{ .name = "User-Agent", .value = self.userAgent() },
+                .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) },
                 .{ .name = "X-API-KEY", .value = self.api_key },
             };
         var req = try self.http_client.request(.GET, uri, .{ .extra_headers = headers });
@@ -698,8 +730,22 @@ test "user agent includes sdk metadata" {
     });
     defer client.deinit();
 
-    const ua = client.userAgent();
+    var user_agent_buffer: [384]u8 = undefined;
+    const ua = client.userAgent(&user_agent_buffer);
     try std.testing.expect(std.mem.indexOf(u8, ua, "typecast-zig/") != null);
     try std.testing.expect(std.mem.indexOf(u8, ua, "sdk_env=zig") != null);
     try std.testing.expect(std.mem.indexOf(u8, ua, "platform=server") != null);
+
+    var attributed = Client.init(std.testing.allocator, .{
+        .api_key = "test-key",
+        .source = "skill",
+        .generated_by = "codex",
+    });
+    defer attributed.deinit();
+    const attributed_ua = attributed.userAgent(&user_agent_buffer);
+    try std.testing.expect(std.mem.endsWith(
+        u8,
+        attributed_ua,
+        " typecast-integration/1 (source=skill; generated_by=codex)",
+    ));
 }

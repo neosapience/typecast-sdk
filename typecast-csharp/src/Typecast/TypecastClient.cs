@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -86,7 +87,19 @@ public class TypecastClient : IDisposable
             ? "default"
             : "custom";
         var timeout = config.TimeoutSeconds == 30 ? "default" : $"{config.TimeoutSeconds}s";
-        return $"typecast-csharp/{version} dotnet/{Environment.Version.Major}.{Environment.Version.Minor} HttpClient (tfm={TargetFramework}; base={baseKind}; timeout={timeout}; os={OSName}; arch={ArchitectureName}; sdk_env=dotnet; platform=server)";
+        return $"typecast-csharp/{version} dotnet/{Environment.Version.Major}.{Environment.Version.Minor} HttpClient (tfm={TargetFramework}; base={baseKind}; timeout={timeout}; os={OSName}; arch={ArchitectureName}; sdk_env=dotnet; platform=server){AttributionSuffix(config.Source, config.GeneratedBy)}";
+    }
+
+    private static string AttributionSuffix(string? source, string? generatedBy)
+    {
+        if (source is null && generatedBy is null) return string.Empty;
+        if (source is not ("llms" or "skill") || generatedBy is null ||
+            !Regex.IsMatch(generatedBy, "\\A[a-z0-9][a-z0-9._-]{0,31}\\z"))
+        {
+            throw new ArgumentException(
+                "Source (llms or skill) and GeneratedBy must be valid and provided together.");
+        }
+        return $" typecast-integration/1 (source={source}; generated_by={generatedBy})";
     }
 
     [ExcludeFromCodeCoverage]

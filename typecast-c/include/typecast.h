@@ -74,8 +74,8 @@ extern "C" {
 /* Library version */
 #define TYPECAST_VERSION_MAJOR 1
 #define TYPECAST_VERSION_MINOR 2
-#define TYPECAST_VERSION_PATCH 9
-#define TYPECAST_VERSION "1.2.9"
+#define TYPECAST_VERSION_PATCH 10
+#define TYPECAST_VERSION "1.2.10"
 
 /*
  * DLL Export/Import macros for Windows
@@ -487,6 +487,16 @@ TYPECAST_API TypecastClient* typecast_client_create(const char* api_key);
 TYPECAST_API TypecastClient* typecast_client_create_with_host(
     const char* api_key,
     const char* host
+);
+
+/**
+ * Append coding-agent attribution to this client's User-Agent.
+ * Pass NULL for both values to clear attribution.
+ */
+TYPECAST_API TypecastErrorCode typecast_client_set_attribution(
+    TypecastClient* client,
+    const char* source,
+    const char* generated_by
 );
 
 /**
@@ -1117,6 +1127,15 @@ public:
             other.client_ = nullptr;
         }
         return *this;
+    }
+
+    void setAttribution(const std::string& source, const std::string& generatedBy) {
+        TypecastErrorCode code = typecast_client_set_attribution(
+            client_, source.c_str(), generatedBy.c_str());
+        if (code != TYPECAST_OK) {
+            const TypecastError* error = typecast_client_get_error(client_);
+            throw TypecastException(code, error && error->message ? error->message : "Invalid attribution");
+        }
     }
 
     TTSResponse textToSpeech(const TTSRequest& request) {

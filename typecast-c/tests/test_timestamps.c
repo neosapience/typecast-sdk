@@ -998,6 +998,7 @@ static char* build_word_only_response_json(void) {
 static void test_http_with_timestamps_happy(void) {
     TypecastClient* client = mini_new_client();
     ASSERT_NOT_NULL(client);
+    ASSERT(typecast_client_set_attribution(client, "skill", "codex") == TYPECAST_OK);
 
     mini_mock_enqueue_json(200, build_word_only_response_json());
 
@@ -1015,6 +1016,8 @@ static void test_http_with_timestamps_happy(void) {
     ASSERT(resp->audio_duration > 0.0f);
     ASSERT(strstr(g_mock.last_headers, "User-Agent: typecast-c/") != NULL);
     ASSERT(strstr(g_mock.last_headers, "sdk_env=c") != NULL);
+    ASSERT(strstr(g_mock.last_headers,
+        " typecast-integration/1 (source=skill; generated_by=codex)") != NULL);
     ASSERT(strstr(g_mock.last_headers, "X-API-KEY: test_api_key") != NULL);
 
     /* Verify SRT output */

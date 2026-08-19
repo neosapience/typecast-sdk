@@ -36,7 +36,7 @@ use Neosapience\Typecast\Models\VoicesV2Filter;
 class TypecastClient
 {
     private const DEFAULT_BASE_URL = 'https://api.typecast.ai';
-    private const SDK_VERSION = '0.1.10';
+    private const SDK_VERSION = '0.1.11';
 
     private ClientInterface $httpClient;
 
@@ -44,6 +44,8 @@ class TypecastClient
         private readonly ?string $apiKey = null,
         private readonly string $baseUrl = self::DEFAULT_BASE_URL,
         ?ClientInterface $httpClient = null,
+        private readonly ?string $source = null,
+        private readonly ?string $generatedBy = null,
     ) {
         $normalizedBaseUrl = rtrim(trim($this->baseUrl), '/');
         if (trim((string) $this->apiKey) === '' && strcasecmp($normalizedBaseUrl, self::DEFAULT_BASE_URL) === 0) {
@@ -52,6 +54,7 @@ class TypecastClient
         if (!str_starts_with($normalizedBaseUrl, 'https://') && !str_starts_with($normalizedBaseUrl, 'http://localhost')) {
             throw new \InvalidArgumentException('Base URL must use HTTPS');
         }
+        $this->attributionSuffix();
         $this->httpClient = $httpClient ?? new Client([
             'base_uri' => $normalizedBaseUrl,
             'http_errors' => false,
@@ -520,6 +523,25 @@ class TypecastClient
             $base,
             $this->osName(),
             $this->archName(),
+        ) . $this->attributionSuffix();
+    }
+
+    private function attributionSuffix(): string
+    {
+        if ($this->source === null && $this->generatedBy === null) {
+            return '';
+        }
+        if (!in_array($this->source, ['llms', 'skill'], true)
+            || $this->generatedBy === null
+            || preg_match('/^[a-z0-9][a-z0-9._-]{0,31}$/D', $this->generatedBy) !== 1) {
+            throw new \InvalidArgumentException(
+                'source (llms or skill) and generatedBy must be valid and provided together'
+            );
+        }
+        return sprintf(
+            ' typecast-integration/1 (source=%s; generated_by=%s)',
+            $this->source,
+            $this->generatedBy,
         );
     }
 

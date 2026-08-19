@@ -42,3 +42,20 @@ def test_user_agent_normalizes_unknown_platform_context(monkeypatch):
 
     assert "os=unknown" in user_agent
     assert "arch=unknown" in user_agent
+
+
+def test_user_agent_appends_valid_attribution():
+    user_agent = _user_agent.requests_user_agent(
+        "https://proxy.example", source="skill", generated_by="codex"
+    )
+
+    assert user_agent.endswith(
+        " typecast-integration/1 (source=skill; generated_by=codex)"
+    )
+
+
+def test_user_agent_rejects_partial_attribution():
+    import pytest
+
+    with pytest.raises(ValueError):
+        _user_agent.requests_user_agent("https://proxy.example", source="skill")

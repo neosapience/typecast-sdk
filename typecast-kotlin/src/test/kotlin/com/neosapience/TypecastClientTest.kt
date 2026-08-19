@@ -909,4 +909,16 @@ class TypecastClientTest {
         assertNull(output.volume)
         assertEquals(-14.0, output.targetLufs)
     }
+
+    @Test
+    fun userAgent_attribution() {
+        TypecastClient.builder().apiKey("key").attribution("skill", "codex").build().use {
+            assertTrue(it.buildUserAgent().endsWith(
+                " typecast-integration/1 (source=skill; generated_by=codex)"
+            ))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            TypecastClient.builder().apiKey("key").attribution("other", "codex").build()
+        }
+    }
 }

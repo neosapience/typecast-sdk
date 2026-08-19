@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.10
+
+- Added optional `source` and `generatedBy` attribution to the SDK User-Agent.
+
 ## 0.1.9
 
 - Preserve structured 422 API error messages such as `TEXT_NOT_SYNTHESIZABLE`.

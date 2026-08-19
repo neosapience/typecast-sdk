@@ -98,6 +98,28 @@ public class TypecastClientTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_WithAttribution_ShouldAppendAndValidateUserAgent()
+    {
+        using var httpClient = new HttpClient(new Mock<HttpMessageHandler>().Object);
+        using var client = new TypecastClient(new TypecastClientConfig
+        {
+            ApiKey = "test-api-key",
+            HttpClient = httpClient,
+            Source = "skill",
+            GeneratedBy = "codex"
+        });
+
+        httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().EndWith(
+            " typecast-integration/1 (source=skill; generated_by=codex)");
+        Action invalid = () => new TypecastClient(new TypecastClientConfig
+        {
+            ApiKey = "test-api-key",
+            Source = "skill"
+        });
+        invalid.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
     public async Task TextToSpeechAsync_WithNullRequest_ShouldThrow()
     {
         // Act & Assert

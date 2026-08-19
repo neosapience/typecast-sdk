@@ -2,7 +2,7 @@ import XCTest
 @testable import Typecast
 
 final class TypecastClientTests: XCTestCase {
-    
+
     // MARK: - Model Tests
     
     func testTTSModelRawValues() {
@@ -143,6 +143,18 @@ final class TypecastClientTests: XCTestCase {
         let client = TypecastClient(configuration: config)
         
         XCTAssertNotNil(client)
+    }
+
+    func testUserAgentAttribution() {
+        let config = TypecastConfiguration(
+            apiKey: "test-key", source: "skill", generatedBy: "codex")
+        let client = TypecastClient(configuration: config)
+
+        XCTAssertTrue(client.buildUserAgent().hasSuffix(
+            " typecast-integration/1 (source=skill; generated_by=codex)"))
+        let invalid = TypecastClient(configuration: TypecastConfiguration(
+            apiKey: "test-key", source: "skill"))
+        XCTAssertFalse(invalid.buildUserAgent().contains("typecast-integration/"))
     }
 
     func testConfigurationTrimsBlankKeyAndTrailingSlash() {
