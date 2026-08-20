@@ -63,7 +63,7 @@ describe('TypecastClient', () => {
             'X-API-KEY': 'test-api-key',
             'Content-Type': 'application/json',
             'User-Agent': expect.stringMatching(
-              /^typecast-js\/0\.4\.10 Node\/\d+\.\d+ fetch \(runtime=node; base=custom; os=[a-z0-9_-]+; arch=[a-z0-9_-]+; sdk_env=node; platform=server\)$/,
+              /^typecast-js\/0\.4\.11 Node\/\d+\.\d+ fetch \(runtime=node; base=custom; os=[a-z0-9_-]+; arch=[a-z0-9_-]+; sdk_env=node; platform=server\)$/,
             ),
           },
           body: JSON.stringify(baseRequest),
@@ -741,6 +741,14 @@ describe('User-Agent attribution', () => {
     expect(attributed.headers['User-Agent']).toMatch(
       / typecast-integration\/1 \(source=skill; generated_by=codex\)$/,
     );
+    for (const source of ['api-page', 'api-docs'] as const) {
+      const onboardingClient = new TypecastClient({
+        baseHost: 'https://dummy-api.ai',
+        source,
+        generatedBy: 'codex',
+      }) as unknown as { headers: Record<string, string> };
+      expect(onboardingClient.headers['User-Agent']).toContain(`source=${source}`);
+    }
     expect(() => new TypecastClient({ baseHost: 'https://dummy-api.ai', source: 'skill' })).toThrow(
       /provided together/,
     );

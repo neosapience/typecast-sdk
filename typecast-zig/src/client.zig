@@ -5,13 +5,14 @@ const json_helpers = @import("json.zig");
 const timestamps = @import("timestamps.zig");
 const composer = @import("composer.zig");
 
-const SDK_VERSION = "0.2.9";
+const SDK_VERSION = "0.2.10";
 const USER_AGENT_DEFAULT = "typecast-zig/" ++ SDK_VERSION ++ " Zig/unknown std-http (base=default; os=" ++ osName() ++ "; arch=" ++ archName() ++ "; sdk_env=zig; platform=server)";
 const USER_AGENT_CUSTOM = "typecast-zig/" ++ SDK_VERSION ++ " Zig/unknown std-http (base=custom; os=" ++ osName() ++ "; arch=" ++ archName() ++ "; sdk_env=zig; platform=server)";
 
 fn validAttribution(source: []const u8, generated_by: []const u8) bool {
     if (source.len == 0 and generated_by.len == 0) return true;
-    if (!(std.mem.eql(u8, source, "llms") or std.mem.eql(u8, source, "skill"))) return false;
+    if (!(std.mem.eql(u8, source, "llms") or std.mem.eql(u8, source, "skill") or
+        std.mem.eql(u8, source, "api-page") or std.mem.eql(u8, source, "api-docs"))) return false;
     if (generated_by.len == 0 or generated_by.len > 32) return false;
     for (generated_by, 0..) |char, index| {
         if (std.ascii.isLower(char) or std.ascii.isDigit(char) or
@@ -748,4 +749,7 @@ test "user agent includes sdk metadata" {
         attributed_ua,
         " typecast-integration/1 (source=skill; generated_by=codex)",
     ));
+    for ([_][]const u8{ "api-page", "api-docs" }) |source| {
+        try std.testing.expect(validAttribution(source, "codex"));
+    }
 }

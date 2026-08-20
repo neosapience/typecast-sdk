@@ -122,7 +122,7 @@ func TestSetUserAgent_DefaultBaseAndCustomTimeout(t *testing.T) {
 	c.setUserAgent(headers)
 
 	got := headers.Get("User-Agent")
-	if !strings.HasPrefix(got, "typecast-go/0.3.11 Go/") {
+	if !strings.HasPrefix(got, "typecast-go/0.3.12 Go/") {
 		t.Fatalf("unexpected user agent prefix: %q", got)
 	}
 	if !strings.Contains(got, " net-http (base=default; timeout=7s; os=") ||
@@ -138,6 +138,11 @@ func TestSetUserAgent_Attribution(t *testing.T) {
 	c.setUserAgent(headers)
 	if !strings.HasSuffix(headers.Get("User-Agent"), " typecast-integration/1 (source=skill; generated_by=codex)") {
 		t.Fatalf("unexpected attribution: %q", headers.Get("User-Agent"))
+	}
+	for _, source := range []string{"api-page", "api-docs"} {
+		if got := NewClientWithAttribution(&ClientConfig{APIKey: "k"}, source, "codex").attribution; got == "" {
+			t.Fatalf("expected %s attribution", source)
+		}
 	}
 }
 
@@ -247,7 +252,7 @@ func TestTextToSpeech_HappyPathWAV(t *testing.T) {
 		if r.Header.Get("Content-Type") != "application/json" {
 			t.Errorf("missing content type")
 		}
-		if got := r.Header.Get("User-Agent"); !strings.HasPrefix(got, "typecast-go/0.3.11 Go/") || !strings.Contains(got, " net-http (base=custom; timeout=default; os=") || !strings.Contains(got, "; sdk_env=go; platform=server)") {
+		if got := r.Header.Get("User-Agent"); !strings.HasPrefix(got, "typecast-go/0.3.12 Go/") || !strings.Contains(got, " net-http (base=custom; timeout=default; os=") || !strings.Contains(got, "; sdk_env=go; platform=server)") {
 			t.Errorf("unexpected user agent %q", got)
 		}
 		var body TTSRequest

@@ -1007,6 +1007,8 @@ static void test_http_with_timestamps_happy(void) {
     ASSERT(typecast_client_set_attribution(client, "skill", "abcdefghijklmnopqrstuvwxyz1234567") == TYPECAST_ERROR_INVALID_PARAM);
     ASSERT(typecast_client_set_attribution(client, "skill", ".codex") == TYPECAST_ERROR_INVALID_PARAM);
     ASSERT(typecast_client_set_attribution(client, "llms", "co.dex_1-a") == TYPECAST_OK);
+    ASSERT(typecast_client_set_attribution(client, "api-page", "codex") == TYPECAST_OK);
+    ASSERT(typecast_client_set_attribution(client, "api-docs", "codex") == TYPECAST_OK);
     ASSERT(typecast_client_set_attribution(client, "skill", "codex") == TYPECAST_OK);
 
     mini_mock_enqueue_json(200, build_word_only_response_json());

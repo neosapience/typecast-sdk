@@ -94,11 +94,11 @@ public class TypecastClient : IDisposable
     private static string AttributionSuffix(string? source, string? generatedBy)
     {
         if (source is null && generatedBy is null) return string.Empty;
-        if (source is not ("llms" or "skill") || generatedBy is null ||
+        if (source is not ("llms" or "skill" or "api-page" or "api-docs") || generatedBy is null ||
             !Regex.IsMatch(generatedBy, "\\A[a-z0-9][a-z0-9._-]{0,31}\\z"))
         {
             throw new ArgumentException(
-                "Source (llms or skill) and GeneratedBy must be valid and provided together.");
+                "Source (llms, skill, api-page, or api-docs) and GeneratedBy must be valid and provided together.");
         }
         return $" typecast-integration/1 (source={source}; generated_by={generatedBy})";
     }

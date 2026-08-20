@@ -714,10 +714,11 @@ TYPECAST_API TypecastErrorCode typecast_client_set_attribution(
         client->generated_by = NULL;
         return TYPECAST_OK;
     }
-    if ((!source || (strcmp(source, "llms") != 0 && strcmp(source, "skill") != 0))
+    if ((!source || (strcmp(source, "llms") != 0 && strcmp(source, "skill") != 0
+            && strcmp(source, "api-page") != 0 && strcmp(source, "api-docs") != 0))
         || !valid_generated_by_token(generated_by)) {
         set_error(client, TYPECAST_ERROR_INVALID_PARAM,
-            "source (llms or skill) and generated_by must be valid and provided together");
+            "source (llms, skill, api-page, or api-docs) and generated_by must be valid and provided together");
         return TYPECAST_ERROR_INVALID_PARAM;
     }
     source_copy = strdup_safe(source);

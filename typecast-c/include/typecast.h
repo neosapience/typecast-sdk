@@ -74,8 +74,8 @@ extern "C" {
 /* Library version */
 #define TYPECAST_VERSION_MAJOR 1
 #define TYPECAST_VERSION_MINOR 2
-#define TYPECAST_VERSION_PATCH 10
-#define TYPECAST_VERSION "1.2.10"
+#define TYPECAST_VERSION_PATCH 11
+#define TYPECAST_VERSION "1.2.11"
 
 /*
  * DLL Export/Import macros for Windows
@@ -491,6 +491,7 @@ TYPECAST_API TypecastClient* typecast_client_create_with_host(
 
 /**
  * Append coding-agent attribution to this client's User-Agent.
+ * Source must be "llms", "skill", "api-page", or "api-docs".
  * Pass NULL for both values to clear attribution.
  */
 TYPECAST_API TypecastErrorCode typecast_client_set_attribution(

@@ -924,6 +924,9 @@ class TypecastClientTest {
             TypecastClient.builder().apiKey("key").attribution("skill", "Codex").build()
         }
         TypecastClient.builder().apiKey("key").attribution("llms", "codex").build().close()
+        for (source in listOf("api-page", "api-docs")) {
+            TypecastClient.builder().apiKey("key").attribution(source, "codex").build().close()
+        }
 
         for ((fieldName, value) in listOf("source" to "skill", "generatedBy" to "codex")) {
             val builder = TypecastClient.builder().apiKey("key")
