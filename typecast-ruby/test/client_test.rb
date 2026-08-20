@@ -10,10 +10,13 @@ class ClientTest < Minitest::Test
     client = Typecast::Client.new(
       api_key: "key", source: "skill", generated_by: "codex"
     )
-    assert client.send(:user_agent).start_with?("typecast-ruby/0.1.8 ")
+    assert client.send(:user_agent).start_with?("typecast-ruby/0.1.9 ")
     assert client.send(:user_agent).end_with?(
       " typecast-integration/1 (source=skill; generated_by=codex)"
     )
+    %w[api-page api-docs].each do |source|
+      Typecast::Client.new(api_key: "key", source: source, generated_by: "codex")
+    end
     assert_raises(ArgumentError) do
       Typecast::Client.new(api_key: "key", source: "skill")
     end

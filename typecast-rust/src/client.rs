@@ -833,9 +833,9 @@ fn attribution_suffix(attribution: Option<(&str, &str)>) -> Result<String> {
                 || byte.is_ascii_digit()
                 || index > 0 && matches!(byte, b'.' | b'_' | b'-')
         });
-    if !matches!(source, "llms" | "skill") || !valid_token {
+    if !matches!(source, "llms" | "skill" | "api-page" | "api-docs") || !valid_token {
         return Err(TypecastError::BadRequest {
-            detail: "source (llms or skill) and generated_by must be valid and provided together"
+            detail: "source (llms, skill, api-page, or api-docs) and generated_by must be valid and provided together"
                 .to_string(),
         });
     }
@@ -901,6 +901,9 @@ mod tests {
             attribution_suffix(Some(("skill", "codex"))).unwrap(),
             " typecast-integration/1 (source=skill; generated_by=codex)"
         );
+        for source in ["api-page", "api-docs"] {
+            assert!(attribution_suffix(Some((source, "codex"))).is_ok());
+        }
         assert!(attribution_suffix(Some(("skill", "Codex"))).is_err());
     }
 

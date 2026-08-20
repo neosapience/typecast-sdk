@@ -196,8 +196,8 @@ module Typecast
 
     def attribution_suffix(source, generated_by)
       return "" if source.nil? && generated_by.nil?
-      unless %w[llms skill].include?(source) && generated_by&.match?(/\A[a-z0-9][a-z0-9._-]{0,31}\z/)
-        raise ArgumentError, "source (llms or skill) and generated_by must be valid and provided together"
+      unless %w[llms skill api-page api-docs].include?(source) && generated_by&.match?(/\A[a-z0-9][a-z0-9._-]{0,31}\z/)
+        raise ArgumentError, "source (llms, skill, api-page, or api-docs) and generated_by must be valid and provided together"
       end
 
       " typecast-integration/1 (source=#{source}; generated_by=#{generated_by})"

@@ -8,7 +8,7 @@ public struct TypecastConfiguration: Sendable {
   public let apiKey: String?
   /// Base URL for the API (default: https://api.typecast.ai)
   public let baseURL: String
-  /// Integration source, either "llms" or "skill".
+  /// Integration source: "llms", "skill", "api-page", or "api-docs".
   public let source: String?
   /// Lowercase token identifying the coding agent.
   public let generatedBy: String?
@@ -26,7 +26,7 @@ public struct TypecastConfiguration: Sendable {
       .trimmingCharacters(in: .whitespacesAndNewlines)
       .trimmingTrailingSlashes()
     let validAttribution =
-      (source == "llms" || source == "skill")
+      (source == "llms" || source == "skill" || source == "api-page" || source == "api-docs")
       && generatedBy?.range(
         of: "\\A[a-z0-9][a-z0-9._-]{0,31}\\z", options: .regularExpression) != nil
     self.source = validAttribution ? source : nil

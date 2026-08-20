@@ -19,10 +19,12 @@ def attribution_suffix(
     if (
         not isinstance(source, str)
         or not isinstance(generated_by, str)
-        or source not in {"llms", "skill"}
+        or source not in {"llms", "skill", "api-page", "api-docs"}
         or not generated_by
     ):
-        raise ValueError("source (llms or skill) and generated_by must be provided together")
+        raise ValueError(
+            "source (llms, skill, api-page, or api-docs) and generated_by must be provided together"
+        )
     if not _GENERATED_BY_PATTERN.fullmatch(generated_by):
         raise ValueError("generated_by must be a lowercase token of at most 32 characters")
     return f" typecast-integration/1 (source={source}; generated_by={generated_by})"

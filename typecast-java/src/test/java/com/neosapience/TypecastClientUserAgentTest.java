@@ -42,6 +42,11 @@ class TypecastClientUserAgentTest {
         TypecastClient llmsClient = new TypecastClient(
                 "key", null, new OkHttpClient(), "llms", "codex");
         llmsClient.close();
+        for (String source : new String[] {"api-page", "api-docs"}) {
+            TypecastClient onboardingClient = new TypecastClient(
+                    "key", null, new OkHttpClient(), source, "codex");
+            onboardingClient.close();
+        }
     }
 
     @Test

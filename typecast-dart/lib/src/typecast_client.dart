@@ -10,7 +10,7 @@ import 'timestamps.dart';
 
 class TypecastClient {
   static const defaultBaseUrl = 'https://api.typecast.ai';
-  static const _sdkVersion = '0.1.10';
+  static const _sdkVersion = '0.1.11';
 
   TypecastClient({
     String? apiKey,
@@ -252,11 +252,15 @@ class TypecastClient {
 
   String _attributionSuffix() {
     if (source == null && generatedBy == null) return '';
-    if ((source != 'llms' && source != 'skill') ||
+    if ((source != 'llms' &&
+            source != 'skill' &&
+            source != 'api-page' &&
+            source != 'api-docs') ||
         generatedBy == null ||
         !RegExp(r'^[a-z0-9][a-z0-9._-]{0,31}$').hasMatch(generatedBy!)) {
       throw ArgumentError(
-          'source (llms or skill) and generatedBy must be valid and provided together');
+        'source (llms, skill, api-page, or api-docs) and generatedBy must be valid and provided together',
+      );
     }
     return ' typecast-integration/1 (source=$source; generated_by=$generatedBy)';
   }

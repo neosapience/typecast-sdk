@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.11
+
+- Added `api-page` and `api-docs` as supported User-Agent attribution sources.
+
 ## 0.1.10
 
 - Added optional `source` and `generatedBy` attribution to the SDK User-Agent.

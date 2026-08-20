@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.13] - 2026-08-20
+
+### Added
+
+- `api-page` and `api-docs` as supported User-Agent attribution sources.
+
 ## [0.3.12] - 2026-08-19
 
 ### Added

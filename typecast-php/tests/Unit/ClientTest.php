@@ -41,6 +41,9 @@ class ClientTest extends TestCase
             ' typecast-integration/1 (source=skill; generated_by=codex)',
             $method->invoke($client),
         );
+        foreach (['api-page', 'api-docs'] as $source) {
+            new TypecastClient(apiKey: 'test-api-key', source: $source, generatedBy: 'codex');
+        }
         $this->expectException(\InvalidArgumentException::class);
         new TypecastClient(apiKey: 'test-api-key', source: 'skill');
     }

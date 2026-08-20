@@ -63,6 +63,13 @@ void main() {
       );
     });
 
+    test('accepts onboarding attribution sources', () {
+      for (final source in ['api-page', 'api-docs']) {
+        TypecastClient(apiKey: 'key', source: source, generatedBy: 'codex')
+            .close();
+      }
+    });
+
     test('throws typed API errors', () async {
       final client = TypecastClient(
         apiKey: 'key',

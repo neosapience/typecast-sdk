@@ -22,7 +22,7 @@ import {
 } from './types/QuickCloning';
 import { SpeechComposer, type ComposeSegment } from './composer';
 
-const SDK_VERSION = '0.4.10';
+const SDK_VERSION = '0.4.11';
 const DEFAULT_BASE_HOST = 'https://api.typecast.ai';
 type QueryParam = string | number | boolean | null | undefined;
 
@@ -61,7 +61,7 @@ export class TypecastClient {
 
   private static buildUserAgent(
     baseHost: string,
-    source?: 'llms' | 'skill',
+    source?: 'llms' | 'skill' | 'api-page' | 'api-docs',
     generatedBy?: string,
   ): string {
     const nodeVersion = process.versions.node.split('.').slice(0, 2).join('.');
@@ -74,11 +74,13 @@ export class TypecastClient {
   private static attributionSuffix(source?: string, generatedBy?: string): string {
     if (source === undefined && generatedBy === undefined) return '';
     if (
-      !['llms', 'skill'].includes(source || '') ||
+      !['llms', 'skill', 'api-page', 'api-docs'].includes(source || '') ||
       typeof generatedBy !== 'string' ||
       !generatedBy
     ) {
-      throw new Error('source (llms or skill) and generatedBy must be provided together');
+      throw new Error(
+        'source (llms, skill, api-page, or api-docs) and generatedBy must be provided together',
+      );
     }
     if (!/^[a-z0-9][a-z0-9._-]{0,31}$/.test(generatedBy)) {
       throw new Error('generatedBy must be a lowercase token of at most 32 characters');

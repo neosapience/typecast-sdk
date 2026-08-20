@@ -111,6 +111,15 @@ public class TypecastClientTests : IDisposable
 
         httpClient.DefaultRequestHeaders.UserAgent.ToString().Should().EndWith(
             " typecast-integration/1 (source=skill; generated_by=codex)");
+        foreach (var source in new[] { "api-page", "api-docs" })
+        {
+            using var onboardingClient = new TypecastClient(new TypecastClientConfig
+            {
+                ApiKey = "test-api-key",
+                Source = source,
+                GeneratedBy = "codex"
+            });
+        }
         Action invalid = () => new TypecastClient(new TypecastClientConfig
         {
             ApiKey = "test-api-key",

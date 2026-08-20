@@ -27,7 +27,7 @@ const (
 
 // SDKVersion is the Typecast Go SDK version reported in User-Agent.
 // Release builds may override it with -ldflags "-X github.com/neosapience/typecast-sdk/typecast-go.SDKVersion=<version>".
-var SDKVersion = "0.3.11"
+var SDKVersion = "0.3.12"
 
 // ClientConfig holds configuration options for the TypecastClient
 type ClientConfig struct {
@@ -134,7 +134,7 @@ func attributionSuffix(source, generatedBy string) string {
 	if source == "" && generatedBy == "" {
 		return ""
 	}
-	if source != "llms" && source != "skill" || !validGeneratedBy(generatedBy) {
+	if source != "llms" && source != "skill" && source != "api-page" && source != "api-docs" || !validGeneratedBy(generatedBy) {
 		return ""
 	}
 	return fmt.Sprintf(" typecast-integration/1 (source=%s; generated_by=%s)", source, generatedBy)

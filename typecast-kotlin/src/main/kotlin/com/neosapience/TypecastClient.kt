@@ -73,7 +73,7 @@ class TypecastClient private constructor(
 
     companion object {
         private const val DEFAULT_BASE_URL = "https://api.typecast.ai"
-        private const val SDK_VERSION = "1.2.10"
+        private const val SDK_VERSION = "1.2.11"
         private const val API_KEY_HEADER = "X-API-KEY"
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 
@@ -697,10 +697,11 @@ class TypecastClient private constructor(
 
         private fun attributionSuffix(source: String?, generatedBy: String?): String {
             if (source == null && generatedBy == null) return ""
-            require((source == "llms" || source == "skill") && generatedBy?.matches(
+            require((source == "llms" || source == "skill" ||
+                source == "api-page" || source == "api-docs") && generatedBy?.matches(
                 Regex("[a-z0-9][a-z0-9._-]{0,31}")
             ) == true) {
-                "source (llms or skill) and generatedBy must be valid and provided together"
+                "source (llms, skill, api-page, or api-docs) and generatedBy must be valid and provided together"
             }
             return " typecast-integration/1 (source=$source; generated_by=$generatedBy)"
         }

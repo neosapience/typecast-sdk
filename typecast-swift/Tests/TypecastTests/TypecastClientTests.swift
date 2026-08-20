@@ -152,6 +152,11 @@ final class TypecastClientTests: XCTestCase {
 
         XCTAssertTrue(client.buildUserAgent().hasSuffix(
             " typecast-integration/1 (source=skill; generated_by=codex)"))
+        for source in ["api-page", "api-docs"] {
+            let onboardingClient = TypecastClient(configuration: TypecastConfiguration(
+                apiKey: "test-key", source: source, generatedBy: "codex"))
+            XCTAssertTrue(onboardingClient.buildUserAgent().contains("source=\(source)"))
+        }
         let invalid = TypecastClient(configuration: TypecastConfiguration(
             apiKey: "test-key", source: "skill"))
         XCTAssertFalse(invalid.buildUserAgent().contains("typecast-integration/"))
