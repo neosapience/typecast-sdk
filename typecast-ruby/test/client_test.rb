@@ -129,6 +129,20 @@ class ClientTest < Minitest::Test
     end
   end
 
+  def test_v3_voice_endpoints
+    body = JSON.generate(["voice_id" => "tc_v3", "voice_name" => { "eng" => "Voice", "kor" => "보이스" }, "models" => [], "voice_type" => "original"])
+    with_server(response_body: body) do |url, captured|
+      voices = Typecast::Client.new(api_key: "key", base_url: url).get_voices_v3(Typecast::Models::VoicesV2Filter.new(model: "ssfm-v30"))
+      assert_equal "보이스", voices.first.voice_name["kor"]
+      assert_includes captured.pop, "GET /v3/voices?model=ssfm-v30"
+    end
+    with_server(response_body: body.delete_prefix("[").delete_suffix("]")) do |url, captured|
+      voice = Typecast::Client.new(api_key: "key", base_url: url).get_voice_v3("tc/v3")
+      assert_equal "Voice", voice.voice_name["eng"]
+      assert_includes captured.pop, "GET /v3/voices/tc%2Fv3"
+    end
+  end
+
   def test_get_voice_v2_not_found
     with_server(response_body: "[]") do |url, captured|
       client = Typecast::Client.new(api_key: "key", base_url: url)
@@ -166,7 +180,29 @@ class ClientTest < Minitest::Test
     with_server(response_status: 204) do |url, captured|
       client = Typecast::Client.new(api_key: "key", base_url: url)
       client.delete_voice("uc/123")
-      assert_includes captured.pop, "DELETE /v1/voices/uc%2F123"
+      assert_includes captured.pop, "DELETE /v1/custom-voices/uc%2F123"
+    end
+  end
+
+  def test_professional_custom_voice_workflow
+    body = JSON.generate("voice_id" => "uc_professional", "name" => "Narrator", "model" => "ssfm-v30", "source" => "professional", "status" => "processing")
+    with_server(response_status: 202, response_body: body) do |url, captured|
+      voice = Typecast::Client.new(api_key: "key", base_url: url).create_professional_voice(audio: "abc", filename: "sample.wav", name: "Narrator", language: "en", model: "ssfm-v30")
+      assert_equal "processing", voice.status
+      request = captured.pop
+      assert_includes request, "POST /v1/custom-voices/professional-clone"
+      assert_includes request, "name=\"files\""
+      assert_includes request, "name=\"language\""
+    end
+    with_server(response_body: JSON.generate([JSON.parse(body)])) do |url, captured|
+      voices = Typecast::Client.new(api_key: "key", base_url: url).get_custom_voices
+      assert_equal "professional", voices.first.source
+      assert_includes captured.pop, "GET /v1/custom-voices"
+    end
+    with_server(response_body: body) do |url, captured|
+      voice = Typecast::Client.new(api_key: "key", base_url: url).get_custom_voice("uc/professional")
+      assert_equal "uc_professional", voice.voice_id
+      assert_includes captured.pop, "GET /v1/custom-voices/uc%2Fprofessional"
     end
   end
 end

@@ -227,16 +227,20 @@ module Typecast
     end
 
     class CustomVoice
-      attr_reader :voice_id, :name, :model
+      attr_reader :voice_id, :name, :model, :source, :status, :error, :created_at
 
       def self.from_h(hash)
-        new(voice_id: hash.fetch("voice_id", ""), name: hash.fetch("name", ""), model: hash["model"])
+        new(voice_id: hash.fetch("voice_id", ""), name: hash.fetch("name", ""), model: hash["model"], source: hash["source"], status: hash["status"], error: hash["error"], created_at: hash["created_at"])
       end
 
-      def initialize(voice_id:, name:, model: nil)
+      def initialize(voice_id:, name:, model: nil, source: nil, status: nil, error: nil, created_at: nil)
         @voice_id = voice_id
         @name = name
         @model = model
+        @source = source
+        @status = status
+        @error = error
+        @created_at = created_at
       end
     end
 
