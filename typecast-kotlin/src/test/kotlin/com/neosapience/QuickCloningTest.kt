@@ -53,13 +53,13 @@ class QuickCloningTest {
 
     @Test
     fun professionalCloneValidatesSamplesAndNameBeforeRequest() {
-        assertFailsWith<IllegalArgumentException> {
+        assertThrows(IllegalArgumentException::class.java) {
             client.createProfessionalVoice(emptyList(), "Pro", "ssfm-v30", "en")
         }
-        assertFailsWith<IllegalArgumentException> {
+        assertThrows(IllegalArgumentException::class.java) {
             client.createProfessionalVoice(listOf(CustomVoiceFile("a.wav", byteArrayOf(1))), "", "ssfm-v30", "en")
         }
-        assertFailsWith<IllegalArgumentException> {
+        assertThrows(IllegalArgumentException::class.java) {
             client.createProfessionalVoice(listOf(CustomVoiceFile("a.wav", ByteArray((CustomVoice.CLONING_MAX_FILE_SIZE + 1).toInt()))), "Pro", "ssfm-v30", "en")
         }
     }
