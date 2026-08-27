@@ -210,4 +210,17 @@ class QuickCloningTest extends TestCase
         $this->assertStringEndsWith('/v1/custom-voices', (string) $history[1]['request']->getUri());
         $this->assertStringEndsWith('/v1/custom-voices/uc_prof', (string) $history[2]['request']->getUri());
     }
+
+    public function testProfessionalCloneRejectsInvalidFiles(): void
+    {
+        $client = $this->createClient(new MockHandler([]));
+        foreach ([[], [['audio' => '', 'filename' => 'a.wav']], [['audio' => 'audio', 'filename' => '']]] as $files) {
+            try {
+                $client->createProfessionalVoice($files, 'Pro', 'ssfm-v30', 'eng');
+                $this->fail('expected invalid file exception');
+            } catch (\InvalidArgumentException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
 }
