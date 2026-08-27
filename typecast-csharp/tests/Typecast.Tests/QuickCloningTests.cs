@@ -284,4 +284,10 @@ public class QuickCloningTests : IDisposable
 
         await Assert.ThrowsAsync<NotFoundException>(() => _client.DeleteVoiceAsync("uc_nonexistent"));
     }
+
+    [Fact]
+    public async Task DeleteVoiceAsync_Rejects_Blank_Id()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _client.DeleteVoiceAsync(" "));
+    }
 }

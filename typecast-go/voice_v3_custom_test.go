@@ -127,6 +127,9 @@ func TestProfessionalCloneValidationAndTransportErrors(t *testing.T) {
 	if _, err := c.CreateProfessionalVoice(ctx, []byte("a"), "a.wav", "", "en", "ssfm-v30"); err == nil {
 		t.Fatal("expected name validation error")
 	}
+	if _, err := c.CreateProfessionalVoice(ctx, make([]byte, CloningMaxFileSize+1), "a.wav", "name", "en", "ssfm-v30"); err == nil {
+		t.Fatal("expected size validation error")
+	}
 	if _, err := c.CreateProfessionalVoice(ctx, []byte("a"), "a.wav", "name", "en", "ssfm-v30"); err == nil {
 		t.Fatal("expected transport error")
 	}

@@ -635,13 +635,15 @@ public class TypecastClient : IDisposable
     }
 
     /// <summary>
-    /// Deletes a custom voice via DELETE /v1/voices/{voiceId}.
+    /// Deletes a custom voice via DELETE /v1/custom-voices/{voiceId}.
     /// </summary>
     /// <param name="voiceId">The custom voice ID to delete (e.g., "uc_abc123").</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <exception cref="TypecastException">Thrown when the API returns an error.</exception>
     public async Task DeleteVoiceAsync(string voiceId, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(voiceId))
+            throw new ArgumentException("voiceId must not be empty.", nameof(voiceId));
         var url = $"{_apiHost}/v1/custom-voices/{Uri.EscapeDataString(voiceId)}";
         using var response = await _httpClient.DeleteAsync(url, cancellationToken).ConfigureAwait(false);
 

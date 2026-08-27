@@ -663,6 +663,9 @@ func (c *Client) CreateProfessionalVoice(ctx context.Context, audio []byte, file
 	if len(name) < NameMinLength || len(name) > NameMaxLength {
 		return nil, fmt.Errorf("name must be %d-%d characters; got %d", NameMinLength, NameMaxLength, len(name))
 	}
+	if int64(len(audio)) > CloningMaxFileSize {
+		return nil, fmt.Errorf("audio file exceeds 25MB limit; got %d bytes", len(audio))
+	}
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	_ = writer.WriteField("name", name)
