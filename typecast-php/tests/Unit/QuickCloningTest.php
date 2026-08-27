@@ -194,4 +194,20 @@ class QuickCloningTest extends TestCase
         $this->expectException(NotFoundException::class);
         $client->deleteVoice('uc_nonexistent');
     }
+
+    public function testProfessionalCloneAndCustomVoiceQueries(): void
+    {
+        $voice = json_encode(['voice_id' => 'uc_prof', 'name' => 'Pro', 'model' => 'ssfm-v30', 'status' => 'processing']);
+        $history = [];
+        $client = $this->createClient(new MockHandler([
+            new Response(202, [], $voice), new Response(200, [], '[' . $voice . ']'), new Response(200, [], $voice),
+        ]), $history);
+        $this->assertSame('processing', $client->createProfessionalVoice([['audio' => 'audio', 'filename' => 'sample.wav']], 'Pro', 'ssfm-v30', 'en')->status);
+        $this->assertSame('uc_prof', $client->getCustomVoices()[0]->voiceId);
+        $this->assertSame('uc_prof', $client->getCustomVoice('uc_prof')->voiceId);
+        $this->assertStringEndsWith('/v1/custom-voices/professional-clone', (string) $history[0]['request']->getUri());
+        $this->assertStringContainsString('name="files"', (string) $history[0]['request']->getBody());
+        $this->assertStringEndsWith('/v1/custom-voices', (string) $history[1]['request']->getUri());
+        $this->assertStringEndsWith('/v1/custom-voices/uc_prof', (string) $history[2]['request']->getUri());
+    }
 }

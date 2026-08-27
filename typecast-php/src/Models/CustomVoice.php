@@ -25,6 +25,10 @@ final class CustomVoice
         public readonly string $voiceId,
         public readonly string $name,
         public readonly string $model,
+        public readonly ?string $source = null,
+        public readonly ?string $status = null,
+        public readonly ?string $error = null,
+        public readonly ?string $createdAt = null,
     ) {}
 
     /**
@@ -38,6 +42,10 @@ final class CustomVoice
             voiceId: (string) ($data['voice_id'] ?? ''),
             name:    (string) ($data['name']     ?? ''),
             model:   (string) ($data['model']    ?? ''),
+            source:  isset($data['source']) ? (string) $data['source'] : null,
+            status:  isset($data['status']) ? (string) $data['status'] : null,
+            error:   isset($data['error']) ? (string) $data['error'] : null,
+            createdAt: isset($data['created_at']) ? (string) $data['created_at'] : null,
         );
     }
 }

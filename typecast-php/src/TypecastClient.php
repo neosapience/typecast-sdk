@@ -494,6 +494,65 @@ class TypecastClient
     }
 
     /**
+     * Start professional voice cloning. Each item must contain `audio` and `filename`.
+     *
+     * @param array<int, array{audio: string|resource, filename: string}> $files
+     */
+    public function createProfessionalVoice(array $files, string $name, string $model, string $language): CustomVoice
+    {
+        if ($files === []) {
+            throw new \InvalidArgumentException('at least one audio file is required');
+        }
+        if (strlen($name) < CustomVoice::NAME_MIN_LENGTH || strlen($name) > CustomVoice::NAME_MAX_LENGTH) {
+            throw new \InvalidArgumentException('name must be 1-30 characters');
+        }
+        $multipart = [
+            ['name' => 'name', 'contents' => $name],
+            ['name' => 'model', 'contents' => $model],
+            ['name' => 'language', 'contents' => $language],
+        ];
+        foreach ($files as $file) {
+            $bytes = is_resource($file['audio']) ? stream_get_contents($file['audio']) : $file['audio'];
+            if (strlen($bytes) > CustomVoice::CLONING_MAX_FILE_SIZE) {
+                throw new \InvalidArgumentException('audio file exceeds 25MB limit');
+            }
+            $multipart[] = ['name' => 'files', 'contents' => $bytes, 'filename' => $file['filename'], 'headers' => ['Content-Type' => self::guessAudioMime($file['filename'])]];
+        }
+        try {
+            $response = $this->httpClient->request('POST', '/v1/custom-voices/professional-clone', $this->requestOptions(['multipart' => $multipart]));
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
+        if ($response->getStatusCode() !== 202) {
+            $this->handleError($response->getStatusCode(), (string) $response->getBody());
+        }
+        return CustomVoice::fromArray($this->decodeJson((string) $response->getBody()));
+    }
+
+    /** @return list<CustomVoice> */
+    public function getCustomVoices(): array
+    {
+        try {
+            $response = $this->httpClient->request('GET', '/v1/custom-voices', $this->requestOptions());
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
+        if ($response->getStatusCode() !== 200) $this->handleError($response->getStatusCode(), (string) $response->getBody());
+        return array_map(static fn(array $voice): CustomVoice => CustomVoice::fromArray($voice), $this->decodeJson((string) $response->getBody()));
+    }
+
+    public function getCustomVoice(string $voiceId): CustomVoice
+    {
+        try {
+            $response = $this->httpClient->request('GET', '/v1/custom-voices/' . rawurlencode($voiceId), $this->requestOptions());
+        } catch (\GuzzleHttp\Exception\GuzzleException $e) {
+            throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
+        }
+        if ($response->getStatusCode() !== 200) $this->handleError($response->getStatusCode(), (string) $response->getBody());
+        return CustomVoice::fromArray($this->decodeJson((string) $response->getBody()));
+    }
+
+    /**
      * Guess the MIME type of an audio file from its extension.
      */
     private static function guessAudioMime(string $filename): string
