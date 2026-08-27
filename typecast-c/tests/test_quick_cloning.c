@@ -626,6 +626,20 @@ static void test_list_custom_voices(void) {
     typecast_client_destroy(c);
 }
 
+static void test_custom_voice_queries_report_errors(void) {
+    TypecastClient* c = new_client();
+    ASSERT_NULL(typecast_get_custom_voice(c, ""));
+    mock_enqueue_text(404, "{}");
+    ASSERT_NULL(typecast_get_custom_voice(c, "uc_missing"));
+    mock_enqueue_text(200, "[]");
+    ASSERT_NULL(typecast_get_custom_voice(c, "uc_bad"));
+    mock_enqueue_text(200, "{}");
+    ASSERT_NULL(typecast_get_custom_voices(c));
+    mock_enqueue_close();
+    ASSERT_NULL(typecast_get_custom_voices(c));
+    typecast_client_destroy(c);
+}
+
 /* ---- delete_voice happy path ---- */
 
 static void test_delete_voice_succeeds_on_204(void) {
@@ -715,6 +729,7 @@ int main(void) {
     RUN(professional_clone_rejects_empty_language);
     RUN(get_custom_voice);
     RUN(list_custom_voices);
+    RUN(custom_voice_queries_report_errors);
 
     /* delete_voice HTTP paths */
     RUN(delete_voice_succeeds_on_204);

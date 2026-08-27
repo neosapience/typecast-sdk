@@ -3358,7 +3358,10 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice_professional(
 static TypecastCustomVoice* parse_custom_voice_json(const cJSON* json) {
     if (!cJSON_IsObject(json)) return NULL;
     TypecastCustomVoice* voice = calloc(1, sizeof(*voice));
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="calloc OOM cannot be induced through the public API" */
     if (!voice) return NULL;
+    /* LCOV_EXCL_STOP */
     cJSON* voice_id = cJSON_GetObjectItem(json, "voice_id");
     cJSON* name = cJSON_GetObjectItem(json, "name");
     cJSON* model = cJSON_GetObjectItem(json, "model");
@@ -3438,10 +3441,16 @@ TYPECAST_API TypecastCustomVoicesResponse* typecast_get_custom_voices(TypecastCl
         return NULL;
     }
     TypecastCustomVoicesResponse* response = calloc(1, sizeof(*response));
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="calloc OOM cannot be induced through the public API" */
     if (!response) { cJSON_Delete(json); return NULL; }
+    /* LCOV_EXCL_STOP */
     response->count = (size_t)cJSON_GetArraySize(json);
     response->voices = calloc(response->count, sizeof(*response->voices));
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="calloc OOM cannot be induced through the public API" */
     if (response->count && !response->voices) { free(response); cJSON_Delete(json); return NULL; }
+    /* LCOV_EXCL_STOP */
     for (size_t i = 0; i < response->count; i++) {
         TypecastCustomVoice* voice = parse_custom_voice_json(cJSON_GetArrayItem(json, (int)i));
         if (voice) { response->voices[i] = *voice; free(voice); }
