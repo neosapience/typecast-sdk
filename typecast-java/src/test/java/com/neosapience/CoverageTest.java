@@ -541,10 +541,18 @@ class CoverageTest {
 
     @Test
     void v3_voice_endpoints_cover_success_filter_and_errors() throws Exception {
-        String voice = "{\"voice_id\":\"tc_v3\",\"voice_name\":{\"eng\":\"Voice\",\"kor\":\"보이스\"},\"models\":[],\"voice_type\":\"original\"}";
+        String voice = "{\"voice_id\":\"tc_v3\",\"voice_name\":{\"eng\":\"Voice\",\"kor\":\"보이스\"},\"models\":[],\"voice_type\":\"original\",\"gender\":\"female\",\"age\":\"young_adult\",\"use_cases\":[\"news\"],\"preview_url\":\"https://example.test/voice\"}";
         mockServer.enqueue(new MockResponse().setResponseCode(200).setBody("[" + voice + "]"));
         VoicesV2Filter filter = new VoicesV2Filter().setModel(TTSModel.SSFM_V30).setGender(GenderEnum.FEMALE).setAge(AgeEnum.YOUNG_ADULT).setUseCases(UseCaseEnum.NEWS);
-        assertEquals("tc_v3", client.getVoicesV3(filter).get(0).getVoiceId());
+        VoiceV3Response listed = client.getVoicesV3(filter).get(0);
+        assertEquals("tc_v3", listed.getVoiceId());
+        assertEquals("Voice", listed.getVoiceName().eng);
+        assertEquals("보이스", listed.getVoiceName().kor);
+        assertTrue(listed.getModels().isEmpty());
+        assertEquals(GenderEnum.FEMALE, listed.getGender());
+        assertEquals(AgeEnum.YOUNG_ADULT, listed.getAge());
+        assertEquals(Collections.singletonList("news"), listed.getUseCases());
+        assertEquals("https://example.test/voice", listed.getPreviewUrl());
         String path = mockServer.takeRequest().getPath();
         assertTrue(path.contains("model=ssfm-v30") && path.contains("gender=female") && path.contains("age=young_adult") && path.contains("use_cases=news"));
 
