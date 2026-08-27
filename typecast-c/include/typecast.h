@@ -864,6 +864,10 @@ typedef struct {
     char voice_id[64];  /* uc_<24-hex> + NUL; 64 bytes leaves headroom */
     char name[64];      /* Server enforces max 30 chars + NUL             */
     char model[16];     /* "ssfm-v21" / "ssfm-v30" + NUL                 */
+    char source[32];
+    char status[32];
+    char error[256];
+    char created_at[40];
 } TypecastCustomVoice;
 
 typedef struct {

@@ -601,10 +601,14 @@ static void test_professional_clone_rejects_empty_language(void) {
 
 static void test_get_custom_voice(void) {
     TypecastClient* c = new_client();
-    mock_enqueue_text(200, "{\"voice_id\":\"uc_one\",\"name\":\"One\",\"model\":\"ssfm-v30\"}");
+    mock_enqueue_text(200, "{\"voice_id\":\"uc_one\",\"name\":\"One\",\"model\":\"ssfm-v30\",\"source\":\"professional\",\"status\":\"processing\",\"error\":\"retry\",\"created_at\":\"2026-08-27T00:00:00Z\"}");
     TypecastCustomVoice* voice = typecast_get_custom_voice(c, "uc_one");
     ASSERT_NOT_NULL(voice);
     ASSERT_STREQ(voice->voice_id, "uc_one");
+    ASSERT_STREQ(voice->source, "professional");
+    ASSERT_STREQ(voice->status, "processing");
+    ASSERT_STREQ(voice->error, "retry");
+    ASSERT_STREQ(voice->created_at, "2026-08-27T00:00:00Z");
     ASSERT(strstr(g_srv.last_path, "/v1/custom-voices/uc_one") != NULL);
     typecast_custom_voice_free(voice);
     typecast_client_destroy(c);

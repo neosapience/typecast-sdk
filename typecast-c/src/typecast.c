@@ -3315,6 +3315,14 @@ static TypecastErrorCode create_custom_voice(
     if (cJSON_IsString(model_j)) {
         snprintf(out->model, sizeof(out->model), "%s", model_j->valuestring);
     }
+    cJSON* source_j = cJSON_GetObjectItem(json, "source");
+    if (cJSON_IsString(source_j)) snprintf(out->source, sizeof(out->source), "%s", source_j->valuestring);
+    cJSON* status_j = cJSON_GetObjectItem(json, "status");
+    if (cJSON_IsString(status_j)) snprintf(out->status, sizeof(out->status), "%s", status_j->valuestring);
+    cJSON* error_j = cJSON_GetObjectItem(json, "error");
+    if (cJSON_IsString(error_j)) snprintf(out->error, sizeof(out->error), "%s", error_j->valuestring);
+    cJSON* created_at_j = cJSON_GetObjectItem(json, "created_at");
+    if (cJSON_IsString(created_at_j)) snprintf(out->created_at, sizeof(out->created_at), "%s", created_at_j->valuestring);
 
     cJSON_Delete(json);
     return TYPECAST_OK;
@@ -3354,9 +3362,17 @@ static TypecastCustomVoice* parse_custom_voice_json(const cJSON* json) {
     cJSON* voice_id = cJSON_GetObjectItem(json, "voice_id");
     cJSON* name = cJSON_GetObjectItem(json, "name");
     cJSON* model = cJSON_GetObjectItem(json, "model");
+    cJSON* source = cJSON_GetObjectItem(json, "source");
+    cJSON* status = cJSON_GetObjectItem(json, "status");
+    cJSON* error = cJSON_GetObjectItem(json, "error");
+    cJSON* created_at = cJSON_GetObjectItem(json, "created_at");
     if (cJSON_IsString(voice_id)) snprintf(voice->voice_id, sizeof(voice->voice_id), "%s", voice_id->valuestring);
     if (cJSON_IsString(name)) snprintf(voice->name, sizeof(voice->name), "%s", name->valuestring);
     if (cJSON_IsString(model)) snprintf(voice->model, sizeof(voice->model), "%s", model->valuestring);
+    if (cJSON_IsString(source)) snprintf(voice->source, sizeof(voice->source), "%s", source->valuestring);
+    if (cJSON_IsString(status)) snprintf(voice->status, sizeof(voice->status), "%s", status->valuestring);
+    if (cJSON_IsString(error)) snprintf(voice->error, sizeof(voice->error), "%s", error->valuestring);
+    if (cJSON_IsString(created_at)) snprintf(voice->created_at, sizeof(voice->created_at), "%s", created_at->valuestring);
     return voice;
 }
 
