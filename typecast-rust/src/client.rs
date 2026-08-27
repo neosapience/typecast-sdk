@@ -1020,14 +1020,21 @@ mod tests {
 
     #[test]
     fn user_agent_attribution_is_validated() {
+        assert_eq!(attribution_suffix(None).unwrap(), "");
         assert_eq!(
             attribution_suffix(Some(("skill", "codex"))).unwrap(),
             " typecast-integration/1 (source=skill; generated_by=codex)"
         );
-        for source in ["api-page", "api-docs"] {
+        for source in ["llms", "api-page", "api-docs"] {
             assert!(attribution_suffix(Some((source, "codex"))).is_ok());
         }
         assert!(attribution_suffix(Some(("skill", "Codex"))).is_err());
+        assert!(attribution_suffix(Some(("invalid", "codex"))).is_err());
+        assert!(attribution_suffix(Some(("skill", ""))).is_err());
+        assert!(attribution_suffix(Some(("skill", &"a".repeat(33)))).is_err());
+        assert!(attribution_suffix(Some(("skill", "-codex"))).is_err());
+        assert!(attribution_suffix(Some(("skill", "co!dex"))).is_err());
+        assert!(attribution_suffix(Some(("skill", "code-x_1.2"))).is_ok());
     }
 
     #[test]
