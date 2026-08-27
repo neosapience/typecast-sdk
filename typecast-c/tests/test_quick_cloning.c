@@ -575,6 +575,30 @@ static void test_clone_voice_invalid_json(void) {
     typecast_client_destroy(c);
 }
 
+static void test_professional_clone_uses_current_endpoint(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(202, "{\"voice_id\":\"uc_prof\",\"name\":\"Pro\",\"model\":\"ssfm-v30\"}");
+    unsigned char audio[8] = {0};
+    TypecastCustomVoice out;
+    TypecastErrorCode rc = typecast_clone_voice_professional(c, audio, sizeof(audio),
+        "sample.wav", "Pro", "ssfm-v30", "eng", &out);
+    ASSERT_EQ(rc, TYPECAST_OK);
+    ASSERT_STREQ(out.voice_id, "uc_prof");
+    ASSERT(strstr(g_srv.last_path, "/v1/custom-voices/professional-clone") != NULL);
+    ASSERT(strstr(g_srv.last_body, "name=\"files\"") != NULL);
+    ASSERT(strstr(g_srv.last_body, "name=\"language\"") != NULL);
+    typecast_client_destroy(c);
+}
+
+static void test_professional_clone_rejects_empty_language(void) {
+    TypecastClient* c = new_client();
+    unsigned char audio[1] = {0};
+    TypecastCustomVoice out;
+    ASSERT_EQ(typecast_clone_voice_professional(c, audio, sizeof(audio),
+        "sample.wav", "Pro", "ssfm-v30", "", &out), TYPECAST_ERROR_INVALID_PARAM);
+    typecast_client_destroy(c);
+}
+
 /* ---- delete_voice happy path ---- */
 
 static void test_delete_voice_succeeds_on_204(void) {
@@ -660,6 +684,8 @@ int main(void) {
     RUN(clone_voice_404);
     RUN(clone_voice_network_error);
     RUN(clone_voice_invalid_json);
+    RUN(professional_clone_uses_current_endpoint);
+    RUN(professional_clone_rejects_empty_language);
 
     /* delete_voice HTTP paths */
     RUN(delete_voice_succeeds_on_204);

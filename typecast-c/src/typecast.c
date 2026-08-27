@@ -3155,13 +3155,16 @@ static const char* guess_audio_mime(const char* filename) {
     return "application/octet-stream";
 }
 
-TYPECAST_API TypecastErrorCode typecast_clone_voice(
+static TypecastErrorCode create_custom_voice(
     TypecastClient* client,
     const unsigned char* audio,
     size_t audio_len,
     const char* filename,
     const char* name,
     const char* model,
+    const char* language,
+    const char* endpoint,
+    const char* file_field,
     TypecastCustomVoice* out
 ) {
     /* ---- Validate parameters ---- */
@@ -3190,6 +3193,10 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
         set_error(client, TYPECAST_ERROR_INVALID_PARAM, "model is required");
         return TYPECAST_ERROR_INVALID_PARAM;
     }
+    if (language && strlen(language) == 0) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "language is required");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
     if (!out) {
         set_error(client, TYPECAST_ERROR_INVALID_PARAM, "out must not be NULL");
         return TYPECAST_ERROR_INVALID_PARAM;
@@ -3199,7 +3206,7 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
 
     /* ---- Build URL ---- */
     char url[512];
-    snprintf(url, sizeof(url), "%s/v1/custom-voices/instant-clone", client->host);
+    snprintf(url, sizeof(url), "%s%s", client->host, endpoint);
 
     /* ---- Setup response buffer ---- */
     ResponseBuffer response_buf = {0};
@@ -3227,9 +3234,15 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
     curl_mime_name(part, "model");
     curl_mime_data(part, model, CURL_ZERO_TERMINATED);
 
+    if (language) {
+        part = curl_mime_addpart(mime);
+        curl_mime_name(part, "language");
+        curl_mime_data(part, language, CURL_ZERO_TERMINATED);
+    }
+
     /* "file" field */
     part = curl_mime_addpart(mime);
-    curl_mime_name(part, "file");
+    curl_mime_name(part, file_field);
     curl_mime_filename(part, filename ? filename : "audio");
     curl_mime_type(part, guess_audio_mime(filename));
     curl_mime_data(part, (const char*)audio, audio_len);
@@ -3261,7 +3274,7 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
-    if (http_code != 200 && http_code != 201) {
+    if (http_code != 200 && http_code != 201 && http_code != 202) {
         TypecastErrorCode err_code = http_status_to_error(http_code);
         char* err_msg = NULL;
         if (response_buf.data && response_buf.size > 0) {
@@ -3305,6 +3318,33 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
 
     cJSON_Delete(json);
     return TYPECAST_OK;
+}
+
+TYPECAST_API TypecastErrorCode typecast_clone_voice(
+    TypecastClient* client,
+    const unsigned char* audio,
+    size_t audio_len,
+    const char* filename,
+    const char* name,
+    const char* model,
+    TypecastCustomVoice* out
+) {
+    return create_custom_voice(client, audio, audio_len, filename, name, model,
+                               NULL, "/v1/custom-voices/instant-clone", "file", out);
+}
+
+TYPECAST_API TypecastErrorCode typecast_clone_voice_professional(
+    TypecastClient* client,
+    const unsigned char* audio,
+    size_t audio_len,
+    const char* filename,
+    const char* name,
+    const char* model,
+    const char* language,
+    TypecastCustomVoice* out
+) {
+    return create_custom_voice(client, audio, audio_len, filename, name, model,
+                               language, "/v1/custom-voices/professional-clone", "files", out);
 }
 
 TYPECAST_API TypecastErrorCode typecast_delete_voice(

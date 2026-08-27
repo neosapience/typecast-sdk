@@ -894,6 +894,24 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
 );
 
 /**
+ * Start professional custom-voice cloning from its single supported audio sample.
+ *
+ * Sends the sample as the `files` multipart field to
+ * POST /v1/custom-voices/professional-clone. The API currently accepts exactly
+ * one file and returns the queued voice (HTTP 202).
+ */
+TYPECAST_API TypecastErrorCode typecast_clone_voice_professional(
+    TypecastClient* client,
+    const unsigned char* audio,
+    size_t audio_len,
+    const char* filename,
+    const char* name,
+    const char* model,
+    const char* language,
+    TypecastCustomVoice* out
+);
+
+/**
  * Soft-delete a custom voice by ID.
  *
  * Sends DELETE /v1/custom-voices/{voice_id}. Returns TYPECAST_OK on 204 No Content.
