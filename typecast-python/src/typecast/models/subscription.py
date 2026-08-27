@@ -25,6 +25,11 @@ class Limits(BaseModel):
     concurrency_limit: int = Field(
         description="Maximum number of concurrent requests allowed"
     )
+    custom_voice_slot: int = Field(
+        default=0,
+        ge=0,
+        description="Maximum active custom voices allowed by the current plan",
+    )
 
 
 class SubscriptionResponse(BaseModel):

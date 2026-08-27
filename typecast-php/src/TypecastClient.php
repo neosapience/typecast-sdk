@@ -28,6 +28,7 @@ use Neosapience\Typecast\Models\TTSResponse;
 use Neosapience\Typecast\Models\TTSWithTimestampsResponse;
 use Neosapience\Typecast\Models\Voice;
 use Neosapience\Typecast\Models\VoiceV2;
+use Neosapience\Typecast\Models\VoiceV3;
 use Neosapience\Typecast\Models\VoicesV2Filter;
 
 /**
@@ -356,6 +357,24 @@ class TypecastClient
         return VoiceV2::fromArray($items[0]);
     }
 
+    /** @return VoiceV3[] */
+    public function getVoicesV3(?VoicesV2Filter $filter = null): array
+    {
+        try { $response = $this->httpClient->request('GET', '/v3/voices', $this->requestOptions(['query' => $filter?->toQueryParams() ?? []])); }
+        catch (\GuzzleHttp\Exception\GuzzleException $e) { throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e); }
+        if ($response->getStatusCode() !== 200) $this->handleError($response->getStatusCode(), (string) $response->getBody());
+        return array_map(static fn(array $item): VoiceV3 => VoiceV3::fromArray($item), $this->decodeJson((string) $response->getBody()));
+    }
+
+    public function getVoiceV3(string $voiceId): VoiceV3
+    {
+        if (trim($voiceId) === '') throw new \InvalidArgumentException('voiceId must not be empty');
+        try { $response = $this->httpClient->request('GET', '/v3/voices/' . rawurlencode($voiceId), $this->requestOptions()); }
+        catch (\GuzzleHttp\Exception\GuzzleException $e) { throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e); }
+        if ($response->getStatusCode() !== 200) $this->handleError($response->getStatusCode(), (string) $response->getBody());
+        return VoiceV3::fromArray($this->decodeJson((string) $response->getBody()));
+    }
+
     /**
      * Recommend voices from a text description.
      *
@@ -427,7 +446,7 @@ class TypecastClient
         }
 
         try {
-            $response = $this->httpClient->request('POST', '/v1/voices/clone', $this->requestOptions([
+            $response = $this->httpClient->request('POST', '/v1/custom-voices/instant-clone', $this->requestOptions([
                 'multipart' => [
                     ['name' => 'name',  'contents' => $name],
                     ['name' => 'model', 'contents' => $model],
@@ -463,7 +482,7 @@ class TypecastClient
     public function deleteVoice(string $voiceId): void
     {
         try {
-            $response = $this->httpClient->request('DELETE', '/v1/voices/' . $voiceId, $this->requestOptions());
+            $response = $this->httpClient->request('DELETE', '/v1/custom-voices/' . $voiceId, $this->requestOptions());
         } catch (\GuzzleHttp\Exception\GuzzleException $e) {
             throw new TypecastException('Network error: ' . $e->getMessage(), 0, $e);
         }

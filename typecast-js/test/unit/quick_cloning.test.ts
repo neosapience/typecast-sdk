@@ -132,7 +132,7 @@ describe('TypecastClient.cloneVoice', () => {
     });
     expect(mockFetch).toHaveBeenCalledOnce();
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit & { body: FormData }];
-    expect(url).toContain('/v1/voices/clone');
+    expect(url).toContain('/v1/custom-voices/instant-clone');
     expect(init.method).toBe('POST');
     // Critical: Content-Type must NOT be in headers, so fetch can set multipart boundary
     expect(init.headers).not.toHaveProperty('Content-Type');
@@ -175,7 +175,7 @@ describe('TypecastClient.deleteVoice', () => {
     });
     await expect(client.deleteVoice('uc_xxx')).resolves.toBeUndefined();
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain('/v1/voices/uc_xxx');
+    expect(url).toContain('/v1/custom-voices/uc_xxx');
     expect(init.method).toBe('DELETE');
   });
 

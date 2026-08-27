@@ -79,8 +79,8 @@ final class QuickCloningTests: XCTestCase {
 
         let req = try XCTUnwrap(capturedRequest)
 
-        // URL ends with /v1/voices/clone
-        XCTAssertEqual(req.url?.path, "/v1/voices/clone", "URL path must be /v1/voices/clone")
+        // URL ends with /v1/custom-voices/instant-clone
+        XCTAssertEqual(req.url?.path, "/v1/custom-voices/instant-clone", "URL path must be /v1/custom-voices/instant-clone")
 
         // HTTP method is POST
         XCTAssertEqual(req.httpMethod, "POST")
@@ -220,8 +220,8 @@ final class QuickCloningTests: XCTestCase {
 
         let req = try XCTUnwrap(capturedRequest)
         XCTAssertTrue(
-            req.url?.path.hasSuffix("/v1/voices/uc_xxx") ?? false,
-            "URL must end with /v1/voices/uc_xxx, got: \(req.url?.path ?? "(nil)")"
+            req.url?.path.hasSuffix("/v1/custom-voices/uc_xxx") ?? false,
+            "URL must end with /v1/custom-voices/uc_xxx, got: \(req.url?.path ?? "(nil)")"
         )
         XCTAssertEqual(req.httpMethod, "DELETE")
         XCTAssertEqual(req.value(forHTTPHeaderField: "X-API-KEY"), "test-key")
@@ -237,7 +237,7 @@ final class QuickCloningTests: XCTestCase {
         try await client.deleteVoice("uc/xxx #1")
 
         let req = try XCTUnwrap(capturedRequest)
-        XCTAssertTrue(req.url?.absoluteString.contains("/v1/voices/uc%2Fxxx%20%231") ?? false)
+        XCTAssertTrue(req.url?.absoluteString.contains("/v1/custom-voices/uc%2Fxxx%20%231") ?? false)
     }
 
     // MARK: - Test 6: deleteVoice throws on 404

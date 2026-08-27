@@ -333,6 +333,24 @@ type VoiceV2 struct {
 	UseCases []string `json:"use_cases,omitempty"`
 }
 
+// LocalizedVoiceName is the English and Korean name returned by the V3 Voice API.
+type LocalizedVoiceName struct {
+	Eng string `json:"eng"`
+	Kor string `json:"kor"`
+}
+
+// VoiceV3 represents a voice from the current V3 Voice API.
+type VoiceV3 struct {
+	VoiceID    string             `json:"voice_id"`
+	VoiceName  LocalizedVoiceName `json:"voice_name"`
+	Models     []ModelInfo        `json:"models"`
+	VoiceType  string             `json:"voice_type"`
+	Gender     *GenderEnum        `json:"gender,omitempty"`
+	Age        *AgeEnum           `json:"age,omitempty"`
+	UseCases   []string           `json:"use_cases,omitempty"`
+	PreviewURL *string            `json:"preview_url,omitempty"`
+}
+
 // RecommendedVoice is a single voice recommendation result.
 //
 // Recommendation results only include the matched voice ID, voice name, and
@@ -364,12 +382,16 @@ type ErrorResponse struct {
 	Detail string `json:"detail"`
 }
 
-// CustomVoice is the response body of POST /v1/voices/clone.
+// CustomVoice is returned by the Custom Voice API.
 // VoiceID has the "uc_" prefix and can be used directly as voice_id in TextToSpeech.
 type CustomVoice struct {
-	VoiceID string `json:"voice_id"`
-	Name    string `json:"name"`
-	Model   string `json:"model"`
+	VoiceID   string  `json:"voice_id"`
+	Name      string  `json:"name"`
+	Model     string  `json:"model"`
+	Source    string  `json:"source,omitempty"`
+	Status    string  `json:"status,omitempty"`
+	Error     *string `json:"error,omitempty"`
+	CreatedAt *string `json:"created_at,omitempty"`
 }
 
 const (
@@ -404,6 +426,8 @@ type Credits struct {
 type Limits struct {
 	// ConcurrencyLimit is the maximum number of concurrent requests
 	ConcurrencyLimit int `json:"concurrency_limit"`
+	// CustomVoiceSlot is the maximum number of active custom voices allowed.
+	CustomVoiceSlot int `json:"custom_voice_slot"`
 }
 
 // SubscriptionResponse represents the authenticated user's subscription

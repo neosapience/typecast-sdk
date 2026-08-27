@@ -468,7 +468,7 @@ static void test_clone_voice_returns_custom_voice(void) {
     ASSERT_STREQ(out.model,    "ssfm-v30");
 
     /* Verify endpoint and multipart fields were sent */
-    ASSERT(strstr(g_srv.last_path, "/v1/voices/clone") != NULL);
+    ASSERT(strstr(g_srv.last_path, "/v1/custom-voices/instant-clone") != NULL);
     ASSERT(strcmp(g_srv.last_method, "POST") == 0);
     ASSERT(strstr(g_srv.last_headers, "X-API-KEY: test_key") != NULL);
     /* multipart body should contain the field names */
@@ -584,7 +584,7 @@ static void test_delete_voice_succeeds_on_204(void) {
     TypecastErrorCode rc = typecast_delete_voice(c, "uc_aabbccdd");
     ASSERT_EQ(rc, TYPECAST_OK);
 
-    ASSERT(strstr(g_srv.last_path, "/v1/voices/uc_aabbccdd") != NULL);
+    ASSERT(strstr(g_srv.last_path, "/v1/custom-voices/uc_aabbccdd") != NULL);
     ASSERT(strcmp(g_srv.last_method, "DELETE") == 0);
     ASSERT(strstr(g_srv.last_headers, "X-API-KEY: test_key") != NULL);
 

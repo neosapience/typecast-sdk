@@ -376,6 +376,20 @@ pub const Client = struct {
         return result;
     }
 
+    /// GET /v3/voices. Caller owns the returned JSON bytes.
+    /// The V3 response has localized `voice_name` objects, unlike V2.
+    pub fn getVoicesV3Json(self: *Client, filter: ?models.VoicesV2Filter) ![]u8 {
+        var query_buf: [512]u8 = undefined;
+        return self.doGet("/v3/voices", try buildVoicesV2Query(&query_buf, filter));
+    }
+
+    /// GET /v3/voices/{voice_id}. Caller owns the returned JSON bytes.
+    pub fn getVoiceV3Json(self: *Client, voice_id: []const u8) ![]u8 {
+        const path = try std.fmt.allocPrint(self.allocator, "/v3/voices/{s}", .{voice_id});
+        defer self.allocator.free(path);
+        return self.doGet(path, "");
+    }
+
     /// GET /v1/voices/recommendations
     ///
     /// Recommendation results include only voice_id, voice_name, and score.
@@ -396,7 +410,7 @@ pub const Client = struct {
         return json_helpers.parseRecommendedVoices(self.allocator, body);
     }
 
-    /// POST /v1/voices/clone — upload audio and create a custom voice.
+    /// POST /v1/custom-voices/instant-clone — upload audio and create a custom voice.
     ///
     /// - `audio`    : raw audio bytes (WAV or MP3, max 25 MB)
     /// - `filename` : original filename including extension (used for MIME detection)
@@ -454,7 +468,7 @@ pub const Client = struct {
         );
         defer allocator.free(ct);
 
-        const path = "/v1/voices/clone";
+        const path = "/v1/custom-voices/instant-clone";
         try self.validateApiKey();
         const uri = try buildUri(self.base_url, path, null);
 
@@ -490,7 +504,7 @@ pub const Client = struct {
 
     /// DELETE /v1/voices/{voice_id} — remove a custom (cloned) voice.
     pub fn deleteVoice(self: *Client, voice_id: []const u8) !void {
-        const path = try std.fmt.allocPrint(self.allocator, "/v1/voices/{s}", .{voice_id});
+        const path = try std.fmt.allocPrint(self.allocator, "/v1/custom-voices/{s}", .{voice_id});
         defer self.allocator.free(path);
 
         try self.validateApiKey();

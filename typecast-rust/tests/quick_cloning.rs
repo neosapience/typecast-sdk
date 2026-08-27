@@ -99,7 +99,7 @@ async fn compose_speech_smoke_for_quick_cloning_binary_coverage() {
 async fn clone_voice_returns_custom_voice() {
     let mut server = Server::new_async().await;
     let _m = server
-        .mock("POST", "/v1/voices/clone")
+        .mock("POST", "/v1/custom-voices/instant-clone")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(clone_response_json())
@@ -130,7 +130,7 @@ async fn clone_voice_returns_custom_voice() {
 async fn clone_voice_sends_multipart_body() {
     let mut server = Server::new_async().await;
     let _m = server
-        .mock("POST", "/v1/voices/clone")
+        .mock("POST", "/v1/custom-voices/instant-clone")
         // Content-Type header must start with "multipart/form-data".
         .match_header(
             "content-type",
@@ -173,7 +173,7 @@ async fn clone_voice_sets_supported_mime_types() {
     for (filename, expected_mime) in cases {
         let mut server = Server::new_async().await;
         let _m = server
-            .mock("POST", "/v1/voices/clone")
+            .mock("POST", "/v1/custom-voices/instant-clone")
             .match_body(mockito::Matcher::Regex(expected_mime.into()))
             .with_status(200)
             .with_header("content-type", "application/json")
@@ -194,7 +194,7 @@ async fn clone_voice_sets_supported_mime_types() {
 async fn clone_voice_returns_err_on_http_error() {
     let mut server = Server::new_async().await;
     let _m = server
-        .mock("POST", "/v1/voices/clone")
+        .mock("POST", "/v1/custom-voices/instant-clone")
         .with_status(422)
         .with_header("content-type", "application/json")
         .with_body(r#"{"detail":"invalid audio format"}"#)
@@ -216,7 +216,7 @@ async fn clone_voice_returns_err_on_http_error() {
 async fn clone_voice_returns_err_on_malformed_success_json() {
     let mut server = Server::new_async().await;
     let _m = server
-        .mock("POST", "/v1/voices/clone")
+        .mock("POST", "/v1/custom-voices/instant-clone")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body("{")
@@ -332,7 +332,7 @@ async fn clone_voice_rejects_bad_name_length() {
 async fn delete_voice_returns_ok_on_204() {
     let mut server = Server::new_async().await;
     let _m = server
-        .mock("DELETE", "/v1/voices/cv_abc123")
+        .mock("DELETE", "/v1/custom-voices/cv_abc123")
         .with_status(204)
         .create_async()
         .await;
@@ -346,7 +346,7 @@ async fn delete_voice_returns_ok_on_204() {
 async fn delete_voice_with_proxy_base_url_omits_auth_header_without_api_key() {
     let mut server = Server::new_async().await;
     let _m = server
-        .mock("DELETE", "/v1/voices/cv_abc123")
+        .mock("DELETE", "/v1/custom-voices/cv_abc123")
         .match_header("x-api-key", mockito::Matcher::Missing)
         .with_status(204)
         .create_async()
@@ -364,7 +364,7 @@ async fn delete_voice_with_proxy_base_url_omits_auth_header_without_api_key() {
 async fn delete_voice_returns_err_on_404() {
     let mut server = Server::new_async().await;
     let _m = server
-        .mock("DELETE", "/v1/voices/missing")
+        .mock("DELETE", "/v1/custom-voices/missing")
         .with_status(404)
         .with_header("content-type", "application/json")
         .with_body(r#"{"detail":"voice not found"}"#)

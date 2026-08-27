@@ -417,6 +417,59 @@ func (c *Client) GetVoiceV2(ctx context.Context, voiceID string) (*VoiceV2, erro
 	return &voice, nil
 }
 
+// GetVoicesV3 retrieves voices from the current V3 Voice API.
+func (c *Client) GetVoicesV3(ctx context.Context, filter *VoicesV2Filter) ([]VoiceV3, error) {
+	path := "/v3/voices"
+	if filter != nil {
+		params := url.Values{}
+		if filter.Model != "" {
+			params.Set("model", string(filter.Model))
+		}
+		if filter.Gender != "" {
+			params.Set("gender", string(filter.Gender))
+		}
+		if filter.Age != "" {
+			params.Set("age", string(filter.Age))
+		}
+		if filter.UseCases != "" {
+			params.Set("use_cases", string(filter.UseCases))
+		}
+		if len(params) > 0 {
+			path += "?" + params.Encode()
+		}
+	}
+	resp, err := c.doRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+	var voices []VoiceV3
+	if err := json.NewDecoder(resp.Body).Decode(&voices); err != nil {
+		return nil, fmt.Errorf("failed to decode V3 voices response: %w", err)
+	}
+	return voices, nil
+}
+
+// GetVoiceV3 retrieves a voice by ID from the current V3 Voice API.
+func (c *Client) GetVoiceV3(ctx context.Context, voiceID string) (*VoiceV3, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/v3/voices/"+url.PathEscape(voiceID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+	var voice VoiceV3
+	if err := json.NewDecoder(resp.Body).Decode(&voice); err != nil {
+		return nil, fmt.Errorf("failed to decode V3 voice response: %w", err)
+	}
+	return &voice, nil
+}
+
 // RecommendVoices recommends voices from a text description.
 //
 // Results only contain VoiceID, VoiceName, and Score. Use GetVoiceV2 or
@@ -554,7 +607,7 @@ func (c *Client) CloneVoice(ctx context.Context, audio []byte, filename, name, m
 	_, _ = filePart.Write(audio)
 	_ = writer.Close()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/voices/clone", body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/custom-voices/instant-clone", body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -584,7 +637,7 @@ func (c *Client) CloneVoice(ctx context.Context, audio []byte, filename, name, m
 // DeleteVoice soft-deletes a custom voice by ID.
 // Returns nil on a 200 OK or 204 No Content response.
 func (c *Client) DeleteVoice(ctx context.Context, voiceID string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+"/v1/voices/"+voiceID, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.baseURL+"/v1/custom-voices/"+url.PathEscape(voiceID), nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -602,4 +655,79 @@ func (c *Client) DeleteVoice(ctx context.Context, voiceID string) error {
 		return c.handleErrorResponse(resp)
 	}
 	return nil
+}
+
+// CreateProfessionalVoice starts an asynchronous professional custom-voice clone.
+// Poll GetCustomVoice until Status is "completed" or "failed".
+func (c *Client) CreateProfessionalVoice(ctx context.Context, audio []byte, filename, name, language, model string) (*CustomVoice, error) {
+	if len(name) < NameMinLength || len(name) > NameMaxLength {
+		return nil, fmt.Errorf("name must be %d-%d characters; got %d", NameMinLength, NameMaxLength, len(name))
+	}
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	_ = writer.WriteField("name", name)
+	_ = writer.WriteField("language", language)
+	_ = writer.WriteField("model", model)
+	fileHeader := make(textproto.MIMEHeader)
+	fileHeader.Set("Content-Disposition", fmt.Sprintf(`form-data; name="files"; filename="%s"`, filename))
+	fileHeader.Set("Content-Type", guessAudioMime(filename))
+	filePart, _ := writer.CreatePart(fileHeader)
+	_, _ = filePart.Write(audio)
+	_ = writer.Close()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v1/custom-voices/professional-clone", body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	if err := c.setAuthHeader(req.Header); err != nil {
+		return nil, err
+	}
+	c.setUserAgent(req.Header)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		return nil, c.handleErrorResponse(resp)
+	}
+	var out CustomVoice
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, fmt.Errorf("failed to decode professional clone response: %w", err)
+	}
+	return &out, nil
+}
+
+// GetCustomVoices lists custom voices owned by the authenticated user.
+func (c *Client) GetCustomVoices(ctx context.Context) ([]CustomVoice, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/v1/custom-voices", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+	var voices []CustomVoice
+	if err := json.NewDecoder(resp.Body).Decode(&voices); err != nil {
+		return nil, fmt.Errorf("failed to decode custom voices response: %w", err)
+	}
+	return voices, nil
+}
+
+// GetCustomVoice gets a custom voice, including professional-clone status.
+func (c *Client) GetCustomVoice(ctx context.Context, voiceID string) (*CustomVoice, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/v1/custom-voices/"+url.PathEscape(voiceID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, c.handleErrorResponse(resp)
+	}
+	var voice CustomVoice
+	if err := json.NewDecoder(resp.Body).Decode(&voice); err != nil {
+		return nil, fmt.Errorf("failed to decode custom voice response: %w", err)
+	}
+	return &voice, nil
 }

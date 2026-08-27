@@ -94,7 +94,7 @@ class QuickCloningTest extends TestCase
         $request = $history[0]['request'];
 
         // URL
-        $this->assertStringEndsWith('/v1/voices/clone', (string) $request->getUri());
+        $this->assertStringEndsWith('/v1/custom-voices/instant-clone', (string) $request->getUri());
 
         // Method
         $this->assertSame('POST', $request->getMethod());
@@ -182,7 +182,7 @@ class QuickCloningTest extends TestCase
         /** @var \Psr\Http\Message\RequestInterface $request */
         $request = $history[0]['request'];
 
-        $this->assertStringEndsWith('/v1/voices/uc_xxx', (string) $request->getUri());
+        $this->assertStringEndsWith('/v1/custom-voices/uc_xxx', (string) $request->getUri());
         $this->assertSame('DELETE', $request->getMethod());
     }
 

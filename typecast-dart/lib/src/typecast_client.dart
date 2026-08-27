@@ -149,6 +149,24 @@ class TypecastClient {
     return VoiceV2.fromJson((jsonDecode(response.body) as Map).cast());
   }
 
+  Future<List<VoiceV3>> getVoicesV3([VoicesV2Filter? filter]) async {
+    final response = await _httpClient
+        .get(_url('/v3/voices', filter?.toQuery()), headers: _headers())
+        .timeout(requestTimeout);
+    _raiseForStatus(response);
+    return (jsonDecode(response.body) as List)
+        .map((item) => VoiceV3.fromJson((item as Map).cast()))
+        .toList();
+  }
+
+  Future<VoiceV3> getVoiceV3(String voiceId) async {
+    final response = await _httpClient
+        .get(_url('/v3/voices/$voiceId'), headers: _headers())
+        .timeout(requestTimeout);
+    _raiseForStatus(response);
+    return VoiceV3.fromJson((jsonDecode(response.body) as Map).cast());
+  }
+
   /// Recommends voices from a text description.
   ///
   /// Results only include voiceId, voiceName, and score. Use getVoiceV2 or
@@ -187,13 +205,14 @@ class TypecastClient {
     if (name.isEmpty || name.length > CustomVoice.maxNameLength) {
       throw ArgumentError('name must be 1-${CustomVoice.maxNameLength} chars');
     }
-    final request = http.MultipartRequest('POST', _url('/v1/voices/clone'))
-      ..headers.addAll(_headers())
-      ..fields['name'] = name
-      ..fields['model'] = model.value
-      ..files.add(
-        http.MultipartFile.fromBytes('file', audio, filename: filename),
-      );
+    final request =
+        http.MultipartRequest('POST', _url('/v1/custom-voices/instant-clone'))
+          ..headers.addAll(_headers())
+          ..fields['name'] = name
+          ..fields['model'] = model.value
+          ..files.add(
+            http.MultipartFile.fromBytes('file', audio, filename: filename),
+          );
     final response = await _httpClient.send(request).timeout(requestTimeout);
     await _raiseForStreamStatus(response, requestTimeout);
     final body = await response.stream.bytesToString().timeout(requestTimeout);
@@ -202,7 +221,7 @@ class TypecastClient {
 
   Future<void> deleteVoice(String voiceId) async {
     final response = await _httpClient
-        .delete(_url('/v1/voices/$voiceId'), headers: _headers())
+        .delete(_url('/v1/custom-voices/$voiceId'), headers: _headers())
         .timeout(requestTimeout);
     if (response.statusCode == 204) return;
     _raiseForStatus(response);

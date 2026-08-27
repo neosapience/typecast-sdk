@@ -100,7 +100,7 @@ def test_clone_voice_sends_multipart_body(mocker):
     assert file_part[0] == "audio.wav"
     assert file_part[1] == b"\x00" * 1024
     assert file_part[2] == "audio/wav"
-    assert "/v1/voices/clone" in post_mock.call_args.args[0]
+    assert "/v1/custom-voices/instant-clone" in post_mock.call_args.args[0]
 
 
 def test_clone_voice_pre_validates_size(mocker):
@@ -125,7 +125,7 @@ def test_delete_voice_returns_none(mocker):
 
     assert result is None
     args = delete_mock.call_args.args
-    assert "/v1/voices/uc_64a1b2c3d4e5f6a7b8c9d0e1" in args[0]
+    assert "/v1/custom-voices/uc_64a1b2c3d4e5f6a7b8c9d0e1" in args[0]
 
 
 def test_delete_voice_raises_on_404(mocker):
@@ -153,7 +153,7 @@ ASYNC_HOST = "https://dummy.example"
 async def test_async_clone_voice_returns_custom_voice():
     fixture = _load_fixture("success_v30.json")
     with aioresponses() as m:
-        m.post(f"{ASYNC_HOST}/v1/voices/clone", status=200, payload=fixture)
+        m.post(f"{ASYNC_HOST}/v1/custom-voices/instant-clone", status=200, payload=fixture)
         async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
             voice = await client.clone_voice(
                 audio=b"\x00" * 1024, name="demo", model="ssfm-v30"
@@ -165,7 +165,7 @@ async def test_async_clone_voice_returns_custom_voice():
 
 async def test_async_delete_voice_returns_none():
     with aioresponses() as m:
-        m.delete(f"{ASYNC_HOST}/v1/voices/uc_xxx", status=204)
+        m.delete(f"{ASYNC_HOST}/v1/custom-voices/uc_xxx", status=204)
         async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
             result = await client.delete_voice("uc_xxx")
             assert result is None
@@ -279,7 +279,7 @@ async def test_async_delete_voice_requires_session():
 async def test_async_clone_voice_propagates_http_error():
     with aioresponses() as m:
         m.post(
-            f"{ASYNC_HOST}/v1/voices/clone",
+            f"{ASYNC_HOST}/v1/custom-voices/instant-clone",
             status=422,
             payload={"error_code": "VALIDATION_ERROR", "message": "bad"},
         )
@@ -293,7 +293,7 @@ async def test_async_clone_voice_propagates_http_error():
 
 async def test_async_delete_voice_propagates_http_error():
     with aioresponses() as m:
-        m.delete(f"{ASYNC_HOST}/v1/voices/uc_xxx", status=404)
+        m.delete(f"{ASYNC_HOST}/v1/custom-voices/uc_xxx", status=404)
         from typecast.exceptions import NotFoundError as Nfe
         async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
             with pytest.raises(Nfe):

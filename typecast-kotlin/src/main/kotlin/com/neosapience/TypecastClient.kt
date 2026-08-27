@@ -408,6 +408,24 @@ class TypecastClient private constructor(
         return executeRequest(httpRequest)
     }
 
+    /** Gets voices from the current V3 Voice API. */
+    fun getVoicesV3(filter: VoicesV2Filter? = null): List<VoiceV3Response> {
+        val urlBuilder = "$baseUrl/v3/voices".toHttpUrl().newBuilder()
+        filter?.let { f ->
+            f.model?.let { urlBuilder.addQueryParameter("model", it.value) }
+            f.gender?.let { urlBuilder.addQueryParameter("gender", it.value) }
+            f.age?.let { urlBuilder.addQueryParameter("age", it.value) }
+            f.useCases?.let { urlBuilder.addQueryParameter("use_cases", it.value) }
+        }
+        return executeRequest(Request.Builder().url(urlBuilder.build()).addAuthHeader().addUserAgentHeader().get().build())
+    }
+
+    /** Gets one voice from the current V3 Voice API. */
+    fun getVoiceV3(voiceId: String): VoiceV3Response {
+        require(voiceId.isNotBlank()) { "voiceId must not be blank" }
+        return executeRequest(Request.Builder().url("$baseUrl/v3/voices/$voiceId").addAuthHeader().addUserAgentHeader().get().build())
+    }
+
     /**
      * Recommends voices from a text description.
      *
@@ -505,7 +523,7 @@ class TypecastClient private constructor(
     /**
      * Creates a custom voice (created via instant cloning) from an audio sample.
      *
-     * Calls `POST /v1/voices/clone` with a multipart/form-data body containing
+     * Calls `POST /v1/custom-voices/instant-clone` with a multipart/form-data body containing
      * the audio file, voice name, and synthesis model.
      *
      * @param audio    the raw audio bytes (WAV, MP3, or other format; max 25 MB)
@@ -540,7 +558,7 @@ class TypecastClient private constructor(
             .build()
 
         val httpRequest = Request.Builder()
-            .url("$baseUrl/v1/voices/clone")
+            .url("$baseUrl/v1/custom-voices/instant-clone")
             .addAuthHeader()
             .addUserAgentHeader()
             .post(body)
@@ -575,7 +593,7 @@ class TypecastClient private constructor(
      */
     fun deleteVoice(voiceId: String) {
         val httpRequest = Request.Builder()
-            .url("$baseUrl/v1/voices/$voiceId")
+            .url("$baseUrl/v1/custom-voices/$voiceId")
             .addAuthHeader()
             .addUserAgentHeader()
             .delete()

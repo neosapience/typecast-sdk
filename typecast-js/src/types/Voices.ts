@@ -66,6 +66,24 @@ export interface VoiceV2Response {
   use_cases?: string[];
 }
 
+/** English and Korean display names returned by the V3 Voice API. */
+export interface LocalizedVoiceName {
+  eng: string;
+  kor: string;
+}
+
+/** V3 Voice response with localized name and preview metadata. */
+export interface VoiceV3Response {
+  voice_id: string;
+  voice_name: LocalizedVoiceName;
+  models: ModelInfo[];
+  voice_type: 'original' | 'custom';
+  gender?: GenderEnum | null;
+  age?: AgeEnum | null;
+  use_cases?: string[];
+  preview_url?: string | null;
+}
+
 /**
  * Recommended voice result.
  *

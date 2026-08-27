@@ -102,6 +102,15 @@ module Typecast
       voices.first
     end
 
+    def get_voices_v3(filter = nil)
+      query = filter.respond_to?(:to_h) ? filter.to_h : filter
+      JSON.parse(request_json(:get, "/v3/voices", nil, query).body).map { |item| Models::VoiceV3.from_h(item) }
+    end
+
+    def get_voice_v3(voice_id)
+      Models::VoiceV3.from_h(JSON.parse(request_json(:get, "/v3/voices/#{path_segment(voice_id)}").body))
+    end
+
     # Recommends voices from a text description.
     #
     # Results only include voice_id, voice_name, and score. Use get_voice_v2 or
@@ -116,12 +125,12 @@ module Typecast
 
     def clone_voice(audio:, filename:, name:, model:)
       validate_clone_inputs(audio, name)
-      response = request_multipart("/v1/voices/clone", audio: audio, filename: filename, fields: { name: name, model: model })
+      response = request_multipart("/v1/custom-voices/instant-clone", audio: audio, filename: filename, fields: { name: name, model: model })
       Models::CustomVoice.from_h(JSON.parse(response.body))
     end
 
     def delete_voice(voice_id)
-      request_raw(:delete, "/v1/voices/#{path_segment(voice_id)}")
+      request_raw(:delete, "/v1/custom-voices/#{path_segment(voice_id)}")
       nil
     end
 

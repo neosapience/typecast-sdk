@@ -47,6 +47,7 @@ from .models import (
     VoicesResponse,
     VoicesV2Filter,
     VoiceV2Response,
+    VoiceV3Response,
 )
 
 
@@ -418,13 +419,13 @@ class Typecast:
         if per_request:
             headers.update(per_request)
         response = self.session.post(
-            f"{self.host}/v1/voices/clone",
+            f"{self.host}/v1/custom-voices/instant-clone",
             files=files,
             data=data,
             headers=headers,
             timeout=(10, 300),
         )
-        if response.status_code != 200:
+        if response.status_code not in (200, 201):
             self._handle_error(response.status_code, response.text)
         return CustomVoice.model_validate(response.json())
 
@@ -440,12 +441,57 @@ class Typecast:
         """
         validate_custom_voice_id(voice_id)
         response = self.session.delete(
-            f"{self.host}/v1/voices/{quote(voice_id, safe='')}",
+            f"{self.host}/v1/custom-voices/{quote(voice_id, safe='')}",
             timeout=(10, 60),
             headers=self._request_headers(),
         )
         if response.status_code not in (200, 204):
             self._handle_error(response.status_code, response.text)
+
+    def create_professional_voice(
+        self,
+        audio: Union[str, Path, bytes, BinaryIO],
+        name: str,
+        language: Union[str, LanguageCode],
+        model: Union[str, "TTSModel"],
+    ) -> CustomVoice:
+        """Start an asynchronous professional custom-voice clone.
+
+        Poll :meth:`get_custom_voice` until the returned status is
+        ``"completed"`` or ``"failed"``.
+        """
+        audio_bytes, filename = validate_clone_inputs(audio, name)
+        model_str = normalize_clone_model(model)
+        response = self.session.post(
+            f"{self.host}/v1/custom-voices/professional-clone",
+            files={"files": (filename, audio_bytes, _guess_audio_mime(filename))},
+            data={"name": name, "language": str(language.value if hasattr(language, "value") else language), "model": model_str},
+            headers={"Content-Type": None, **(self._request_headers() or {})},
+            timeout=(10, 300),
+        )
+        if response.status_code != 202:
+            self._handle_error(response.status_code, response.text)
+        return CustomVoice.model_validate(response.json())
+
+    def get_custom_voices(self) -> list[CustomVoice]:
+        """List custom voices owned by the authenticated user."""
+        response = self.session.get(
+            f"{self.host}/v1/custom-voices", headers=self._request_headers()
+        )
+        if response.status_code != 200:
+            self._handle_error(response.status_code, response.text)
+        return [CustomVoice.model_validate(item) for item in response.json()]
+
+    def get_custom_voice(self, voice_id: str) -> CustomVoice:
+        """Get a custom voice, including professional-clone status."""
+        validate_custom_voice_id(voice_id)
+        response = self.session.get(
+            f"{self.host}/v1/custom-voices/{quote(voice_id, safe='')}",
+            headers=self._request_headers(),
+        )
+        if response.status_code != 200:
+            self._handle_error(response.status_code, response.text)
+        return CustomVoice.model_validate(response.json())
 
     def voices(self, model: Optional[str] = None) -> list[VoicesResponse]:
         """Get available voices (V1 API).
@@ -578,6 +624,31 @@ class Typecast:
             self._handle_error(response.status_code, response.text)
 
         return VoiceV2Response.model_validate(response.json())
+
+    def voices_v3(
+        self, filter: Optional[VoicesV2Filter] = None
+    ) -> list[VoiceV3Response]:
+        """Get voices using the current V3 Voice API."""
+        params = {}
+        if filter:
+            for key, value in filter.model_dump(exclude_none=True).items():
+                params[key] = getattr(value, "value", value)
+        response = self.session.get(
+            f"{self.host}/v3/voices", params=params, headers=self._request_headers()
+        )
+        if response.status_code != 200:
+            self._handle_error(response.status_code, response.text)
+        return [VoiceV3Response.model_validate(item) for item in response.json()]
+
+    def voice_v3(self, voice_id: str) -> VoiceV3Response:
+        """Get a voice by ID using the current V3 Voice API."""
+        response = self.session.get(
+            f"{self.host}/v3/voices/{quote(voice_id, safe='')}",
+            headers=self._request_headers(),
+        )
+        if response.status_code != 200:
+            self._handle_error(response.status_code, response.text)
+        return VoiceV3Response.model_validate(response.json())
 
     def recommend_voices(self, query: str, count: int = 5) -> list[RecommendedVoice]:
         """Recommend voices from a text description.

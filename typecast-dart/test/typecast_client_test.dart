@@ -285,7 +285,7 @@ void main() {
         baseUrl: 'https://api.test',
         httpClient: MockClient((request) async {
           expect(request.method, 'POST');
-          expect(request.url.path, '/v1/voices/clone');
+          expect(request.url.path, '/v1/custom-voices/instant-clone');
           expect(request.headers['X-API-KEY'], 'key');
           expect(
             request.headers['content-type'],
@@ -327,7 +327,7 @@ void main() {
         baseUrl: 'https://api.test',
         httpClient: MockClient((request) async {
           expect(request.method, 'DELETE');
-          expect(request.url.path, '/v1/voices/uc_123');
+          expect(request.url.path, '/v1/custom-voices/uc_123');
           return http.Response('', 204);
         }),
       );

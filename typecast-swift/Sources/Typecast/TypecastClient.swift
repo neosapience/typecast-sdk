@@ -337,6 +337,21 @@ public final class TypecastClient: Sendable {
     return try handleResponse(data: data, response: response)
   }
 
+  /// Gets voices from the current V3 Voice API.
+  public func getVoicesV3(filter: VoicesV2Filter? = nil) async throws -> [VoiceV3] {
+    let url = try buildURL(path: "/v3/voices", queryParams: filter?.toQueryParams())
+    let (data, response) = try await session.data(for: createRequest(url: url))
+    return try handleResponse(data: data, response: response)
+  }
+
+  /// Gets one voice from the current V3 Voice API.
+  public func getVoiceV3(voiceId: String) async throws -> VoiceV3 {
+    let id = try encodedPathComponent(voiceId, name: "voiceId")
+    let url = try buildURL(path: "/v3/voices/\(id)")
+    let (data, response) = try await session.data(for: createRequest(url: url))
+    return try handleResponse(data: data, response: response)
+  }
+
   /// Recommend voices from a text description.
   ///
   /// Results only include `voiceId`, `voiceName`, and `score`. Use
@@ -376,7 +391,7 @@ public final class TypecastClient: Sendable {
 
   /// Clone a voice from an audio sample.
   ///
-  /// Sends a `multipart/form-data` POST to `POST /v1/voices/clone` and
+  /// Sends a `multipart/form-data` POST to `POST /v1/custom-voices/instant-clone` and
   /// returns the metadata of the newly created custom voice.
   ///
   /// - Parameters:
@@ -432,7 +447,7 @@ public final class TypecastClient: Sendable {
     body.append(audio)
     appendStr("\(crlf)--\(boundary)--\(crlf)")
 
-    let url = try buildURL(path: "/v1/voices/clone")
+    let url = try buildURL(path: "/v1/custom-voices/instant-clone")
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue(
@@ -481,7 +496,7 @@ public final class TypecastClient: Sendable {
   ///   (the "uc_" prefixed string returned by ``cloneVoice(audio:filename:name:model:)``).
   public func deleteVoice(_ voiceId: String) async throws {
     let encodedVoiceId = try encodedPathComponent(voiceId, name: "voiceId")
-    let url = try buildURL(path: "/v1/voices/\(encodedVoiceId)")
+    let url = try buildURL(path: "/v1/custom-voices/\(encodedVoiceId)")
     var request = URLRequest(url: url)
     request.httpMethod = "DELETE"
     setAuthHeader(&request)

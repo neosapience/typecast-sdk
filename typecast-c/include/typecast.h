@@ -741,7 +741,7 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_stream(
  * ============================================ */
 
 /**
- * Get available voices (V2 API)
+ * Get available voices (V3 API). V3 localized names use English when present.
  *
  * @param client Pointer to TypecastClient
  * @param filter Optional filter (can be NULL)
@@ -754,7 +754,7 @@ TYPECAST_API TypecastVoicesResponse* typecast_get_voices(
 );
 
 /**
- * Get a specific voice by ID (V2 API)
+ * Get a specific voice by ID (V3 API)
  *
  * @param client Pointer to TypecastClient
  * @param voice_id Voice ID to retrieve
@@ -869,7 +869,7 @@ typedef struct {
 /**
  * Clone a custom voice from raw audio bytes.
  *
- * Sends the audio data to POST /v1/voices/clone as a multipart upload.
+ * Sends the audio data to POST /v1/custom-voices/instant-clone as a multipart upload.
  * On success, writes the resulting voice descriptor into @p out and returns
  * TYPECAST_OK. On validation or HTTP failure, sets the client last_error
  * and returns a non-zero error code.
@@ -896,7 +896,7 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
 /**
  * Soft-delete a custom voice by ID.
  *
- * Sends DELETE /v1/voices/{voice_id}. Returns TYPECAST_OK on 204 No Content.
+ * Sends DELETE /v1/custom-voices/{voice_id}. Returns TYPECAST_OK on 204 No Content.
  * On HTTP error, sets the client last_error and returns a non-zero code.
  *
  * @param client   Pointer to an initialized TypecastClient (required)

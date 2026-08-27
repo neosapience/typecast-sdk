@@ -57,6 +57,23 @@ data class VoiceV2Response(
     val useCases: List<String>? = null
 )
 
+/** Localized display name returned by the current V3 Voice API. */
+@Serializable
+data class LocalizedVoiceName(val eng: String, val kor: String)
+
+/** Voice response from the current V3 Voice API. */
+@Serializable
+data class VoiceV3Response(
+    @SerialName("voice_id") val voiceId: String,
+    @SerialName("voice_name") val voiceName: LocalizedVoiceName,
+    val models: List<ModelInfo>,
+    @SerialName("voice_type") val voiceType: String,
+    val gender: GenderEnum? = null,
+    val age: AgeEnum? = null,
+    @SerialName("use_cases") val useCases: List<String>? = null,
+    @SerialName("preview_url") val previewUrl: String? = null
+)
+
 /**
  * Voice recommendation result.
  *

@@ -347,6 +347,48 @@ class VoiceV2 {
   final List<String> useCases;
 }
 
+class LocalizedVoiceName {
+  const LocalizedVoiceName({required this.eng, required this.kor});
+  factory LocalizedVoiceName.fromJson(Map<String, dynamic> json) =>
+      LocalizedVoiceName(
+          eng: json['eng'] as String? ?? '', kor: json['kor'] as String? ?? '');
+  final String eng;
+  final String kor;
+}
+
+class VoiceV3 {
+  const VoiceV3(
+      {required this.voiceId,
+      required this.voiceName,
+      required this.models,
+      required this.voiceType,
+      this.gender,
+      this.age,
+      this.useCases = const [],
+      this.previewUrl});
+  factory VoiceV3.fromJson(Map<String, dynamic> json) => VoiceV3(
+        voiceId: json['voice_id'] as String? ?? '',
+        voiceName: LocalizedVoiceName.fromJson(
+            (json['voice_name'] as Map? ?? {}).cast()),
+        models: (json['models'] as List? ?? [])
+            .map((item) => VoiceModel.fromJson((item as Map).cast()))
+            .toList(),
+        voiceType: json['voice_type'] as String? ?? '',
+        gender: json['gender'] as String?,
+        age: json['age'] as String?,
+        useCases: (json['use_cases'] as List? ?? []).cast<String>(),
+        previewUrl: json['preview_url'] as String?,
+      );
+  final String voiceId;
+  final LocalizedVoiceName voiceName;
+  final List<VoiceModel> models;
+  final String voiceType;
+  final String? gender;
+  final String? age;
+  final List<String> useCases;
+  final String? previewUrl;
+}
+
 class RecommendedVoice {
   /// Voice recommendation result.
   ///
@@ -389,12 +431,23 @@ class VoicesV2Filter {
 }
 
 class CustomVoice {
-  const CustomVoice({required this.voiceId, required this.name, this.model});
+  const CustomVoice(
+      {required this.voiceId,
+      required this.name,
+      this.model,
+      this.source,
+      this.status,
+      this.error,
+      this.createdAt});
 
   factory CustomVoice.fromJson(Map<String, dynamic> json) => CustomVoice(
         voiceId: json['voice_id'] as String? ?? '',
         name: json['name'] as String? ?? '',
         model: json['model'] as String?,
+        source: json['source'] as String?,
+        status: json['status'] as String?,
+        error: json['error'] as String?,
+        createdAt: json['created_at'] as String?,
       );
 
   static const int maxNameLength = 30;
@@ -403,6 +456,10 @@ class CustomVoice {
   final String voiceId;
   final String name;
   final String? model;
+  final String? source;
+  final String? status;
+  final String? error;
+  final String? createdAt;
 }
 
 Map<String, Object?> _withoutNulls(Map<String, Object?> value) {

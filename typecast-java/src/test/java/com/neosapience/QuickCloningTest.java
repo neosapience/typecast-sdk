@@ -67,7 +67,7 @@ class QuickCloningTest {
     // ==================== Test 2: cloneVoiceSendsMultipartBody ====================
 
     @Test
-    @DisplayName("cloneVoice sends POST to /v1/voices/clone with multipart/form-data body")
+    @DisplayName("cloneVoice sends POST to /v1/custom-voices/instant-clone with multipart/form-data body")
     void cloneVoiceSendsMultipartBody() throws Exception {
         String responseJson = "{\"voice_id\":\"uc_abc\",\"name\":\"Test\",\"model\":\"ssfm-v30\"}";
         mockServer.enqueue(new MockResponse()
@@ -81,7 +81,7 @@ class QuickCloningTest {
         RecordedRequest request = mockServer.takeRequest();
 
         assertEquals("POST", request.getMethod());
-        assertEquals("/v1/voices/clone", request.getPath());
+        assertEquals("/v1/custom-voices/instant-clone", request.getPath());
 
         String contentType = request.getHeader("Content-Type");
         assertNotNull(contentType);
@@ -165,8 +165,8 @@ class QuickCloningTest {
 
         RecordedRequest request = mockServer.takeRequest();
         assertEquals("DELETE", request.getMethod());
-        assertTrue(request.getPath().endsWith("/v1/voices/uc_xxx"),
-                "Path should end with /v1/voices/uc_xxx, got: " + request.getPath());
+        assertTrue(request.getPath().endsWith("/v1/custom-voices/uc_xxx"),
+                "Path should end with /v1/custom-voices/uc_xxx, got: " + request.getPath());
         assertEquals("test-api-key", request.getHeader("X-API-KEY"));
     }
 
@@ -253,7 +253,7 @@ class QuickCloningTest {
 
         RecordedRequest request = mockServer.takeRequest();
         assertEquals("POST", request.getMethod());
-        assertEquals("/v1/voices/clone", request.getPath());
+        assertEquals("/v1/custom-voices/instant-clone", request.getPath());
         // Filename from File object should be used
         String body = request.getBody().readUtf8();
         assertTrue(body.contains(tempFile.getName()),

@@ -7,7 +7,7 @@ use crate::errors::{Result, TypecastError};
 use crate::models::{
     Age, AudioFormat, CustomVoice, ErrorResponse, Gender, GenerateToFileRequest, RecommendedVoice,
     SubscriptionResponse, TTSModel, TTSRequest, TTSRequestStream, TTSResponse, UseCase, VoiceV2,
-    VoicesV2Filter, CLONING_MAX_FILE_SIZE, NAME_MAX_LENGTH, NAME_MIN_LENGTH,
+    VoiceV3, VoicesV2Filter, CLONING_MAX_FILE_SIZE, NAME_MAX_LENGTH, NAME_MIN_LENGTH,
 };
 use bytes::Bytes;
 use futures_util::stream::{Stream, StreamExt};
@@ -545,6 +545,54 @@ impl TypecastClient {
         Ok(voice)
     }
 
+    /// Gets voices from the current V3 Voice API.
+    pub async fn get_voices_v3(&self, filter: Option<VoicesV2Filter>) -> Result<Vec<VoiceV3>> {
+        let mut params = Vec::new();
+        if let Some(f) = filter {
+            if let Some(model) = f.model {
+                params.push(("model", model_query_value(model).to_string()));
+            }
+            if let Some(gender) = f.gender {
+                params.push(("gender", gender_query_value(gender).to_string()));
+            }
+            if let Some(age) = f.age {
+                params.push(("age", age_query_value(age).to_string()));
+            }
+            if let Some(use_cases) = f.use_cases {
+                params.push(("use_cases", use_case_query_value(use_cases).to_string()));
+            }
+        }
+        let response = self
+            .client
+            .get(self.build_url(
+                "/v3/voices",
+                if params.is_empty() {
+                    None
+                } else {
+                    Some(params)
+                },
+            ))
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+        Ok(response.json().await?)
+    }
+
+    /// Gets one voice from the current V3 Voice API.
+    pub async fn get_voice_v3(&self, voice_id: &str) -> Result<VoiceV3> {
+        let response = self
+            .client
+            .get(self.build_url(&format!("/v3/voices/{voice_id}"), None))
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+        Ok(response.json().await?)
+    }
+
     /// Recommend voices from a text description.
     ///
     /// Results only contain `voice_id`, `voice_name`, and `score`. Use
@@ -687,7 +735,7 @@ impl TypecastClient {
 
     /// Clone a voice from an audio recording.
     ///
-    /// Uploads the audio file as `multipart/form-data` to `POST /v1/voices/clone`
+    /// Uploads the audio file as `multipart/form-data` to `POST /v1/custom-voices/instant-clone`
     /// and returns a [`CustomVoice`] representing the newly created voice.
     ///
     /// # Arguments
@@ -748,7 +796,7 @@ impl TypecastClient {
             .text("model", model.to_string())
             .part("file", part);
 
-        let url = self.build_url("/v1/voices/clone", None);
+        let url = self.build_url("/v1/custom-voices/instant-clone", None);
         let response = self
             .with_auth_header(self.client.post(&url))
             .multipart(form)
@@ -786,7 +834,7 @@ impl TypecastClient {
     /// # }
     /// ```
     pub async fn delete_voice(&self, voice_id: &str) -> Result<()> {
-        let url = self.build_url(&format!("/v1/voices/{}", voice_id), None);
+        let url = self.build_url(&format!("/v1/custom-voices/{}", voice_id), None);
         let response = self
             .with_auth_header(self.client.delete(&url))
             .send()

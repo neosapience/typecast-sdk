@@ -77,7 +77,7 @@ class QuickCloningTest {
 
         val recorded = mockServer.takeRequest()
         assertEquals("POST", recorded.method)
-        assertEquals("/v1/voices/clone", recorded.path)
+        assertEquals("/v1/custom-voices/instant-clone", recorded.path)
         assertEquals("test-api-key", recorded.getHeader("X-API-KEY"))
 
         val contentType = recorded.getHeader("Content-Type") ?: ""
@@ -172,7 +172,7 @@ class QuickCloningTest {
 
         val recorded = mockServer.takeRequest()
         assertEquals("DELETE", recorded.method)
-        assertEquals("/v1/voices/uc_abc123", recorded.path)
+        assertEquals("/v1/custom-voices/uc_abc123", recorded.path)
         assertEquals("test-api-key", recorded.getHeader("X-API-KEY"))
     }
 

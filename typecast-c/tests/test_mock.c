@@ -1597,7 +1597,7 @@ static void test_get_voice_happy(void) {
     ASSERT_STREQ(v->voice_id, "tc_one");
     ASSERT_EQ(v->gender, TYPECAST_GENDER_UNKNOWN);
     ASSERT_EQ(v->age, TYPECAST_AGE_CHILD);
-    ASSERT(strstr(g_server.last_path, "/v2/voices/tc_one") != NULL);
+    ASSERT(strstr(g_server.last_path, "/v3/voices/tc_one") != NULL);
     typecast_voice_free(v);
     typecast_client_destroy(c);
 }

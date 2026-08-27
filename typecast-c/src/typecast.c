@@ -572,6 +572,14 @@ static TypecastVoice* parse_voice_json(cJSON* json) {
     cJSON* voice_name = cJSON_GetObjectItem(json, "voice_name");
     if (cJSON_IsString(voice_name)) {
         voice->voice_name = strdup_safe(voice_name->valuestring);
+    } else if (cJSON_IsObject(voice_name)) {
+        cJSON* english_name = cJSON_GetObjectItem(voice_name, "eng");
+        cJSON* korean_name = cJSON_GetObjectItem(voice_name, "kor");
+        if (cJSON_IsString(english_name)) {
+            voice->voice_name = strdup_safe(english_name->valuestring);
+        } else if (cJSON_IsString(korean_name)) {
+            voice->voice_name = strdup_safe(korean_name->valuestring);
+        }
     }
     
     /* gender */
@@ -1598,7 +1606,7 @@ TYPECAST_API TypecastVoicesResponse* typecast_get_voices(
     
     /* Build URL with query parameters */
     char url[1024];
-    snprintf(url, sizeof(url), "%s/v2/voices", client->host);
+    snprintf(url, sizeof(url), "%s/v3/voices", client->host);
     
     /* Add filter parameters */
     int has_params = 0;
@@ -1732,7 +1740,7 @@ TYPECAST_API TypecastVoice* typecast_get_voice(
     
     /* Build URL */
     char url[512];
-    snprintf(url, sizeof(url), "%s/v2/voices/%s", client->host, voice_id);
+    snprintf(url, sizeof(url), "%s/v3/voices/%s", client->host, voice_id);
     
     /* Setup response buffer */
     ResponseBuffer response_buf = {0};
@@ -3191,7 +3199,7 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
 
     /* ---- Build URL ---- */
     char url[512];
-    snprintf(url, sizeof(url), "%s/v1/voices/clone", client->host);
+    snprintf(url, sizeof(url), "%s/v1/custom-voices/instant-clone", client->host);
 
     /* ---- Setup response buffer ---- */
     ResponseBuffer response_buf = {0};
@@ -3314,7 +3322,7 @@ TYPECAST_API TypecastErrorCode typecast_delete_voice(
 
     /* ---- Build URL ---- */
     char url[512];
-    snprintf(url, sizeof(url), "%s/v1/voices/%s", client->host, voice_id);
+    snprintf(url, sizeof(url), "%s/v1/custom-voices/%s", client->host, voice_id);
 
     /* ---- Setup response buffer (DELETE may return a body on error) ---- */
     ResponseBuffer response_buf = {0};

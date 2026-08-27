@@ -378,6 +378,47 @@ class TestSyncClient:
         with pytest.raises(NotFoundError):
             client.voice_v2("missing")
 
+    def test_voices_v3_uses_localized_names(self, client, mocker):
+        mock_resp = self._mock_response(
+            mocker,
+            json_data=[
+                {
+                    "voice_id": "tc_v3",
+                    "voice_name": {"eng": "Voice", "kor": "보이스"},
+                    "models": [{"version": "ssfm-v30", "emotions": ["normal"]}],
+                    "voice_type": "original",
+                }
+            ],
+        )
+        get_mock = mocker.patch.object(client.session, "get", return_value=mock_resp)
+
+        voices = client.voices_v3()
+
+        assert voices[0].voice_name.kor == "보이스"
+        assert voices[0].voice_type == "original"
+        get_mock.assert_called_once_with(
+            f"{client.host}/v3/voices", params={}, headers=None
+        )
+
+    def test_voice_v3_uses_by_id_endpoint(self, client, mocker):
+        mock_resp = self._mock_response(
+            mocker,
+            json_data={
+                "voice_id": "tc_v3",
+                "voice_name": {"eng": "Voice", "kor": "보이스"},
+                "models": [{"version": "ssfm-v30", "emotions": ["normal"]}],
+                "voice_type": "original",
+            },
+        )
+        get_mock = mocker.patch.object(client.session, "get", return_value=mock_resp)
+
+        voice = client.voice_v3("tc_v3")
+
+        assert voice.voice_name.eng == "Voice"
+        get_mock.assert_called_once_with(
+            f"{client.host}/v3/voices/tc_v3", headers=None
+        )
+
     def test_recommend_voices_success(self, client, mocker):
         mock_resp = self._mock_response(
             mocker,

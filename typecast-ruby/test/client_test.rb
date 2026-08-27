@@ -143,7 +143,7 @@ class ClientTest < Minitest::Test
       voice = client.clone_voice(audio: "abc", filename: "sample.wav", name: "Mine", model: "ssfm-v30")
       assert_equal "uc_123", voice.voice_id
       request = captured.pop
-      assert_includes request, "POST /v1/voices/clone"
+      assert_includes request, "POST /v1/custom-voices/instant-clone"
       assert_includes request, "multipart/form-data"
       assert_includes request, "name=\"file\""
     end

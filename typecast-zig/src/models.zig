@@ -302,7 +302,7 @@ pub const NAME_MIN_LENGTH: usize = 1;
 /// Maximum length of the custom voice name.
 pub const NAME_MAX_LENGTH: usize = 30;
 
-/// A custom (cloned) voice returned by the /v1/voices/clone endpoint.
+/// A custom (cloned) voice returned by the /v1/custom-voices/instant-clone endpoint.
 pub const CustomVoice = struct {
     voice_id: []const u8,
     name: []const u8,
