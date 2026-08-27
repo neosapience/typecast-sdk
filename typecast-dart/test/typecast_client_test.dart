@@ -335,6 +335,20 @@ void main() {
       await client.deleteVoice('uc_123');
     });
 
+    test('professional cloning and custom voice queries use current endpoints', () async {
+      var call = 0;
+      final client = TypecastClient(apiKey: 'key', baseUrl: 'https://api.test', httpClient: MockClient((request) async {
+        final paths = ['/v1/custom-voices/professional-clone', '/v1/custom-voices', '/v1/custom-voices/uc_123'];
+        expect(request.url.path, paths[call++]);
+        if (request.url.path == '/v1/custom-voices/professional-clone') expect(request.method, 'POST');
+        final voice = {'voice_id': 'uc_123', 'name': 'Mine', 'model': 'ssfm-v30', 'status': 'processing'};
+        return http.Response(jsonEncode(request.url.path == '/v1/custom-voices' ? [voice] : voice), request.url.path.contains('professional') ? 202 : 200);
+      }));
+      expect((await client.createProfessionalVoice(samples: [const CustomVoiceSample(filename: 'sample.wav', audio: [1])], name: 'Mine', model: TtsModel.ssfmV30, language: 'en')).status, 'processing');
+      expect((await client.getCustomVoices()).single.voiceId, 'uc_123');
+      expect((await client.getCustomVoice('uc_123')).voiceId, 'uc_123');
+    });
+
     test('textToSpeechWithTimestamps validates granularity', () async {
       final client = TypecastClient(
         apiKey: 'key',

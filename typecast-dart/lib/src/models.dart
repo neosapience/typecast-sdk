@@ -462,6 +462,12 @@ class CustomVoice {
   final String? createdAt;
 }
 
+class CustomVoiceSample {
+  const CustomVoiceSample({required this.filename, required this.audio});
+  final String filename;
+  final List<int> audio;
+}
+
 Map<String, Object?> _withoutNulls(Map<String, Object?> value) {
   value.removeWhere((_, v) => v == null);
   return value;

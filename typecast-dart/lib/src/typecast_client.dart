@@ -227,6 +227,41 @@ class TypecastClient {
     _raiseForStatus(response);
   }
 
+  Future<CustomVoice> createProfessionalVoice({
+    required List<CustomVoiceSample> samples,
+    required String name,
+    required TtsModel model,
+    required String language,
+  }) async {
+    if (samples.isEmpty) throw ArgumentError('at least one audio file is required');
+    if (name.isEmpty || name.length > CustomVoice.maxNameLength) {
+      throw ArgumentError('name must be 1-${CustomVoice.maxNameLength} chars');
+    }
+    final request = http.MultipartRequest('POST', _url('/v1/custom-voices/professional-clone'))
+      ..headers.addAll(_headers())
+      ..fields.addAll({'name': name, 'model': model.value, 'language': language});
+    for (final sample in samples) {
+      if (sample.audio.length > CustomVoice.maxFileSize) throw ArgumentError('audio must be 25MB or smaller');
+      request.files.add(http.MultipartFile.fromBytes('files', sample.audio, filename: sample.filename));
+    }
+    final response = await _httpClient.send(request).timeout(requestTimeout);
+    await _raiseForStreamStatus(response, requestTimeout);
+    final body = await response.stream.bytesToString().timeout(requestTimeout);
+    return CustomVoice.fromJson((jsonDecode(body) as Map).cast());
+  }
+
+  Future<List<CustomVoice>> getCustomVoices() async {
+    final response = await _httpClient.get(_url('/v1/custom-voices'), headers: _headers()).timeout(requestTimeout);
+    _raiseForStatus(response);
+    return (jsonDecode(response.body) as List).map((item) => CustomVoice.fromJson((item as Map).cast())).toList();
+  }
+
+  Future<CustomVoice> getCustomVoice(String voiceId) async {
+    final response = await _httpClient.get(_url('/v1/custom-voices/$voiceId'), headers: _headers()).timeout(requestTimeout);
+    _raiseForStatus(response);
+    return CustomVoice.fromJson((jsonDecode(response.body) as Map).cast());
+  }
+
   Uri _url(String path, [Map<String, String>? query]) {
     final base = Uri.parse(baseUrl);
     return base.replace(
