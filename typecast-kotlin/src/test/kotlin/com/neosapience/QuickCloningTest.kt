@@ -2,6 +2,7 @@ package com.neosapience
 
 import com.neosapience.exceptions.NotFoundException
 import com.neosapience.models.CustomVoice
+import com.neosapience.models.CustomVoiceFile
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.*
@@ -35,6 +36,20 @@ class QuickCloningTest {
     }
 
     // ==================== cloneVoice Tests ====================
+
+    @Test
+    fun professionalCloneAndCustomVoiceQueriesUseCurrentEndpoints() {
+        val voice = "{\"voice_id\":\"uc_prof\",\"name\":\"Pro\",\"model\":\"ssfm-v30\",\"status\":\"processing\"}"
+        mockServer.enqueue(MockResponse().setResponseCode(202).setBody(voice))
+        assertEquals("processing", client.createProfessionalVoice(listOf(CustomVoiceFile("sample.wav", byteArrayOf(1))), "Pro", "ssfm-v30", "en").status)
+        assertEquals("/v1/custom-voices/professional-clone", mockServer.takeRequest().path)
+        mockServer.enqueue(MockResponse().setBody("[$voice]"))
+        assertEquals("uc_prof", client.getCustomVoices().single().voiceId)
+        assertEquals("/v1/custom-voices", mockServer.takeRequest().path)
+        mockServer.enqueue(MockResponse().setBody(voice))
+        assertEquals("uc_prof", client.getCustomVoice("uc_prof").voiceId)
+        assertEquals("/v1/custom-voices/uc_prof", mockServer.takeRequest().path)
+    }
 
     @Test
     @DisplayName("cloneVoice returns a CustomVoice with correct fields")

@@ -583,6 +583,33 @@ class TypecastClient private constructor(
         return cloneVoice(bytes, audioFile.name, name, model)
     }
 
+    /** Starts professional cloning. The API returns the queued custom voice (HTTP 202). */
+    fun createProfessionalVoice(files: List<CustomVoiceFile>, name: String, model: String, language: String): CustomVoice {
+        require(files.isNotEmpty()) { "at least one audio file is required" }
+        require(name.length in CustomVoice.NAME_MIN_LENGTH..CustomVoice.NAME_MAX_LENGTH) { "name must be 1-30 characters" }
+        val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("name", name)
+            .addFormDataPart("model", model)
+            .addFormDataPart("language", language)
+        files.forEach { file ->
+            require(file.data.size <= CustomVoice.CLONING_MAX_FILE_SIZE) { "audio file exceeds 25MB limit" }
+            body.addFormDataPart("files", file.filename, file.data.toRequestBody(guessAudioMime(file.filename).toMediaType()))
+        }
+        val request = Request.Builder().url("$baseUrl/v1/custom-voices/professional-clone")
+            .addAuthHeader().addUserAgentHeader().post(body.build()).build()
+        return executeRequest(request)
+    }
+
+    /** Lists the caller's custom voices. */
+    fun getCustomVoices(): List<CustomVoice> = executeRequest(
+        Request.Builder().url("$baseUrl/v1/custom-voices").addAuthHeader().addUserAgentHeader().get().build()
+    )
+
+    /** Gets the current status and metadata for a custom voice. */
+    fun getCustomVoice(voiceId: String): CustomVoice = executeRequest(
+        Request.Builder().url("$baseUrl/v1/custom-voices/$voiceId").addAuthHeader().addUserAgentHeader().get().build()
+    )
+
     /**
      * Deletes a custom voice (created via instant cloning).
      *
