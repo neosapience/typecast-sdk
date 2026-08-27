@@ -168,6 +168,8 @@ class QuickCloningTest {
         assertTrue(request.getPath().endsWith("/v1/custom-voices/uc_xxx"),
                 "Path should end with /v1/custom-voices/uc_xxx, got: " + request.getPath());
         assertEquals("test-api-key", request.getHeader("X-API-KEY"));
+        assertThrows(IllegalArgumentException.class, () -> client.deleteVoice(" "));
+        assertThrows(IllegalArgumentException.class, () -> client.deleteVoice(null));
     }
 
     // ==================== Test 6: deleteVoiceThrowsOn404 ====================

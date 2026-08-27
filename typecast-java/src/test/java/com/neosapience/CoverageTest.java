@@ -567,6 +567,7 @@ class CoverageTest {
         client.getVoiceV3("tc/a?");
         assertEquals("/v3/voices/tc%2Fa%3F", mockServer.takeRequest().getPath());
         assertThrows(IllegalArgumentException.class, () -> client.getVoiceV3(" "));
+        assertThrows(IllegalArgumentException.class, () -> client.getVoiceV3(null));
 
         mockServer.enqueue(new MockResponse().setResponseCode(500).setBody("{\"detail\":\"boom\"}"));
         assertThrows(InternalServerException.class, () -> client.getVoicesV3(null));
