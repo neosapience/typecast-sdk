@@ -556,6 +556,10 @@ class CoverageTest {
         String path = mockServer.takeRequest().getPath();
         assertTrue(path.contains("model=ssfm-v30") && path.contains("gender=female") && path.contains("age=young_adult") && path.contains("use_cases=news"));
 
+        mockServer.enqueue(new MockResponse().setResponseCode(200).setBody("[" + voice + "]"));
+        assertEquals(1, client.getVoicesV3(new VoicesV2Filter()).size());
+        assertEquals("/v3/voices", mockServer.takeRequest().getPath());
+
         mockServer.enqueue(new MockResponse().setResponseCode(200).setBody(voice));
         assertEquals("original", client.getVoiceV3("tc_v3").getVoiceType());
         assertEquals("/v3/voices/tc_v3", mockServer.takeRequest().getPath());
@@ -564,6 +568,10 @@ class CoverageTest {
         assertThrows(InternalServerException.class, () -> client.getVoicesV3(null));
         mockServer.enqueue(new MockResponse().setResponseCode(404).setBody("{\"detail\":\"missing\"}"));
         assertThrows(NotFoundException.class, () -> client.getVoiceV3("missing"));
+
+        mockServer.shutdown();
+        assertThrows(TypecastException.class, () -> client.getVoicesV3(null));
+        assertThrows(TypecastException.class, () -> client.getVoiceV3("tc_v3"));
     }
 
     @Test

@@ -888,7 +888,7 @@ public class TypecastClient {
 
     /** Gets voices from the current V3 Voice API. */
     public List<VoiceV3Response> getVoicesV3(VoicesV2Filter filter) {
-        HttpUrl.Builder url = HttpUrl.parse(baseUrl + "/v3/voices").newBuilder();
+        HttpUrl.Builder url = HttpUrl.get(baseUrl + "/v3/voices").newBuilder();
         if (filter != null) {
             if (filter.getModel() != null) url.addQueryParameter("model", filter.getModel().getValue());
             if (filter.getGender() != null) url.addQueryParameter("gender", filter.getGender().getValue());
