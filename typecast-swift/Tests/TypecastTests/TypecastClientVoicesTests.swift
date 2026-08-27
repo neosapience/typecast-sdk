@@ -18,7 +18,11 @@ final class TypecastClientVoicesTests: TypecastClientMockTestCase {
         XCTAssertEqual(detail.gender, .female)
         XCTAssertEqual(detail.age, .youngAdult)
         XCTAssertEqual(detail.previewUrl, "https://example.test/voice")
-        XCTAssertTrue(requests[0].url!.query!.contains("model=ssfm-v30"))
+        let queryItems = URLComponents(url: try XCTUnwrap(requests[0].url), resolvingAgainstBaseURL: false)?.queryItems ?? []
+        XCTAssertEqual(queryItems.first { $0.name == "model" }?.value, "ssfm-v30")
+        XCTAssertEqual(queryItems.first { $0.name == "gender" }?.value, "female")
+        XCTAssertEqual(queryItems.first { $0.name == "age" }?.value, "young_adult")
+        XCTAssertEqual(queryItems.first { $0.name == "use_cases" }?.value, "News")
         XCTAssertEqual(requests.map { $0.url!.path }, ["/v3/voices", "/v3/voices/tc_v3"])
     }
 
