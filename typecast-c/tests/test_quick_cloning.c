@@ -599,6 +599,29 @@ static void test_professional_clone_rejects_empty_language(void) {
     typecast_client_destroy(c);
 }
 
+static void test_get_custom_voice(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, "{\"voice_id\":\"uc_one\",\"name\":\"One\",\"model\":\"ssfm-v30\"}");
+    TypecastCustomVoice* voice = typecast_get_custom_voice(c, "uc_one");
+    ASSERT_NOT_NULL(voice);
+    ASSERT_STREQ(voice->voice_id, "uc_one");
+    ASSERT(strstr(g_srv.last_path, "/v1/custom-voices/uc_one") != NULL);
+    typecast_custom_voice_free(voice);
+    typecast_client_destroy(c);
+}
+
+static void test_list_custom_voices(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, "[{\"voice_id\":\"uc_one\",\"name\":\"One\",\"model\":\"ssfm-v30\"}]");
+    TypecastCustomVoicesResponse* voices = typecast_get_custom_voices(c);
+    ASSERT_NOT_NULL(voices);
+    ASSERT_EQ(voices->count, 1);
+    ASSERT_STREQ(voices->voices[0].voice_id, "uc_one");
+    ASSERT_STREQ(g_srv.last_path, "/v1/custom-voices");
+    typecast_custom_voices_free(voices);
+    typecast_client_destroy(c);
+}
+
 /* ---- delete_voice happy path ---- */
 
 static void test_delete_voice_succeeds_on_204(void) {
@@ -686,6 +709,8 @@ int main(void) {
     RUN(clone_voice_invalid_json);
     RUN(professional_clone_uses_current_endpoint);
     RUN(professional_clone_rejects_empty_language);
+    RUN(get_custom_voice);
+    RUN(list_custom_voices);
 
     /* delete_voice HTTP paths */
     RUN(delete_voice_succeeds_on_204);

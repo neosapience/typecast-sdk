@@ -866,6 +866,11 @@ typedef struct {
     char model[16];     /* "ssfm-v21" / "ssfm-v30" + NUL                 */
 } TypecastCustomVoice;
 
+typedef struct {
+    TypecastCustomVoice* voices;
+    size_t count;
+} TypecastCustomVoicesResponse;
+
 /**
  * Clone a custom voice from raw audio bytes.
  *
@@ -910,6 +915,20 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice_professional(
     const char* language,
     TypecastCustomVoice* out
 );
+
+/** Get one custom voice, including professional-clone status metadata. */
+TYPECAST_API TypecastCustomVoice* typecast_get_custom_voice(
+    TypecastClient* client,
+    const char* voice_id
+);
+
+/** List the caller's custom voices. Free with typecast_custom_voices_free(). */
+TYPECAST_API TypecastCustomVoicesResponse* typecast_get_custom_voices(
+    TypecastClient* client
+);
+
+TYPECAST_API void typecast_custom_voice_free(TypecastCustomVoice* voice);
+TYPECAST_API void typecast_custom_voices_free(TypecastCustomVoicesResponse* voices);
 
 /**
  * Soft-delete a custom voice by ID.

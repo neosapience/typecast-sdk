@@ -3347,6 +3347,100 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice_professional(
                                language, "/v1/custom-voices/professional-clone", "files", out);
 }
 
+static TypecastCustomVoice* parse_custom_voice_json(const cJSON* json) {
+    if (!cJSON_IsObject(json)) return NULL;
+    TypecastCustomVoice* voice = calloc(1, sizeof(*voice));
+    if (!voice) return NULL;
+    cJSON* voice_id = cJSON_GetObjectItem(json, "voice_id");
+    cJSON* name = cJSON_GetObjectItem(json, "name");
+    cJSON* model = cJSON_GetObjectItem(json, "model");
+    if (cJSON_IsString(voice_id)) snprintf(voice->voice_id, sizeof(voice->voice_id), "%s", voice_id->valuestring);
+    if (cJSON_IsString(name)) snprintf(voice->name, sizeof(voice->name), "%s", name->valuestring);
+    if (cJSON_IsString(model)) snprintf(voice->model, sizeof(voice->model), "%s", model->valuestring);
+    return voice;
+}
+
+static cJSON* get_custom_voice_json(TypecastClient* client, const char* path) {
+    char url[512];
+    snprintf(url, sizeof(url), "%s%s", client->host, path);
+    ResponseBuffer response_buf = {0};
+    CURL* curl = client->curl;
+    curl_easy_reset(curl);
+    struct curl_slist* headers = append_common_headers(NULL, client, 30L);
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_buf);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    CURLcode res = curl_easy_perform(curl);
+    curl_slist_free_all(headers);
+    if (res != CURLE_OK) {
+        set_error(client, TYPECAST_ERROR_NETWORK, curl_easy_strerror(res));
+        free(response_buf.data);
+        return NULL;
+    }
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        TypecastErrorCode error = http_status_to_error(http_code);
+        set_error(client, error, typecast_error_message(error));
+        free(response_buf.data);
+        return NULL;
+    }
+    cJSON* json = response_buf.data ? cJSON_Parse((const char*)response_buf.data) : NULL;
+    free(response_buf.data);
+    if (!json) set_error(client, TYPECAST_ERROR_JSON_PARSE, "Failed to parse custom voice response");
+    return json;
+}
+
+TYPECAST_API TypecastCustomVoice* typecast_get_custom_voice(TypecastClient* client, const char* voice_id) {
+    if (!client) return NULL;
+    if (!voice_id || !*voice_id) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is required");
+        return NULL;
+    }
+    clear_error(client);
+    char path[256];
+    snprintf(path, sizeof(path), "/v1/custom-voices/%s", voice_id);
+    cJSON* json = get_custom_voice_json(client, path);
+    if (!json) return NULL;
+    TypecastCustomVoice* voice = parse_custom_voice_json(json);
+    cJSON_Delete(json);
+    if (!voice) set_error(client, TYPECAST_ERROR_JSON_PARSE, "Expected custom voice object");
+    return voice;
+}
+
+TYPECAST_API TypecastCustomVoicesResponse* typecast_get_custom_voices(TypecastClient* client) {
+    if (!client) return NULL;
+    clear_error(client);
+    cJSON* json = get_custom_voice_json(client, "/v1/custom-voices");
+    if (!json) return NULL;
+    if (!cJSON_IsArray(json)) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Expected custom voice array");
+        cJSON_Delete(json);
+        return NULL;
+    }
+    TypecastCustomVoicesResponse* response = calloc(1, sizeof(*response));
+    if (!response) { cJSON_Delete(json); return NULL; }
+    response->count = (size_t)cJSON_GetArraySize(json);
+    response->voices = calloc(response->count, sizeof(*response->voices));
+    if (response->count && !response->voices) { free(response); cJSON_Delete(json); return NULL; }
+    for (size_t i = 0; i < response->count; i++) {
+        TypecastCustomVoice* voice = parse_custom_voice_json(cJSON_GetArrayItem(json, (int)i));
+        if (voice) { response->voices[i] = *voice; free(voice); }
+    }
+    cJSON_Delete(json);
+    return response;
+}
+
+TYPECAST_API void typecast_custom_voice_free(TypecastCustomVoice* voice) { free(voice); }
+TYPECAST_API void typecast_custom_voices_free(TypecastCustomVoicesResponse* voices) {
+    if (!voices) return;
+    free(voices->voices);
+    free(voices);
+}
+
 TYPECAST_API TypecastErrorCode typecast_delete_voice(
     TypecastClient* client,
     const char* voice_id
