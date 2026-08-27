@@ -307,4 +307,7 @@ pub const CustomVoice = struct {
     voice_id: []const u8,
     name: []const u8,
     model: []const u8,
+    status: ?[]const u8 = null,
 };
+
+pub const CustomVoiceSample = struct { filename: []const u8, audio: []const u8 };

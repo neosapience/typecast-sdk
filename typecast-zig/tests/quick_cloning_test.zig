@@ -191,6 +191,24 @@ test "cloneVoice returns CustomVoice on 200" {
     try testing.expectEqualStrings("ssfm-v30", result.model);
 }
 
+test "professional cloning posts files and returns queued voice" {
+    var mock = try InspectingMockServer.init();
+    mock.response_status = 202;
+    mock.response_body =
+        \\{"voice_id":"uc_prof","name":"Pro","model":"ssfm-v30","status":"processing"}
+    ;
+    try mock.start();
+    defer mock.deinit();
+    var url_buf: [64]u8 = undefined;
+    var client = Client.init(testing.allocator, .{ .api_key = "test-key", .base_url = try baseUrlSlice(&url_buf, mock.getPort()) });
+    defer client.deinit();
+    const voice = try client.createProfessionalVoice(testing.allocator, "audio", "sample.wav", "Pro", "ssfm-v30", "en");
+    defer { testing.allocator.free(voice.voice_id); testing.allocator.free(voice.name); testing.allocator.free(voice.model); if (voice.status) |status| testing.allocator.free(status); }
+    try testing.expectEqualStrings("processing", voice.status.?);
+    try testing.expectEqualStrings("/v1/custom-voices/professional-clone", mock.captured.?.path);
+    try testing.expect(std.mem.indexOf(u8, mock.captured.?.body, "name=\"files\"") != null);
+}
+
 // ── cloneVoice — multipart shape ─────────────────────────────────────
 
 test "cloneVoice sends multipart body with name, model, and file parts" {

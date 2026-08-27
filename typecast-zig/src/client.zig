@@ -502,6 +502,41 @@ pub const Client = struct {
         return json_helpers.parseCustomVoice(allocator, json_data);
     }
 
+    /// POST /v1/custom-voices/professional-clone — start professional cloning.
+    /// The API accepts a single sample here (as the `files` multipart field) and returns its queued voice.
+    pub fn createProfessionalVoice(self: *Client, allocator: std.mem.Allocator, audio: []const u8, filename: []const u8, name: []const u8, model: []const u8, language: []const u8) !models.CustomVoice {
+        if (name.len < models.NAME_MIN_LENGTH or name.len > models.NAME_MAX_LENGTH) return error.InvalidName;
+        if (audio.len > models.CLONING_MAX_FILE_SIZE) return error.AudioTooLarge;
+        const boundary = "----TypecastZigBoundary1234567890AB";
+        var writer: std.io.Writer.Allocating = .init(allocator);
+        errdefer writer.deinit();
+        inline for ([_]struct { []const u8, []const u8 }{ .{ "name", name }, .{ "model", model }, .{ "language", language } }) |field| {
+            try writer.writer.print("--{s}\r\nContent-Disposition: form-data; name=\"{s}\"\r\n\r\n{s}\r\n", .{ boundary, field[0], field[1] });
+        }
+        try writer.writer.print("--{s}\r\nContent-Disposition: form-data; name=\"files\"; filename=\"{s}\"\r\nContent-Type: {s}\r\n\r\n", .{ boundary, filename, guessAudioMime(filename) });
+        try writer.writer.writeAll(audio);
+        try writer.writer.print("\r\n--{s}--\r\n", .{boundary});
+        try writer.writer.flush();
+        const body = try writer.toOwnedSlice();
+        defer allocator.free(body);
+        const content_type = try std.fmt.allocPrint(allocator, "multipart/form-data; boundary={s}", .{boundary});
+        defer allocator.free(content_type);
+        try self.validateApiKey();
+        const uri = try buildUri(self.base_url, "/v1/custom-voices/professional-clone", null);
+        var user_agent_buffer: [384]u8 = undefined;
+        const headers: []const std.http.Header = if (!hasApiKey(self.api_key)) &.{ .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) }, .{ .name = "Content-Type", .value = content_type } } else &.{ .{ .name = "User-Agent", .value = self.userAgent(&user_agent_buffer) }, .{ .name = "X-API-KEY", .value = self.api_key }, .{ .name = "Content-Type", .value = content_type } };
+        var request = try self.http_client.request(.POST, uri, .{ .extra_headers = headers });
+        defer request.deinit();
+        try request.sendBodyComplete(@constCast(body));
+        var redirect_buf: [4096]u8 = undefined;
+        var response = try request.receiveHead(&redirect_buf);
+        try mapStatusError(response.head.status);
+        var transfer_buf: [16384]u8 = undefined;
+        const json_data = try response.reader(&transfer_buf).allocRemaining(allocator, .unlimited);
+        defer allocator.free(json_data);
+        return json_helpers.parseCustomVoice(allocator, json_data);
+    }
+
     /// DELETE /v1/voices/{voice_id} — remove a custom (cloned) voice.
     pub fn deleteVoice(self: *Client, voice_id: []const u8) !void {
         const path = try std.fmt.allocPrint(self.allocator, "/v1/custom-voices/{s}", .{voice_id});
@@ -533,6 +568,22 @@ pub const Client = struct {
         const reader = response.reader(&transfer_buf);
         const drain = try reader.allocRemaining(self.allocator, .unlimited);
         self.allocator.free(drain);
+    }
+
+    /// Lists the caller's custom voices. Caller frees every returned string and the slice.
+    pub fn getCustomVoices(self: *Client, allocator: std.mem.Allocator) ![]models.CustomVoice {
+        const body = try self.doGet("/v1/custom-voices", null);
+        defer self.allocator.free(body);
+        return json_helpers.parseCustomVoices(allocator, body);
+    }
+
+    /// Gets current status and metadata for a custom voice. Caller frees returned strings.
+    pub fn getCustomVoice(self: *Client, allocator: std.mem.Allocator, voice_id: []const u8) !models.CustomVoice {
+        const path = try std.fmt.allocPrint(self.allocator, "/v1/custom-voices/{s}", .{voice_id});
+        defer self.allocator.free(path);
+        const body = try self.doGet(path, null);
+        defer self.allocator.free(body);
+        return json_helpers.parseCustomVoice(allocator, body);
     }
 
     // ── Internal helpers ──────────────────────────────────────────────
