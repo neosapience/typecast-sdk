@@ -4,6 +4,7 @@ import java.util.List;
 
 /** Response from the current V3 Voice API. */
 public class VoiceV3Response {
+    /** Localized English and Korean display names. */
     public static class LocalizedName { public String eng; public String kor; }
     private String voiceId;
     private LocalizedName voiceName;

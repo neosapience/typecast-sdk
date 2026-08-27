@@ -540,6 +540,25 @@ class CoverageTest {
     }
 
     @Test
+    void v3_voice_endpoints_cover_success_filter_and_errors() throws Exception {
+        String voice = "{\"voice_id\":\"tc_v3\",\"voice_name\":{\"eng\":\"Voice\",\"kor\":\"보이스\"},\"models\":[],\"voice_type\":\"original\"}";
+        mockServer.enqueue(new MockResponse().setResponseCode(200).setBody("[" + voice + "]"));
+        VoicesV2Filter filter = new VoicesV2Filter().setModel(TTSModel.SSFM_V30).setGender(GenderEnum.FEMALE).setAge(AgeEnum.YOUNG_ADULT).setUseCases(UseCaseEnum.NEWS);
+        assertEquals("tc_v3", client.getVoicesV3(filter).get(0).getVoiceId());
+        String path = mockServer.takeRequest().getPath();
+        assertTrue(path.contains("model=ssfm-v30") && path.contains("gender=female") && path.contains("age=young_adult") && path.contains("use_cases=news"));
+
+        mockServer.enqueue(new MockResponse().setResponseCode(200).setBody(voice));
+        assertEquals("original", client.getVoiceV3("tc_v3").getVoiceType());
+        assertEquals("/v3/voices/tc_v3", mockServer.takeRequest().getPath());
+
+        mockServer.enqueue(new MockResponse().setResponseCode(500).setBody("{\"detail\":\"boom\"}"));
+        assertThrows(InternalServerException.class, () -> client.getVoicesV3(null));
+        mockServer.enqueue(new MockResponse().setResponseCode(404).setBody("{\"detail\":\"missing\"}"));
+        assertThrows(NotFoundException.class, () -> client.getVoiceV3("missing"));
+    }
+
+    @Test
     void getVoices_v1_ioException() throws IOException {
         mockServer.shutdown();
         @SuppressWarnings("deprecation")
