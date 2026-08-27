@@ -585,16 +585,15 @@ class TypecastClient private constructor(
 
     /** Starts professional cloning. The API returns the queued custom voice (HTTP 202). */
     fun createProfessionalVoice(files: List<CustomVoiceFile>, name: String, model: String, language: String): CustomVoice {
-        require(files.isNotEmpty()) { "at least one audio file is required" }
+        require(files.size == 1) { "exactly one audio file is required" }
         require(name.length in CustomVoice.NAME_MIN_LENGTH..CustomVoice.NAME_MAX_LENGTH) { "name must be 1-30 characters" }
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("name", name)
             .addFormDataPart("model", model)
             .addFormDataPart("language", language)
-        files.forEach { file ->
-            require(file.data.size <= CustomVoice.CLONING_MAX_FILE_SIZE) { "audio file exceeds 25MB limit" }
-            body.addFormDataPart("files", file.filename, file.data.toRequestBody(guessAudioMime(file.filename).toMediaType()))
-        }
+        val file = files.single()
+        require(file.data.size <= CustomVoice.CLONING_MAX_FILE_SIZE) { "audio file exceeds 25MB limit" }
+        body.addFormDataPart("files", file.filename, file.data.toRequestBody(guessAudioMime(file.filename).toMediaType()))
         val request = Request.Builder().url("$baseUrl/v1/custom-voices/professional-clone")
             .addAuthHeader().addUserAgentHeader().post(body.build()).build()
         return executeRequest(request)
@@ -720,7 +719,8 @@ class TypecastClient private constructor(
                 val env = dotenv {
                     ignoreIfMissing = true
                 }
-                env["TYPECAST_API_KEY"]?.takeIf { it.isNotBlank() }?.let { return it }
+                val dotenvApiKey = env["TYPECAST_API_KEY"]
+                if (!dotenvApiKey.isNullOrBlank()) return dotenvApiKey
             } catch (e: Exception) {
                 // Continue to system environment
             }
@@ -761,9 +761,8 @@ class TypecastClient private constructor(
                 val env = dotenv {
                     ignoreIfMissing = true
                 }
-                env["TYPECAST_API_HOST"]?.takeIf { it.isNotBlank() }?.let { 
-                    return it.trim().trimEnd('/')
-                }
+                val dotenvBaseUrl = env["TYPECAST_API_HOST"]
+                if (!dotenvBaseUrl.isNullOrBlank()) return dotenvBaseUrl.trim().trimEnd('/')
             } catch (e: Exception) {
                 // Continue to system environment
             }

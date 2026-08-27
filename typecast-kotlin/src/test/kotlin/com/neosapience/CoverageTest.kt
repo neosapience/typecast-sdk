@@ -233,6 +233,53 @@ class CoverageTest {
         assertEquals(0.91, voice.score)
     }
 
+    @Test
+    fun v3VoiceEndpoints_coverLocalizedNamesAndFilters() {
+        val voice = """{"voice_id":"tc_v3","voice_name":{"eng":"English","kor":"한국어"},"models":[{"version":"ssfm-v30","emotions":["normal"]}],"voice_type":"original","gender":"female","age":"young_adult","use_cases":["Game"],"preview_url":"https://example.test/preview.mp3"}"""
+        mockServer.enqueue(MockResponse().setBody("[$voice]"))
+        val filtered = client.getVoicesV3(VoicesV2Filter(TTSModel.SSFM_V30, GenderEnum.FEMALE, AgeEnum.YOUNG_ADULT, UseCaseEnum.GAME))
+        val v3Voice = filtered.single()
+        assertEquals("tc_v3", v3Voice.component1())
+        assertEquals(v3Voice.voiceName, v3Voice.component2())
+        assertEquals(v3Voice.models, v3Voice.component3())
+        assertEquals("original", v3Voice.component4())
+        assertEquals(GenderEnum.FEMALE, v3Voice.component5())
+        assertEquals(AgeEnum.YOUNG_ADULT, v3Voice.component6())
+        assertEquals(listOf("Game"), v3Voice.component7())
+        assertEquals("https://example.test/preview.mp3", v3Voice.component8())
+        assertEquals("English", v3Voice.voiceName.eng)
+        assertEquals("한국어", v3Voice.voiceName.kor)
+        assertEquals("English", v3Voice.voiceName.component1())
+        assertEquals("한국어", v3Voice.voiceName.component2())
+        assertEquals(LocalizedVoiceName("English", "한국어"), v3Voice.voiceName.copy())
+        assertEquals("ssfm-v30", v3Voice.models.single().version)
+        assertEquals(listOf("normal"), v3Voice.models.single().emotions)
+        assertEquals("original", v3Voice.voiceType)
+        assertEquals(GenderEnum.FEMALE, v3Voice.gender)
+        assertEquals(AgeEnum.YOUNG_ADULT, v3Voice.age)
+        assertEquals(listOf("Game"), v3Voice.useCases)
+        assertEquals("https://example.test/preview.mp3", v3Voice.previewUrl)
+        assertEquals(v3Voice, v3Voice.copy())
+        assertEquals("custom", v3Voice.copy(voiceType = "custom").voiceType)
+        assertNotEquals(v3Voice, v3Voice.copy(voiceType = "custom"))
+        assertEquals(v3Voice.hashCode(), v3Voice.copy().hashCode())
+        assertTrue(v3Voice.toString().contains("tc_v3"))
+        assertNull(VoiceV3Response("tc_default", LocalizedVoiceName("Default", "기본"), emptyList(), "original").gender)
+        assertEquals("/v3/voices?model=ssfm-v30&gender=female&age=young_adult&use_cases=Game", mockServer.takeRequest().path)
+
+        mockServer.enqueue(MockResponse().setBody("[$voice]"))
+        client.getVoicesV3(VoicesV2Filter())
+        assertEquals("/v3/voices", mockServer.takeRequest().path)
+        mockServer.enqueue(MockResponse().setBody("[$voice]"))
+        client.getVoicesV3()
+        assertEquals("/v3/voices", mockServer.takeRequest().path)
+
+        mockServer.enqueue(MockResponse().setBody(voice))
+        assertEquals("tc_v3", client.getVoiceV3("tc_v3").voiceId)
+        assertEquals("/v3/voices/tc_v3", mockServer.takeRequest().path)
+        assertThrows(IllegalArgumentException::class.java) { client.getVoiceV3(" ") }
+    }
+
     // ==================== textToSpeech edge branches ====================
 
     @Test

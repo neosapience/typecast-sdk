@@ -39,9 +39,13 @@ class QuickCloningTest {
 
     @Test
     fun professionalCloneAndCustomVoiceQueriesUseCurrentEndpoints() {
-        val voice = "{\"voice_id\":\"uc_prof\",\"name\":\"Pro\",\"model\":\"ssfm-v30\",\"status\":\"processing\"}"
+        val voice = "{\"voice_id\":\"uc_prof\",\"name\":\"Pro\",\"model\":\"ssfm-v30\",\"source\":\"professional\",\"status\":\"processing\",\"error\":\"retry\",\"created_at\":\"2026-08-27T00:00:00Z\"}"
         mockServer.enqueue(MockResponse().setResponseCode(202).setBody(voice))
-        assertEquals("processing", client.createProfessionalVoice(listOf(CustomVoiceFile("sample.wav", byteArrayOf(1))), "Pro", "ssfm-v30", "en").status)
+        val professionalVoice = client.createProfessionalVoice(listOf(CustomVoiceFile("sample.wav", byteArrayOf(1))), "Pro", "ssfm-v30", "eng")
+        assertEquals("processing", professionalVoice.status)
+        assertEquals("professional", professionalVoice.source)
+        assertEquals("retry", professionalVoice.error)
+        assertEquals("2026-08-27T00:00:00Z", professionalVoice.createdAt)
         assertEquals("/v1/custom-voices/professional-clone", mockServer.takeRequest().path)
         mockServer.enqueue(MockResponse().setBody("[$voice]"))
         assertEquals("uc_prof", client.getCustomVoices().single().voiceId)
@@ -57,7 +61,13 @@ class QuickCloningTest {
             client.createProfessionalVoice(emptyList(), "Pro", "ssfm-v30", "en")
         }
         assertThrows(IllegalArgumentException::class.java) {
+            client.createProfessionalVoice(listOf(CustomVoiceFile("a.wav", byteArrayOf(1)), CustomVoiceFile("b.wav", byteArrayOf(1))), "Pro", "ssfm-v30", "eng")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
             client.createProfessionalVoice(listOf(CustomVoiceFile("a.wav", byteArrayOf(1))), "", "ssfm-v30", "en")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            client.createProfessionalVoice(listOf(CustomVoiceFile("a.wav", byteArrayOf(1))), "a".repeat(31), "ssfm-v30", "eng")
         }
         assertThrows(IllegalArgumentException::class.java) {
             client.createProfessionalVoice(listOf(CustomVoiceFile("a.wav", ByteArray((CustomVoice.CLONING_MAX_FILE_SIZE + 1).toInt()))), "Pro", "ssfm-v30", "en")
