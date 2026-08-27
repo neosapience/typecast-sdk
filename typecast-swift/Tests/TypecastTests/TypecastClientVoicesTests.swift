@@ -3,6 +3,25 @@ import XCTest
 
 final class TypecastClientVoicesTests: TypecastClientMockTestCase {
 
+    func testV3VoiceEndpointsDecodeCurrentContract() async throws {
+        var requests: [URLRequest] = []
+        let voice = #"{"voice_id":"tc_v3","voice_name":{"eng":"Voice","kor":"보이스"},"models":[],"voice_type":"original","gender":"female","age":"young_adult","use_cases":["News"],"preview_url":"https://example.test/voice"}"#.data(using: .utf8)!
+        MockURLProtocol.requestHandler = { req in
+            requests.append(req)
+            let data = req.url!.path == "/v3/voices" ? #"[{"voice_id":"tc_v3","voice_name":{"eng":"Voice","kor":"보이스"},"models":[],"voice_type":"original"}]"#.data(using: .utf8)! : voice
+            return (self.httpResponse(url: req.url!, status: 200), data)
+        }
+        let list = try await client.getVoicesV3(filter: VoicesV2Filter(model: .ssfmV30, gender: .female, age: .youngAdult, useCases: .news))
+        let detail = try await client.getVoiceV3(voiceId: "tc_v3")
+        XCTAssertEqual(list[0].voiceName.eng, "Voice")
+        XCTAssertEqual(detail.voiceName.kor, "보이스")
+        XCTAssertEqual(detail.gender, .female)
+        XCTAssertEqual(detail.age, .youngAdult)
+        XCTAssertEqual(detail.previewUrl, "https://example.test/voice")
+        XCTAssertTrue(requests[0].url!.query!.contains("model=ssfm-v30"))
+        XCTAssertEqual(requests.map { $0.url!.path }, ["/v3/voices", "/v3/voices/tc_v3"])
+    }
+
     // MARK: - getVoices V2
 
     func testGetVoicesNoFilter() async throws {
