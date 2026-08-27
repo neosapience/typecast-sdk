@@ -52,6 +52,19 @@ class QuickCloningTest {
     }
 
     @Test
+    fun professionalCloneValidatesSamplesAndNameBeforeRequest() {
+        assertFailsWith<IllegalArgumentException> {
+            client.createProfessionalVoice(emptyList(), "Pro", "ssfm-v30", "en")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            client.createProfessionalVoice(listOf(CustomVoiceFile("a.wav", byteArrayOf(1))), "", "ssfm-v30", "en")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            client.createProfessionalVoice(listOf(CustomVoiceFile("a.wav", ByteArray((CustomVoice.CLONING_MAX_FILE_SIZE + 1).toInt()))), "Pro", "ssfm-v30", "en")
+        }
+    }
+
+    @Test
     @DisplayName("cloneVoice returns a CustomVoice with correct fields")
     fun cloneVoiceReturnsCustomVoice() {
         val responseJson = """
