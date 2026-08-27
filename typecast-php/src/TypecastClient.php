@@ -512,7 +512,7 @@ class TypecastClient
             ['name' => 'language', 'contents' => $language],
         ];
         foreach ($files as $file) {
-            if (!isset($file['audio'], $file['filename']) || !is_string($file['filename']) || $file['filename'] === '') {
+            if (!isset($file['audio'], $file['filename']) || !is_string($file['filename']) || trim($file['filename']) === '') {
                 throw new \InvalidArgumentException('each audio file requires non-empty audio and filename');
             }
             $bytes = is_resource($file['audio']) ? stream_get_contents($file['audio']) : $file['audio'];

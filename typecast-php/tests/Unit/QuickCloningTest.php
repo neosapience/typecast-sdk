@@ -214,7 +214,7 @@ class QuickCloningTest extends TestCase
     public function testProfessionalCloneRejectsInvalidFiles(): void
     {
         $client = $this->createClient(new MockHandler([]));
-        foreach ([[], [['audio' => '', 'filename' => 'a.wav']], [['audio' => 'audio', 'filename' => '']]] as $files) {
+        foreach ([[], [['audio' => '', 'filename' => 'a.wav']], [['audio' => 'audio', 'filename' => '']], [['audio' => 'audio', 'filename' => ' ']]] as $files) {
             try {
                 $client->createProfessionalVoice($files, 'Pro', 'ssfm-v30', 'eng');
                 $this->fail('expected invalid file exception');
