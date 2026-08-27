@@ -846,6 +846,81 @@ impl TypecastClient {
         }
         Ok(())
     }
+
+    /// Start an asynchronous professional custom-voice clone.
+    ///
+    /// Poll [`Self::get_custom_voice`] until `status` is `"completed"` or `"failed"`.
+    pub async fn create_professional_voice(
+        &self,
+        audio: Vec<u8>,
+        filename: &str,
+        name: &str,
+        language: &str,
+        model: &str,
+    ) -> Result<CustomVoice> {
+        let name_len = name.chars().count();
+        if !(NAME_MIN_LENGTH..=NAME_MAX_LENGTH).contains(&name_len) {
+            return Err(TypecastError::ValidationError {
+                detail: format!(
+                    "name must be {}-{} characters; got {}",
+                    NAME_MIN_LENGTH, NAME_MAX_LENGTH, name_len
+                ),
+            });
+        }
+        if audio.len() > CLONING_MAX_FILE_SIZE {
+            return Err(TypecastError::ValidationError {
+                detail: format!("audio file exceeds 25MB limit; got {} bytes", audio.len()),
+            });
+        }
+        let part = reqwest::multipart::Part::bytes(audio)
+            .file_name(filename.to_string())
+            .mime_str(guess_audio_mime(filename))
+            .expect("guess_audio_mime only returns valid MIME constants");
+        let form = reqwest::multipart::Form::new()
+            .text("name", name.to_string())
+            .text("language", language.to_string())
+            .text("model", model.to_string())
+            .part("files", part);
+        let response = self
+            .with_auth_header(
+                self.client
+                    .post(self.build_url("/v1/custom-voices/professional-clone", None)),
+            )
+            .multipart(form)
+            .send()
+            .await?;
+        if response.status() != reqwest::StatusCode::ACCEPTED {
+            return Err(self.handle_error_response(response).await);
+        }
+        Ok(response.json().await?)
+    }
+
+    /// List custom voices owned by the authenticated user.
+    pub async fn get_custom_voices(&self) -> Result<Vec<CustomVoice>> {
+        let response = self
+            .with_auth_header(self.client.get(self.build_url("/v1/custom-voices", None)))
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+        Ok(response.json().await?)
+    }
+
+    /// Get a custom voice, including professional-clone status.
+    pub async fn get_custom_voice(&self, voice_id: &str) -> Result<CustomVoice> {
+        let response = self
+            .with_auth_header(
+                self.client
+                    .get(self.build_url(&format!("/v1/custom-voices/{voice_id}"), None)),
+            )
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+        Ok(response.json().await?)
+    }
 }
 
 fn build_user_agent(base_url: &str, timeout: Duration) -> String {

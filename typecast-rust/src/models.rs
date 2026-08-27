@@ -769,4 +769,12 @@ pub struct CustomVoice {
     pub name: String,
     /// TTS model the voice was cloned with (e.g. `"ssfm-v30"`)
     pub model: String,
+    /// Clone origin, such as `"instant"` or `"professional"`.
+    pub source: Option<String>,
+    /// Professional-clone progress status.
+    pub status: Option<String>,
+    /// Safe failure reason when a professional clone fails.
+    pub error: Option<String>,
+    /// UTC creation timestamp supplied by the API.
+    pub created_at: Option<String>,
 }

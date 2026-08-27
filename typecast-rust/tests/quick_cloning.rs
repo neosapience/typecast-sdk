@@ -395,3 +395,116 @@ async fn delete_voice_returns_err_on_transport_failure() {
         "expected HttpError, got {err:?}"
     );
 }
+
+#[tokio::test]
+async fn professional_custom_voice_workflow_uses_current_endpoints() {
+    let mut server = Server::new_async().await;
+    let custom = r#"{"voice_id":"uc_professional","name":"Narrator","model":"ssfm-v30","source":"professional","status":"processing"}"#;
+    let create = server
+        .mock("POST", "/v1/custom-voices/professional-clone")
+        .match_body(mockito::Matcher::Regex("name=\\\"files\\\"".into()))
+        .with_status(202)
+        .with_header("content-type", "application/json")
+        .with_body(custom)
+        .create_async()
+        .await;
+    let list = server
+        .mock("GET", "/v1/custom-voices")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(format!("[{custom}]"))
+        .create_async()
+        .await;
+    let detail = server
+        .mock("GET", "/v1/custom-voices/uc_professional")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(custom)
+        .create_async()
+        .await;
+
+    let client = make_client(&server);
+    assert_eq!(
+        client
+            .create_professional_voice(small_wav(), "voice.wav", "Narrator", "en", "ssfm-v30")
+            .await
+            .unwrap()
+            .status
+            .as_deref(),
+        Some("processing")
+    );
+    assert_eq!(
+        client.get_custom_voices().await.unwrap()[0]
+            .source
+            .as_deref(),
+        Some("professional")
+    );
+    assert_eq!(
+        client
+            .get_custom_voice("uc_professional")
+            .await
+            .unwrap()
+            .voice_id,
+        "uc_professional"
+    );
+    create.assert_async().await;
+    list.assert_async().await;
+    detail.assert_async().await;
+}
+
+#[tokio::test]
+async fn professional_custom_voice_workflow_propagates_errors_and_validates_input() {
+    let mut server = Server::new_async().await;
+    let mut mocks = Vec::new();
+    for (method, path) in [
+        ("POST", "/v1/custom-voices/professional-clone"),
+        ("GET", "/v1/custom-voices"),
+        ("GET", "/v1/custom-voices/uc_professional"),
+    ] {
+        mocks.push(
+            server
+                .mock(method, path)
+                .with_status(500)
+                .with_body(r#"{"detail":"boom"}"#)
+                .create_async()
+                .await,
+        );
+    }
+    let client = make_client(&server);
+    assert!(client
+        .create_professional_voice(small_wav(), "voice.wav", "Narrator", "en", "ssfm-v30")
+        .await
+        .unwrap_err()
+        .is_server_error());
+    assert!(client
+        .get_custom_voices()
+        .await
+        .unwrap_err()
+        .is_server_error());
+    assert!(client
+        .get_custom_voice("uc_professional")
+        .await
+        .unwrap_err()
+        .is_server_error());
+    assert!(matches!(
+        client
+            .create_professional_voice(small_wav(), "voice.wav", "", "en", "ssfm-v30")
+            .await,
+        Err(TypecastError::ValidationError { .. })
+    ));
+    assert!(matches!(
+        client
+            .create_professional_voice(
+                vec![0; CLONING_MAX_FILE_SIZE + 1],
+                "voice.wav",
+                "Narrator",
+                "en",
+                "ssfm-v30"
+            )
+            .await,
+        Err(TypecastError::ValidationError { .. })
+    ));
+    for mock in mocks {
+        mock.assert_async().await;
+    }
+}

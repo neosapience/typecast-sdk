@@ -28,6 +28,16 @@ fn make_client(server: &Server) -> TypecastClient {
     TypecastClient::new(config).expect("client builds")
 }
 
+#[test]
+fn client_constructor_supports_agent_attribution() {
+    let config = ClientConfig::new("test-api-key").base_url("https://proxy.example");
+    assert!(TypecastClient::new_with_attribution(config, "skill", "codex").is_ok());
+    let invalid = ClientConfig::new("test-api-key").base_url("https://proxy.example");
+    assert!(TypecastClient::new_with_attribution(invalid, "invalid", "Codex").is_err());
+    let invalid_generator = ClientConfig::new("test-api-key").base_url("https://proxy.example");
+    assert!(TypecastClient::new_with_attribution(invalid_generator, "skill", "Codex").is_err());
+}
+
 // ---------------------------------------------------------------------------
 // errors.rs
 // ---------------------------------------------------------------------------
@@ -1318,6 +1328,85 @@ async fn get_voice_v2_propagates_404() {
     let client = make_client(&server);
     let err = client.get_voice_v2("missing").await.unwrap_err();
     assert!(err.is_not_found());
+}
+
+#[tokio::test]
+async fn v3_voice_endpoints_return_localized_voice_data() {
+    let mut server = Server::new_async().await;
+    let body = r#"{"voice_id":"tc_v3","voice_name":{"eng":"Voice","kor":"보이스"},"models":[{"version":"ssfm-v30","emotions":["normal"]}],"voice_type":"original"}"#;
+    let list = server
+        .mock("GET", "/v3/voices")
+        .match_query(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::UrlEncoded("model".into(), "ssfm-v30".into()),
+            mockito::Matcher::UrlEncoded("gender".into(), "female".into()),
+            mockito::Matcher::UrlEncoded("age".into(), "young_adult".into()),
+            mockito::Matcher::UrlEncoded("use_cases".into(), "News".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(format!("[{body}]"))
+        .create_async()
+        .await;
+    let detail = server
+        .mock("GET", "/v3/voices/tc_v3")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .create_async()
+        .await;
+    let client = make_client(&server);
+    assert_eq!(
+        client
+            .get_voices_v3(Some(
+                VoicesV2Filter::new()
+                    .model(TTSModel::SsfmV30)
+                    .gender(Gender::Female)
+                    .age(Age::YoungAdult)
+                    .use_cases(UseCase::News)
+            ))
+            .await
+            .unwrap()[0]
+            .voice_name
+            .kor,
+        "보이스"
+    );
+    assert_eq!(
+        client.get_voice_v3("tc_v3").await.unwrap().voice_name.eng,
+        "Voice"
+    );
+    list.assert_async().await;
+    detail.assert_async().await;
+}
+
+#[tokio::test]
+async fn v3_voice_endpoints_cover_empty_filters_and_api_errors() {
+    let mut server = Server::new_async().await;
+    let list = server
+        .mock("GET", "/v3/voices")
+        .with_status(500)
+        .with_body(r#"{"detail":"boom"}"#)
+        .expect_at_least(1)
+        .create_async()
+        .await;
+    let detail = server
+        .mock("GET", "/v3/voices/missing")
+        .with_status(404)
+        .with_body(r#"{"detail":"missing"}"#)
+        .create_async()
+        .await;
+    let client = make_client(&server);
+    assert!(client
+        .get_voices_v3(None)
+        .await
+        .unwrap_err()
+        .is_server_error());
+    assert!(client
+        .get_voice_v3("missing")
+        .await
+        .unwrap_err()
+        .is_not_found());
+    list.assert_async().await;
+    detail.assert_async().await;
 }
 
 // ---------------------------------------------------------------------------
