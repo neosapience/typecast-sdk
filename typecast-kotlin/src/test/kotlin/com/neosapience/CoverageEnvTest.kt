@@ -79,6 +79,7 @@ class CoverageEnvTest {
             assertEquals(" ", dotenv { ignoreIfMissing = true }["TYPECAST_API_HOST"])
             try {
                 TypecastClient.builder().build().close()
+                fail<Unit>("Expected IllegalArgumentException for blank dotenv API key")
             } catch (e: IllegalArgumentException) {
                 assertTrue(e.message!!.contains("API key"))
             }
@@ -86,6 +87,7 @@ class CoverageEnvTest {
             assertEquals("", dotenv { ignoreIfMissing = true }["TYPECAST_API_KEY"])
             try {
                 TypecastClient.builder().build().close()
+                fail<Unit>("Expected IllegalArgumentException for empty dotenv API key")
             } catch (e: IllegalArgumentException) {
                 assertTrue(e.message!!.contains("API key"))
             }
