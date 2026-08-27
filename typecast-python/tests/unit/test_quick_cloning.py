@@ -455,3 +455,5 @@ async def test_async_v3_voice_endpoints_cover_current_contract():
                 await client.voices_v3()
             with pytest.raises(InternalServerError):
                 await client.voice_v3("tc_missing")
+            with pytest.raises(ValueError, match="must not be blank"):
+                await client.voice_v3(" ")

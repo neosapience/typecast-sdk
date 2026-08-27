@@ -905,7 +905,9 @@ public class TypecastClient {
 
     /** Gets a voice from the current V3 Voice API. */
     public VoiceV3Response getVoiceV3(String voiceId) {
-        Request request = addAuthHeader(new Request.Builder().url(baseUrl + "/v3/voices/" + voiceId).get().build());
+        if (voiceId == null || voiceId.trim().isEmpty()) throw new IllegalArgumentException("voiceId must not be blank");
+        HttpUrl url = HttpUrl.get(baseUrl).newBuilder().addPathSegments("v3/voices").addPathSegment(voiceId).build();
+        Request request = addAuthHeader(new Request.Builder().url(url).get().build());
         try (Response response = httpClient.newCall(request).execute()) {
             String body = response.body().string();
             if (!response.isSuccessful()) throw createException(response.code(), body);
@@ -1074,15 +1076,17 @@ public class TypecastClient {
     /**
      * Deletes a custom voice (created via instant cloning).
      *
-     * <p>Calls {@code DELETE /v1/voices/{voiceId}}. A 204 or 200 response is
+     * <p>Calls {@code DELETE /v1/custom-voices/{voiceId}}. A 204 or 200 response is
      * treated as success.</p>
      *
      * @param voiceId the ID of the custom voice to delete (must have "uc_" prefix)
      * @throws TypecastException if the API returns an error response
      */
     public void deleteVoice(String voiceId) {
+        if (voiceId == null || voiceId.trim().isEmpty()) throw new IllegalArgumentException("voiceId must not be blank");
+        HttpUrl url = HttpUrl.get(baseUrl).newBuilder().addPathSegments("v1/custom-voices").addPathSegment(voiceId).build();
         Request httpRequest = addAuthHeader(new Request.Builder()
-                .url(baseUrl + "/v1/custom-voices/" + voiceId)
+                .url(url)
                 .delete()
                 .build());
 

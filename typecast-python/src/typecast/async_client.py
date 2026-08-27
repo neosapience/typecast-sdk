@@ -12,18 +12,21 @@ else:  # pragma: no cover
     aiohttp = None  # type: ignore[assignment]
 
 from . import conf
+from ._user_agent import aiohttp_user_agent, attribution_suffix, httpx_user_agent
 from ._voice_clone import (
     normalize_clone_model,
     validate_clone_inputs,
     validate_custom_voice_id,
+    validate_voice_id,
 )
-from ._user_agent import aiohttp_user_agent, attribution_suffix, httpx_user_agent
 
 if TYPE_CHECKING or sys.version_info < (3, 10):  # pragma: no cover
     from ._httpx_compat import AiohttpCompatSession, ClientTimeout, FormData
-from .client import _guess_audio_mime
-from .client import _output_with_inferred_format
-from .client import _validate_output_path
+from .client import (
+    _guess_audio_mime,
+    _output_with_inferred_format,
+    _validate_output_path,
+)
 from .exceptions import (
     BadRequestError,
     InternalServerError,
@@ -646,6 +649,7 @@ class AsyncTypecast:
 
     async def voice_v3(self, voice_id: str) -> VoiceV3Response:
         """Get a voice by ID using the current V3 Voice API asynchronously."""
+        validate_voice_id(voice_id)
         if not self.session:
             raise TypecastError("Client session not initialized. Use async with.")
         async with self.session.get(

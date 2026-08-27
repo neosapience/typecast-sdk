@@ -53,6 +53,7 @@ class QuickCloningTest {
         mockServer.enqueue(MockResponse().setBody(voice))
         assertEquals("uc_prof", client.getCustomVoice("uc_prof").voiceId)
         assertEquals("/v1/custom-voices/uc_prof", mockServer.takeRequest().path)
+        assertThrows(IllegalArgumentException::class.java) { client.getCustomVoice(" ") }
     }
 
     @Test
@@ -212,6 +213,7 @@ class QuickCloningTest {
         assertEquals("DELETE", recorded.method)
         assertEquals("/v1/custom-voices/uc_abc123", recorded.path)
         assertEquals("test-api-key", recorded.getHeader("X-API-KEY"))
+        assertThrows(IllegalArgumentException::class.java) { client.deleteVoice(" ") }
     }
 
     @Test

@@ -423,7 +423,8 @@ class TypecastClient private constructor(
     /** Gets one voice from the current V3 Voice API. */
     fun getVoiceV3(voiceId: String): VoiceV3Response {
         require(voiceId.isNotBlank()) { "voiceId must not be blank" }
-        return executeRequest(Request.Builder().url("$baseUrl/v3/voices/$voiceId").addAuthHeader().addUserAgentHeader().get().build())
+        val url = baseUrl.toHttpUrl().newBuilder().addPathSegments("v3/voices").addPathSegment(voiceId).build()
+        return executeRequest(Request.Builder().url(url).addAuthHeader().addUserAgentHeader().get().build())
     }
 
     /**
@@ -605,9 +606,11 @@ class TypecastClient private constructor(
     )
 
     /** Gets the current status and metadata for a custom voice. */
-    fun getCustomVoice(voiceId: String): CustomVoice = executeRequest(
-        Request.Builder().url("$baseUrl/v1/custom-voices/$voiceId").addAuthHeader().addUserAgentHeader().get().build()
-    )
+    fun getCustomVoice(voiceId: String): CustomVoice {
+        require(voiceId.isNotBlank()) { "voiceId must not be blank" }
+        val url = baseUrl.toHttpUrl().newBuilder().addPathSegments("v1/custom-voices").addPathSegment(voiceId).build()
+        return executeRequest(Request.Builder().url(url).addAuthHeader().addUserAgentHeader().get().build())
+    }
 
     /**
      * Deletes a custom voice (created via instant cloning).
@@ -618,8 +621,10 @@ class TypecastClient private constructor(
      * @throws TypecastException if the API returns an error response
      */
     fun deleteVoice(voiceId: String) {
+        require(voiceId.isNotBlank()) { "voiceId must not be blank" }
+        val url = baseUrl.toHttpUrl().newBuilder().addPathSegments("v1/custom-voices").addPathSegment(voiceId).build()
         val httpRequest = Request.Builder()
-            .url("$baseUrl/v1/custom-voices/$voiceId")
+            .url(url)
             .addAuthHeader()
             .addUserAgentHeader()
             .delete()

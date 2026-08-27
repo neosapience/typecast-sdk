@@ -277,6 +277,9 @@ class CoverageTest {
         mockServer.enqueue(MockResponse().setBody(voice))
         assertEquals("tc_v3", client.getVoiceV3("tc_v3").voiceId)
         assertEquals("/v3/voices/tc_v3", mockServer.takeRequest().path)
+        mockServer.enqueue(MockResponse().setBody(voice))
+        client.getVoiceV3("tc/a?")
+        assertEquals("/v3/voices/tc%2Fa%3F", mockServer.takeRequest().path)
         assertThrows(IllegalArgumentException::class.java) { client.getVoiceV3(" ") }
     }
 

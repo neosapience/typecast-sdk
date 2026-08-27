@@ -419,6 +419,12 @@ class TestSyncClient:
             f"{client.host}/v3/voices/tc_v3", headers=None
         )
 
+    def test_voice_v3_rejects_blank_id(self, client, mocker):
+        get_mock = mocker.patch.object(client.session, "get")
+        with pytest.raises(ValueError, match="must not be blank"):
+            client.voice_v3(" ")
+        get_mock.assert_not_called()
+
     def test_recommend_voices_success(self, client, mocker):
         mock_resp = self._mock_response(
             mocker,

@@ -36,6 +36,12 @@ def validate_custom_voice_id(voice_id: str) -> None:
         )
 
 
+def validate_voice_id(voice_id: str) -> None:
+    """Reject blank voice IDs before constructing a detail URL."""
+    if not isinstance(voice_id, str) or not voice_id.strip():
+        raise ValueError("voice_id must not be blank")
+
+
 def validate_clone_inputs(audio: AudioInput, name: str) -> tuple[bytes, str]:
     """Pre-validate `clone_voice` inputs and return (audio_bytes, filename).
 

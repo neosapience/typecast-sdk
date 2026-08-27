@@ -11,12 +11,13 @@ else:  # pragma: no cover
     requests = None  # type: ignore[assignment]
 
 from . import conf
+from ._user_agent import attribution_suffix, httpx_user_agent, requests_user_agent
 from ._voice_clone import (
     normalize_clone_model,
     validate_clone_inputs,
     validate_custom_voice_id,
+    validate_voice_id,
 )
-from ._user_agent import attribution_suffix, httpx_user_agent, requests_user_agent
 
 if TYPE_CHECKING or sys.version_info < (3, 10):  # pragma: no cover
     from ._httpx_compat import RequestsCompatSession
@@ -642,6 +643,7 @@ class Typecast:
 
     def voice_v3(self, voice_id: str) -> VoiceV3Response:
         """Get a voice by ID using the current V3 Voice API."""
+        validate_voice_id(voice_id)
         response = self.session.get(
             f"{self.host}/v3/voices/{quote(voice_id, safe='')}",
             headers=self._request_headers(),
