@@ -614,6 +614,30 @@ static void test_get_custom_voice(void) {
     typecast_client_destroy(c);
 }
 
+static void test_custom_voice_id_is_path_encoded(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, "{\"voice_id\":\"uc_one\",\"name\":\"One\",\"model\":\"ssfm-v30\"}");
+    TypecastCustomVoice* voice = typecast_get_custom_voice(c, "uc_one/a?");
+    ASSERT_NOT_NULL(voice);
+    ASSERT_STREQ(g_srv.last_path, "/v1/custom-voices/uc_one%2Fa%3F");
+    typecast_custom_voice_free(voice);
+    mock_enqueue_empty(204);
+    ASSERT_EQ(typecast_delete_voice(c, "uc_one/a?"), TYPECAST_OK);
+    ASSERT_STREQ(g_srv.last_path, "/v1/custom-voices/uc_one%2Fa%3F");
+    typecast_client_destroy(c);
+}
+
+static void test_voice_id_too_long_is_rejected(void) {
+    char voice_id[600];
+    memset(voice_id, 'a', sizeof(voice_id) - 1);
+    voice_id[sizeof(voice_id) - 1] = '\0';
+    TypecastClient* c = new_client();
+    ASSERT_NULL(typecast_get_voice(c, voice_id));
+    ASSERT_NULL(typecast_get_custom_voice(c, voice_id));
+    ASSERT_EQ(typecast_delete_voice(c, voice_id), TYPECAST_ERROR_INVALID_PARAM);
+    typecast_client_destroy(c);
+}
+
 static void test_list_custom_voices(void) {
     TypecastClient* c = new_client();
     mock_enqueue_text(200, "[{\"voice_id\":\"uc_one\",\"name\":\"One\",\"model\":\"ssfm-v30\"}]");
@@ -728,6 +752,8 @@ int main(void) {
     RUN(professional_clone_uses_current_endpoint);
     RUN(professional_clone_rejects_empty_language);
     RUN(get_custom_voice);
+    RUN(custom_voice_id_is_path_encoded);
+    RUN(voice_id_too_long_is_rejected);
     RUN(list_custom_voices);
     RUN(custom_voice_queries_report_errors);
 

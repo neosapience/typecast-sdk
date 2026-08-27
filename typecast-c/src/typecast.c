@@ -1738,9 +1738,23 @@ TYPECAST_API TypecastVoice* typecast_get_voice(
     
     clear_error(client);
     
+    char* encoded_voice_id = curl_easy_escape(client->curl, voice_id, 0);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="curl_easy_escape OOM requires a libcurl malloc shim" */
+    if (!encoded_voice_id) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to encode voice_id");
+        return NULL;
+    }
+    /* LCOV_EXCL_STOP */
+
     /* Build URL */
     char url[512];
-    snprintf(url, sizeof(url), "%s/v3/voices/%s", client->host, voice_id);
+    int url_len = snprintf(url, sizeof(url), "%s/v3/voices/%s", client->host, encoded_voice_id);
+    curl_free(encoded_voice_id);
+    if (url_len < 0 || (size_t)url_len >= sizeof(url)) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is too long");
+        return NULL;
+    }
     
     /* Setup response buffer */
     ResponseBuffer response_buf = {0};
@@ -3420,8 +3434,21 @@ TYPECAST_API TypecastCustomVoice* typecast_get_custom_voice(TypecastClient* clie
         return NULL;
     }
     clear_error(client);
+    char* encoded_voice_id = curl_easy_escape(client->curl, voice_id, 0);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="curl_easy_escape OOM requires a libcurl malloc shim" */
+    if (!encoded_voice_id) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to encode voice_id");
+        return NULL;
+    }
+    /* LCOV_EXCL_STOP */
     char path[256];
-    snprintf(path, sizeof(path), "/v1/custom-voices/%s", voice_id);
+    int path_len = snprintf(path, sizeof(path), "/v1/custom-voices/%s", encoded_voice_id);
+    curl_free(encoded_voice_id);
+    if (path_len < 0 || (size_t)path_len >= sizeof(path)) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is too long");
+        return NULL;
+    }
     cJSON* json = get_custom_voice_json(client, path);
     if (!json) return NULL;
     TypecastCustomVoice* voice = parse_custom_voice_json(json);
@@ -3479,9 +3506,23 @@ TYPECAST_API TypecastErrorCode typecast_delete_voice(
 
     clear_error(client);
 
+    char* encoded_voice_id = curl_easy_escape(client->curl, voice_id, 0);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="curl_easy_escape OOM requires a libcurl malloc shim" */
+    if (!encoded_voice_id) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to encode voice_id");
+        return TYPECAST_ERROR_OUT_OF_MEMORY;
+    }
+    /* LCOV_EXCL_STOP */
+
     /* ---- Build URL ---- */
     char url[512];
-    snprintf(url, sizeof(url), "%s/v1/custom-voices/%s", client->host, voice_id);
+    int url_len = snprintf(url, sizeof(url), "%s/v1/custom-voices/%s", client->host, encoded_voice_id);
+    curl_free(encoded_voice_id);
+    if (url_len < 0 || (size_t)url_len >= sizeof(url)) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is too long");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
 
     /* ---- Setup response buffer (DELETE may return a body on error) ---- */
     ResponseBuffer response_buf = {0};
