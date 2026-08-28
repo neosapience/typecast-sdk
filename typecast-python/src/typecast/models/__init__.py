@@ -22,12 +22,14 @@ from .voices import (
     AgeEnum,
     CustomVoice,
     GenderEnum,
+    LocalizedVoiceName,
     ModelInfo,
     RecommendedVoice,
     UseCaseEnum,
     VoicesResponse,
     VoicesV2Filter,
     VoiceV2Response,
+    VoiceV3Response,
 )
 
 __all__ = [
@@ -40,6 +42,7 @@ __all__ = [
     "Error",
     "GenderEnum",
     "LanguageCode",
+    "LocalizedVoiceName",
     "Limits",
     "ModelInfo",
     "Output",
@@ -59,6 +62,7 @@ __all__ = [
     "TTSWithTimestampsResponse",
     "UseCaseEnum",
     "VoiceV2Response",
+    "VoiceV3Response",
     "VoicesResponse",
     "VoicesV2Filter",
 ]

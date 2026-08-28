@@ -442,11 +442,33 @@ pub fn parseCustomVoice(allocator: std.mem.Allocator, data: []const u8) !models.
     const parsed = try std.json.parseFromSlice(std.json.Value, allocator, data, .{});
     defer parsed.deinit();
     const obj = parsed.value.object;
+    const status = if (obj.get("status")) |value| switch (value) {
+        .string => |s| try allocator.dupe(u8, s),
+        else => null,
+    } else null;
+    errdefer if (status) |s| allocator.free(s);
     return models.CustomVoice{
         .voice_id = try allocator.dupe(u8, try getString(obj, "voice_id")),
         .name = try allocator.dupe(u8, try getString(obj, "name")),
         .model = try allocator.dupe(u8, try getString(obj, "model")),
+        .status = status,
     };
+}
+
+pub fn parseCustomVoices(allocator: std.mem.Allocator, data: []const u8) ![]models.CustomVoice {
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, data, .{});
+    defer parsed.deinit();
+    const items = switch (parsed.value) { .array => |a| a.items, else => return error.JsonParseError };
+    var voices = try allocator.alloc(models.CustomVoice, items.len);
+    var initialized: usize = 0;
+    errdefer { for (voices[0..initialized]) |voice| { allocator.free(voice.voice_id); allocator.free(voice.name); allocator.free(voice.model); if (voice.status) |s| allocator.free(s); } allocator.free(voices); }
+    for (items, 0..) |item, i| {
+        const encoded = try std.json.Stringify.valueAlloc(allocator, item, .{});
+        defer allocator.free(encoded);
+        voices[i] = try parseCustomVoice(allocator, encoded);
+        initialized = i + 1;
+    }
+    return voices;
 }
 
 /// Extract error detail message from error JSON response.

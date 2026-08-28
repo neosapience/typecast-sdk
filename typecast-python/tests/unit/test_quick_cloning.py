@@ -4,12 +4,13 @@ import json
 from pathlib import Path
 
 import pytest
+from aioresponses import aioresponses
 
 from typecast import Typecast
-from typecast._voice_clone import validate_clone_inputs, CLONING_MAX_FILE_SIZE
-from typecast.exceptions import NotFoundError
-from typecast.models import CustomVoice
-
+from typecast._voice_clone import CLONING_MAX_FILE_SIZE, validate_clone_inputs
+from typecast.async_client import AsyncTypecast
+from typecast.exceptions import InternalServerError, NotFoundError
+from typecast.models import CustomVoice, TTSModel, VoicesV2Filter
 
 FIXTURE_DIR = Path(__file__).resolve().parents[2] / ".." / "test-fixtures" / "quick-cloning"
 
@@ -23,6 +24,22 @@ def test_custom_voice_parses_response():
     assert voice.voice_id == "uc_64a1b2c3d4e5f6a7b8c9d0e1"
     assert voice.name == "demo"
     assert voice.model == "ssfm-v30"
+
+
+CUSTOM_VOICE = {
+    "voice_id": "uc_64a1b2c3d4e5f6a7b8c9d0e1",
+    "name": "demo",
+    "model": "ssfm-v30",
+    "source": "professional",
+    "status": "processing",
+}
+
+V3_VOICE = {
+    "voice_id": "tc_v3",
+    "voice_name": {"eng": "Voice", "kor": "보이스"},
+    "models": [{"version": "ssfm-v30", "emotions": ["normal"]}],
+    "voice_type": "original",
+}
 
 
 def test_validate_rejects_file_too_large():
@@ -100,7 +117,7 @@ def test_clone_voice_sends_multipart_body(mocker):
     assert file_part[0] == "audio.wav"
     assert file_part[1] == b"\x00" * 1024
     assert file_part[2] == "audio/wav"
-    assert "/v1/voices/clone" in post_mock.call_args.args[0]
+    assert "/v1/custom-voices/instant-clone" in post_mock.call_args.args[0]
 
 
 def test_clone_voice_pre_validates_size(mocker):
@@ -125,7 +142,7 @@ def test_delete_voice_returns_none(mocker):
 
     assert result is None
     args = delete_mock.call_args.args
-    assert "/v1/voices/uc_64a1b2c3d4e5f6a7b8c9d0e1" in args[0]
+    assert "/v1/custom-voices/uc_64a1b2c3d4e5f6a7b8c9d0e1" in args[0]
 
 
 def test_delete_voice_raises_on_404(mocker):
@@ -139,12 +156,76 @@ def test_delete_voice_raises_on_404(mocker):
         client.delete_voice("uc_xxx")
 
 
-# ---------------------------------------------------------------------------
-# Async client tests
-# ---------------------------------------------------------------------------
-from aioresponses import aioresponses  # noqa: E402
+def test_create_professional_voice_returns_queued_voice(mocker):
+    client = Typecast(api_key="test-key")
+    response = mocker.Mock(status_code=202)
+    response.json.return_value = CUSTOM_VOICE
+    post = mocker.patch.object(client.session, "post", return_value=response)
 
-from typecast.async_client import AsyncTypecast  # noqa: E402
+    voice = client.create_professional_voice(
+        b"\x00" * 1024, "demo", "en", "ssfm-v30"
+    )
+
+    assert voice.status == "processing"
+    assert "/v1/custom-voices/professional-clone" in post.call_args.args[0]
+    assert post.call_args.kwargs["data"] == {
+        "name": "demo", "language": "en", "model": "ssfm-v30"
+    }
+
+
+def test_get_custom_voices_returns_owned_voices(mocker):
+    client = Typecast(api_key="test-key")
+    response = mocker.Mock(status_code=200)
+    response.json.return_value = [CUSTOM_VOICE]
+    get = mocker.patch.object(client.session, "get", return_value=response)
+
+    voices = client.get_custom_voices()
+
+    assert voices[0].source == "professional"
+    get.assert_called_once_with(f"{client.host}/v1/custom-voices", headers=None)
+
+
+def test_get_custom_voice_returns_clone_status(mocker):
+    client = Typecast(api_key="test-key")
+    response = mocker.Mock(status_code=200)
+    response.json.return_value = CUSTOM_VOICE
+    get = mocker.patch.object(client.session, "get", return_value=response)
+
+    voice = client.get_custom_voice(CUSTOM_VOICE["voice_id"])
+
+    assert voice.voice_id == CUSTOM_VOICE["voice_id"]
+    assert get.call_args.args[0].endswith(CUSTOM_VOICE["voice_id"])
+
+
+@pytest.mark.parametrize("method,args", [
+    ("create_professional_voice", (b"\x00" * 1024, "demo", "en", "ssfm-v30")),
+    ("get_custom_voices", ()),
+    ("get_custom_voice", (CUSTOM_VOICE["voice_id"],)),
+])
+def test_custom_voice_endpoints_propagate_errors(mocker, method, args):
+    client = Typecast(api_key="test-key")
+    response = mocker.Mock(status_code=500, text="boom")
+    mocker.patch.object(client.session, "post" if method == "create_professional_voice" else "get", return_value=response)
+
+    with pytest.raises(InternalServerError):
+        getattr(client, method)(*args)
+
+
+def test_v3_voice_endpoints_support_filters_and_errors(mocker):
+    client = Typecast(api_key="test-key")
+    success = mocker.Mock(status_code=200)
+    success.json.return_value = [V3_VOICE]
+    get = mocker.patch.object(client.session, "get", return_value=success)
+
+    assert client.voices_v3(VoicesV2Filter(model=TTSModel.SSFM_V30))[0].voice_id == "tc_v3"
+    assert get.call_args.kwargs["params"] == {"model": "ssfm-v30"}
+
+    failure = mocker.Mock(status_code=500, text="boom")
+    get.return_value = failure
+    with pytest.raises(InternalServerError):
+        client.voices_v3()
+    with pytest.raises(InternalServerError):
+        client.voice_v3("tc_v3")
 
 
 ASYNC_HOST = "https://dummy.example"
@@ -153,7 +234,7 @@ ASYNC_HOST = "https://dummy.example"
 async def test_async_clone_voice_returns_custom_voice():
     fixture = _load_fixture("success_v30.json")
     with aioresponses() as m:
-        m.post(f"{ASYNC_HOST}/v1/voices/clone", status=200, payload=fixture)
+        m.post(f"{ASYNC_HOST}/v1/custom-voices/instant-clone", status=200, payload=fixture)
         async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
             voice = await client.clone_voice(
                 audio=b"\x00" * 1024, name="demo", model="ssfm-v30"
@@ -165,7 +246,7 @@ async def test_async_clone_voice_returns_custom_voice():
 
 async def test_async_delete_voice_returns_none():
     with aioresponses() as m:
-        m.delete(f"{ASYNC_HOST}/v1/voices/uc_xxx", status=204)
+        m.delete(f"{ASYNC_HOST}/v1/custom-voices/uc_xxx", status=204)
         async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
             result = await client.delete_voice("uc_xxx")
             assert result is None
@@ -279,7 +360,7 @@ async def test_async_delete_voice_requires_session():
 async def test_async_clone_voice_propagates_http_error():
     with aioresponses() as m:
         m.post(
-            f"{ASYNC_HOST}/v1/voices/clone",
+            f"{ASYNC_HOST}/v1/custom-voices/instant-clone",
             status=422,
             payload={"error_code": "VALIDATION_ERROR", "message": "bad"},
         )
@@ -293,8 +374,86 @@ async def test_async_clone_voice_propagates_http_error():
 
 async def test_async_delete_voice_propagates_http_error():
     with aioresponses() as m:
-        m.delete(f"{ASYNC_HOST}/v1/voices/uc_xxx", status=404)
+        m.delete(f"{ASYNC_HOST}/v1/custom-voices/uc_xxx", status=404)
         from typecast.exceptions import NotFoundError as Nfe
         async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
             with pytest.raises(Nfe):
                 await client.delete_voice("uc_xxx")
+
+
+async def test_async_custom_voice_workflow_endpoints():
+    with aioresponses() as m:
+        m.post(
+            f"{ASYNC_HOST}/v1/custom-voices/professional-clone",
+            status=202,
+            payload=CUSTOM_VOICE,
+        )
+        m.get(f"{ASYNC_HOST}/v1/custom-voices", status=200, payload=[CUSTOM_VOICE])
+        m.get(
+            f"{ASYNC_HOST}/v1/custom-voices/{CUSTOM_VOICE['voice_id']}",
+            status=200,
+            payload=CUSTOM_VOICE,
+        )
+        async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
+            created = await client.create_professional_voice(
+                b"\x00" * 1024, "demo", "en", "ssfm-v30"
+            )
+            listed = await client.get_custom_voices()
+            fetched = await client.get_custom_voice(CUSTOM_VOICE["voice_id"])
+
+    assert created.status == "processing"
+    assert listed[0].voice_id == CUSTOM_VOICE["voice_id"]
+    assert fetched.source == "professional"
+
+
+@pytest.mark.parametrize("method,args", [
+    ("create_professional_voice", (b"\x00" * 1024, "demo", "en", "ssfm-v30")),
+    ("get_custom_voices", ()),
+    ("get_custom_voice", (CUSTOM_VOICE["voice_id"],)),
+])
+async def test_async_custom_voice_endpoints_require_session(method, args):
+    from typecast.exceptions import TypecastError
+
+    client = AsyncTypecast(host=ASYNC_HOST, api_key="test-key")
+    with pytest.raises(TypecastError, match="Client session not initialized"):
+        await getattr(client, method)(*args)
+
+
+async def test_async_custom_voice_endpoints_propagate_errors():
+    with aioresponses() as m:
+        m.post(f"{ASYNC_HOST}/v1/custom-voices/professional-clone", status=500)
+        m.get(f"{ASYNC_HOST}/v1/custom-voices", status=500)
+        m.get(f"{ASYNC_HOST}/v1/custom-voices/{CUSTOM_VOICE['voice_id']}", status=500)
+        async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
+            with pytest.raises(InternalServerError):
+                await client.create_professional_voice(b"\x00" * 1024, "demo", "en", "ssfm-v30")
+            with pytest.raises(InternalServerError):
+                await client.get_custom_voices()
+            with pytest.raises(InternalServerError):
+                await client.get_custom_voice(CUSTOM_VOICE["voice_id"])
+
+
+async def test_async_v3_voice_endpoints_cover_current_contract():
+    from typecast.exceptions import TypecastError
+
+    client = AsyncTypecast(host=ASYNC_HOST, api_key="test-key")
+    with pytest.raises(TypecastError):
+        await client.voices_v3()
+    with pytest.raises(TypecastError):
+        await client.voice_v3("tc_v3")
+
+    with aioresponses() as m:
+        m.get(f"{ASYNC_HOST}/v3/voices?model=ssfm-v30", status=200, payload=[V3_VOICE])
+        m.get(f"{ASYNC_HOST}/v3/voices", status=500)
+        m.get(f"{ASYNC_HOST}/v3/voices/tc_v3", status=200, payload=V3_VOICE)
+        m.get(f"{ASYNC_HOST}/v3/voices/tc_missing", status=500)
+        async with AsyncTypecast(host=ASYNC_HOST, api_key="test-key") as client:
+            voices = await client.voices_v3(VoicesV2Filter(model=TTSModel.SSFM_V30))
+            assert voices[0].voice_name.eng == "Voice"
+            assert (await client.voice_v3("tc_v3")).voice_id == "tc_v3"
+            with pytest.raises(InternalServerError):
+                await client.voices_v3()
+            with pytest.raises(InternalServerError):
+                await client.voice_v3("tc_missing")
+            with pytest.raises(ValueError, match="must not be blank"):
+                await client.voice_v3(" ")

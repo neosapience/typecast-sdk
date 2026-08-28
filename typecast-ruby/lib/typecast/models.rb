@@ -179,6 +179,17 @@ module Typecast
       end
     end
 
+    class VoiceV3
+      attr_reader :voice_id, :voice_name, :models, :voice_type, :gender, :age, :use_cases, :preview_url
+      def self.from_h(hash)
+        new(voice_id: hash.fetch("voice_id", ""), voice_name: hash.fetch("voice_name", { "eng" => "", "kor" => "" }), models: hash.fetch("models", []), voice_type: hash.fetch("voice_type", ""), gender: hash["gender"], age: hash["age"], use_cases: hash.fetch("use_cases", []), preview_url: hash["preview_url"])
+      end
+      def initialize(voice_id:, voice_name:, models:, voice_type:, gender: nil, age: nil, use_cases: [], preview_url: nil)
+        @voice_id, @voice_name, @models, @voice_type = voice_id, voice_name, models, voice_type
+        @gender, @age, @use_cases, @preview_url = gender, age, use_cases, preview_url
+      end
+    end
+
     class RecommendedVoice
       attr_reader :voice_id, :voice_name, :score
 
@@ -216,16 +227,20 @@ module Typecast
     end
 
     class CustomVoice
-      attr_reader :voice_id, :name, :model
+      attr_reader :voice_id, :name, :model, :source, :status, :error, :created_at
 
       def self.from_h(hash)
-        new(voice_id: hash.fetch("voice_id", ""), name: hash.fetch("name", ""), model: hash["model"])
+        new(voice_id: hash.fetch("voice_id", ""), name: hash.fetch("name", ""), model: hash["model"], source: hash["source"], status: hash["status"], error: hash["error"], created_at: hash["created_at"])
       end
 
-      def initialize(voice_id:, name:, model: nil)
+      def initialize(voice_id:, name:, model: nil, source: nil, status: nil, error: nil, created_at: nil)
         @voice_id = voice_id
         @name = name
         @model = model
+        @source = source
+        @status = status
+        @error = error
+        @created_at = created_at
       end
     end
 

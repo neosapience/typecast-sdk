@@ -94,7 +94,7 @@ class QuickCloningTest extends TestCase
         $request = $history[0]['request'];
 
         // URL
-        $this->assertStringEndsWith('/v1/voices/clone', (string) $request->getUri());
+        $this->assertStringEndsWith('/v1/custom-voices/instant-clone', (string) $request->getUri());
 
         // Method
         $this->assertSame('POST', $request->getMethod());
@@ -182,7 +182,7 @@ class QuickCloningTest extends TestCase
         /** @var \Psr\Http\Message\RequestInterface $request */
         $request = $history[0]['request'];
 
-        $this->assertStringEndsWith('/v1/voices/uc_xxx', (string) $request->getUri());
+        $this->assertStringEndsWith('/v1/custom-voices/uc_xxx', (string) $request->getUri());
         $this->assertSame('DELETE', $request->getMethod());
     }
 
@@ -193,5 +193,34 @@ class QuickCloningTest extends TestCase
 
         $this->expectException(NotFoundException::class);
         $client->deleteVoice('uc_nonexistent');
+    }
+
+    public function testProfessionalCloneAndCustomVoiceQueries(): void
+    {
+        $voice = json_encode(['voice_id' => 'uc_prof', 'name' => 'Pro', 'model' => 'ssfm-v30', 'status' => 'processing']);
+        $history = [];
+        $client = $this->createClient(new MockHandler([
+            new Response(202, [], $voice), new Response(200, [], '[' . $voice . ']'), new Response(200, [], $voice),
+        ]), $history);
+        $this->assertSame('processing', $client->createProfessionalVoice([['audio' => 'audio', 'filename' => 'sample.wav']], 'Pro', 'ssfm-v30', 'en')->status);
+        $this->assertSame('uc_prof', $client->getCustomVoices()[0]->voiceId);
+        $this->assertSame('uc_prof', $client->getCustomVoice('uc_prof')->voiceId);
+        $this->assertStringEndsWith('/v1/custom-voices/professional-clone', (string) $history[0]['request']->getUri());
+        $this->assertStringContainsString('name="files"', (string) $history[0]['request']->getBody());
+        $this->assertStringEndsWith('/v1/custom-voices', (string) $history[1]['request']->getUri());
+        $this->assertStringEndsWith('/v1/custom-voices/uc_prof', (string) $history[2]['request']->getUri());
+    }
+
+    public function testProfessionalCloneRejectsInvalidFiles(): void
+    {
+        $client = $this->createClient(new MockHandler([]));
+        foreach ([[], [['audio' => '', 'filename' => 'a.wav']], [['audio' => 'audio', 'filename' => '']], [['audio' => 'audio', 'filename' => ' ']]] as $files) {
+            try {
+                $client->createProfessionalVoice($files, 'Pro', 'ssfm-v30', 'eng');
+                $this->fail('expected invalid file exception');
+            } catch (\InvalidArgumentException) {
+                $this->addToAssertionCount(1);
+            }
+        }
     }
 }

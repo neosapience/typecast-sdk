@@ -9,6 +9,10 @@ export interface CustomVoice {
   voiceId: string;
   name: string;
   model: string;
+  source?: string;
+  status?: string;
+  error?: string | null;
+  createdAt?: string;
 }
 
 export type CloneVoiceAudio = string | Uint8Array | Buffer | Blob | File;
@@ -17,6 +21,10 @@ export interface CloneVoiceRequest {
   audio: CloneVoiceAudio;
   name: string;
   model: string;
+}
+
+export interface ProfessionalCloneVoiceRequest extends CloneVoiceRequest {
+  language: import('./TextToSpeech').LanguageCode;
 }
 
 export interface ValidatedCloneInputs {

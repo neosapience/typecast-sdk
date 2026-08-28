@@ -7,7 +7,7 @@ import {
   ApiErrorResponse,
 } from './types';
 import { SubscriptionResponse } from './types/Subscription';
-import { VoicesResponse, VoiceV2Response, VoicesV2Filter, RecommendedVoice } from './types/Voices';
+import { VoicesResponse, VoiceV2Response, VoiceV3Response, VoicesV2Filter, RecommendedVoice } from './types/Voices';
 import { TypecastAPIError } from './errors';
 import {
   TTSRequestWithTimestamps,
@@ -17,6 +17,7 @@ import {
 import {
   type CloneVoiceRequest,
   type CustomVoice,
+  type ProfessionalCloneVoiceRequest,
   guessAudioMime,
   validateCloneInputsAsync,
 } from './types/QuickCloning';
@@ -345,6 +346,23 @@ export class TypecastClient {
     return this.handleResponse<VoiceV2Response>(response);
   }
 
+  /** Get voices using the current V3 Voice API. */
+  async getVoicesV3(filter?: VoicesV2Filter): Promise<VoiceV3Response[]> {
+    const response = await fetch(
+      this.buildUrl('/v3/voices', filter as Record<string, QueryParam>),
+      { headers: this.headers },
+    );
+    return this.handleResponse<VoiceV3Response[]>(response);
+  }
+
+  /** Get a voice by ID using the current V3 Voice API. */
+  async getVoiceV3(voiceId: string): Promise<VoiceV3Response> {
+    const response = await fetch(this.buildUrl(`/v3/voices/${encodeURIComponent(voiceId)}`), {
+      headers: this.headers,
+    });
+    return this.handleResponse<VoiceV3Response>(response);
+  }
+
   /**
    * Recommend voices from a text description.
    *
@@ -410,7 +428,7 @@ export class TypecastClient {
     const headers = { ...this.headers };
     delete headers['Content-Type'];
 
-    const response = await fetch(this.buildUrl('/v1/voices/clone'), {
+    const response = await fetch(this.buildUrl('/v1/custom-voices/instant-clone'), {
       method: 'POST',
       headers,
       body: form,
@@ -431,7 +449,7 @@ export class TypecastClient {
     if (!voiceId || !voiceId.startsWith('uc_')) {
       throw new TypeError(`voiceId must start with 'uc_'; got ${String(voiceId)}`);
     }
-    const response = await fetch(this.buildUrl(`/v1/voices/${encodeURIComponent(voiceId)}`), {
+    const response = await fetch(this.buildUrl(`/v1/custom-voices/${encodeURIComponent(voiceId)}`), {
       method: 'DELETE',
       headers: this.headers,
     });
@@ -441,5 +459,56 @@ export class TypecastClient {
     }
     /* c8 ignore stop */
     // 204 No Content: nothing to return.
+  }
+
+  /** Start an asynchronous professional custom-voice clone. */
+  async createProfessionalVoice(req: ProfessionalCloneVoiceRequest): Promise<CustomVoice> {
+    const { audioBytes, filename } = await validateCloneInputsAsync(req.audio, req.name);
+    if (req.model !== 'ssfm-v21' && req.model !== 'ssfm-v30') {
+      throw new TypeError(`model must be 'ssfm-v21' or 'ssfm-v30'; got ${String(req.model)}`);
+    }
+    const audioBuffer = audioBytes.buffer.slice(audioBytes.byteOffset, audioBytes.byteOffset + audioBytes.byteLength) as ArrayBuffer;
+    const form = new FormData();
+    form.append('name', req.name);
+    form.append('language', req.language);
+    form.append('model', req.model);
+    form.append('files', new Blob([audioBuffer], { type: guessAudioMime(filename) }), filename);
+    const headers = { ...this.headers };
+    delete headers['Content-Type'];
+    const body = await this.handleResponse<Record<string, string | null>>(
+      await fetch(this.buildUrl('/v1/custom-voices/professional-clone'), { method: 'POST', headers, body: form }),
+    );
+    return this.customVoice(body);
+  }
+
+  /** List custom voices owned by the authenticated user. */
+  async getCustomVoices(): Promise<CustomVoice[]> {
+    const body = await this.handleResponse<Record<string, string | null>[]>(
+      await fetch(this.buildUrl('/v1/custom-voices'), { headers: this.headers }),
+    );
+    return body.map((voice) => this.customVoice(voice));
+  }
+
+  /** Get a custom voice, including professional-clone status. */
+  async getCustomVoice(voiceId: string): Promise<CustomVoice> {
+    if (!voiceId || !voiceId.startsWith('uc_')) {
+      throw new TypeError(`voiceId must start with 'uc_'; got ${String(voiceId)}`);
+    }
+    const body = await this.handleResponse<Record<string, string | null>>(
+      await fetch(this.buildUrl(`/v1/custom-voices/${encodeURIComponent(voiceId)}`), { headers: this.headers }),
+    );
+    return this.customVoice(body);
+  }
+
+  private customVoice(body: Record<string, string | null>): CustomVoice {
+    return {
+      voiceId: body.voice_id as string,
+      name: body.name as string,
+      model: body.model as string,
+      source: body.source ?? undefined,
+      status: body.status ?? undefined,
+      error: body.error,
+      createdAt: body.created_at ?? undefined,
+    };
   }
 }

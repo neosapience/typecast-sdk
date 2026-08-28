@@ -2,6 +2,7 @@ package com.neosapience
 
 import com.neosapience.exceptions.NotFoundException
 import com.neosapience.models.CustomVoice
+import com.neosapience.models.CustomVoiceFile
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.jupiter.api.*
@@ -35,6 +36,44 @@ class QuickCloningTest {
     }
 
     // ==================== cloneVoice Tests ====================
+
+    @Test
+    fun professionalCloneAndCustomVoiceQueriesUseCurrentEndpoints() {
+        val voice = "{\"voice_id\":\"uc_prof\",\"name\":\"Pro\",\"model\":\"ssfm-v30\",\"source\":\"professional\",\"status\":\"processing\",\"error\":\"retry\",\"created_at\":\"2026-08-27T00:00:00Z\"}"
+        mockServer.enqueue(MockResponse().setResponseCode(202).setBody(voice))
+        val professionalVoice = client.createProfessionalVoice(listOf(CustomVoiceFile("sample.wav", byteArrayOf(1))), "Pro", "ssfm-v30", "eng")
+        assertEquals("processing", professionalVoice.status)
+        assertEquals("professional", professionalVoice.source)
+        assertEquals("retry", professionalVoice.error)
+        assertEquals("2026-08-27T00:00:00Z", professionalVoice.createdAt)
+        assertEquals("/v1/custom-voices/professional-clone", mockServer.takeRequest().path)
+        mockServer.enqueue(MockResponse().setBody("[$voice]"))
+        assertEquals("uc_prof", client.getCustomVoices().single().voiceId)
+        assertEquals("/v1/custom-voices", mockServer.takeRequest().path)
+        mockServer.enqueue(MockResponse().setBody(voice))
+        assertEquals("uc_prof", client.getCustomVoice("uc_prof").voiceId)
+        assertEquals("/v1/custom-voices/uc_prof", mockServer.takeRequest().path)
+        assertThrows(IllegalArgumentException::class.java) { client.getCustomVoice(" ") }
+    }
+
+    @Test
+    fun professionalCloneValidatesSamplesAndNameBeforeRequest() {
+        assertThrows(IllegalArgumentException::class.java) {
+            client.createProfessionalVoice(emptyList(), "Pro", "ssfm-v30", "en")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            client.createProfessionalVoice(listOf(CustomVoiceFile("a.wav", byteArrayOf(1)), CustomVoiceFile("b.wav", byteArrayOf(1))), "Pro", "ssfm-v30", "eng")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            client.createProfessionalVoice(listOf(CustomVoiceFile("a.wav", byteArrayOf(1))), "", "ssfm-v30", "en")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            client.createProfessionalVoice(listOf(CustomVoiceFile("a.wav", byteArrayOf(1))), "a".repeat(31), "ssfm-v30", "eng")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            client.createProfessionalVoice(listOf(CustomVoiceFile("a.wav", ByteArray((CustomVoice.CLONING_MAX_FILE_SIZE + 1).toInt()))), "Pro", "ssfm-v30", "en")
+        }
+    }
 
     @Test
     @DisplayName("cloneVoice returns a CustomVoice with correct fields")
@@ -77,7 +116,7 @@ class QuickCloningTest {
 
         val recorded = mockServer.takeRequest()
         assertEquals("POST", recorded.method)
-        assertEquals("/v1/voices/clone", recorded.path)
+        assertEquals("/v1/custom-voices/instant-clone", recorded.path)
         assertEquals("test-api-key", recorded.getHeader("X-API-KEY"))
 
         val contentType = recorded.getHeader("Content-Type") ?: ""
@@ -172,8 +211,9 @@ class QuickCloningTest {
 
         val recorded = mockServer.takeRequest()
         assertEquals("DELETE", recorded.method)
-        assertEquals("/v1/voices/uc_abc123", recorded.path)
+        assertEquals("/v1/custom-voices/uc_abc123", recorded.path)
         assertEquals("test-api-key", recorded.getHeader("X-API-KEY"))
+        assertThrows(IllegalArgumentException::class.java) { client.deleteVoice(" ") }
     }
 
     @Test

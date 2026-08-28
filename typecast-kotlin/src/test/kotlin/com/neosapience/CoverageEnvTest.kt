@@ -1,5 +1,6 @@
 package com.neosapience
 
+import io.github.cdimascio.dotenv.dotenv
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
 
@@ -73,11 +74,34 @@ class CoverageEnvTest {
         val existed = envFile.exists()
         val backup = if (existed) envFile.readText() else null
         try {
-            envFile.writeText("TYPECAST_API_KEY=\nTYPECAST_API_HOST=\n")
+            envFile.writeText("TYPECAST_API_KEY=\" \"\nTYPECAST_API_HOST=\" \"\n")
+            assertEquals(" ", dotenv { ignoreIfMissing = true }["TYPECAST_API_KEY"])
+            assertEquals(" ", dotenv { ignoreIfMissing = true }["TYPECAST_API_HOST"])
             try {
                 TypecastClient.builder().build().close()
+                fail<Unit>("Expected IllegalArgumentException for blank dotenv API key")
             } catch (e: IllegalArgumentException) {
                 assertTrue(e.message!!.contains("API key"))
+            }
+            envFile.writeText("TYPECAST_API_KEY=\"\"\nTYPECAST_API_HOST=\"\"\n")
+            assertEquals("", dotenv { ignoreIfMissing = true }["TYPECAST_API_KEY"])
+            try {
+                TypecastClient.builder().build().close()
+                fail<Unit>("Expected IllegalArgumentException for empty dotenv API key")
+            } catch (e: IllegalArgumentException) {
+                assertTrue(e.message!!.contains("API key"))
+            }
+            envFile.writeText("TYPECAST_API_KEY=fromdotenv\nTYPECAST_API_HOST=\"\"\n")
+            TypecastClient.builder().build().use { c ->
+                assertEquals("https://api.typecast.ai", c.getBaseUrl())
+            }
+            envFile.writeText("TYPECAST_API_KEY=fromdotenv\n")
+            TypecastClient.builder().build().use { c ->
+                assertEquals("https://api.typecast.ai", c.getBaseUrl())
+            }
+            envFile.writeText("TYPECAST_API_HOST=https://dotenv.example.com/\n")
+            TypecastClient.builder().build().use { c ->
+                assertEquals("https://dotenv.example.com", c.getBaseUrl())
             }
         } finally {
             if (backup != null) envFile.writeText(backup) else envFile.delete()

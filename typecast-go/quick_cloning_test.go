@@ -55,8 +55,8 @@ func TestCloneVoiceSendsMultipartBody(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check URL and method
-		if !strings.HasSuffix(r.URL.Path, "/v1/voices/clone") {
-			t.Errorf("URL path: got %q, want to end with /v1/voices/clone", r.URL.Path)
+		if !strings.HasSuffix(r.URL.Path, "/v1/custom-voices/instant-clone") {
+			t.Errorf("URL path: got %q, want to end with /v1/custom-voices/instant-clone", r.URL.Path)
 		}
 		if r.Method != http.MethodPost {
 			t.Errorf("method: got %q, want POST", r.Method)
@@ -233,8 +233,8 @@ func TestDeleteVoiceReturnsNilOn204(t *testing.T) {
 	const voiceID = "uc_xxx"
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasSuffix(r.URL.Path, "/v1/voices/"+voiceID) {
-			t.Errorf("URL path: got %q, want to end with /v1/voices/%s", r.URL.Path, voiceID)
+		if !strings.HasSuffix(r.URL.Path, "/v1/custom-voices/"+voiceID) {
+			t.Errorf("URL path: got %q, want to end with /v1/custom-voices/%s", r.URL.Path, voiceID)
 		}
 		if r.Method != http.MethodDelete {
 			t.Errorf("method: got %q, want DELETE", r.Method)

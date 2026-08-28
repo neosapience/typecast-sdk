@@ -102,6 +102,15 @@ module Typecast
       voices.first
     end
 
+    def get_voices_v3(filter = nil)
+      query = filter.respond_to?(:to_h) ? filter.to_h : filter
+      JSON.parse(request_json(:get, "/v3/voices", nil, query).body).map { |item| Models::VoiceV3.from_h(item) }
+    end
+
+    def get_voice_v3(voice_id)
+      Models::VoiceV3.from_h(JSON.parse(request_json(:get, "/v3/voices/#{path_segment(voice_id)}").body))
+    end
+
     # Recommends voices from a text description.
     #
     # Results only include voice_id, voice_name, and score. Use get_voice_v2 or
@@ -116,13 +125,29 @@ module Typecast
 
     def clone_voice(audio:, filename:, name:, model:)
       validate_clone_inputs(audio, name)
-      response = request_multipart("/v1/voices/clone", audio: audio, filename: filename, fields: { name: name, model: model })
+      response = request_multipart("/v1/custom-voices/instant-clone", audio: audio, filename: filename, fields: { name: name, model: model })
       Models::CustomVoice.from_h(JSON.parse(response.body))
     end
 
     def delete_voice(voice_id)
-      request_raw(:delete, "/v1/voices/#{path_segment(voice_id)}")
+      request_raw(:delete, "/v1/custom-voices/#{path_segment(voice_id)}")
       nil
+    end
+
+    # Starts an asynchronous professional custom-voice clone. Poll
+    # get_custom_voice until status is "completed" or "failed".
+    def create_professional_voice(audio:, filename:, name:, language:, model:)
+      validate_clone_inputs(audio, name)
+      response = request_multipart("/v1/custom-voices/professional-clone", audio: audio, filename: filename, fields: { name: name, language: language, model: model }, file_field: "files")
+      Models::CustomVoice.from_h(JSON.parse(response.body))
+    end
+
+    def get_custom_voices
+      JSON.parse(request_json(:get, "/v1/custom-voices").body).map { |item| Models::CustomVoice.from_h(item) }
+    end
+
+    def get_custom_voice(voice_id)
+      Models::CustomVoice.from_h(JSON.parse(request_json(:get, "/v1/custom-voices/#{path_segment(voice_id)}").body))
     end
 
     private
@@ -154,7 +179,7 @@ module Typecast
       response
     end
 
-    def request_multipart(path, audio:, filename:, fields:)
+    def request_multipart(path, audio:, filename:, fields:, file_field: "file")
       boundary = "typecast-ruby-#{SecureRandom.hex(8)}"
       body = +""
       fields.each do |name, value|
@@ -166,7 +191,7 @@ module Typecast
       end
       safe_filename = disposition_value(filename)
       body << "--#{boundary}\r\n"
-      body << "Content-Disposition: form-data; name=\"file\"; filename=\"#{safe_filename}\"\r\n"
+      body << "Content-Disposition: form-data; name=\"#{disposition_value(file_field)}\"; filename=\"#{safe_filename}\"\r\n"
       body << "Content-Type: application/octet-stream\r\n\r\n"
       body << audio
       body << "\r\n--#{boundary}--\r\n"

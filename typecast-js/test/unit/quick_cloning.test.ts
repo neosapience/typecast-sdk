@@ -132,7 +132,7 @@ describe('TypecastClient.cloneVoice', () => {
     });
     expect(mockFetch).toHaveBeenCalledOnce();
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit & { body: FormData }];
-    expect(url).toContain('/v1/voices/clone');
+    expect(url).toContain('/v1/custom-voices/instant-clone');
     expect(init.method).toBe('POST');
     // Critical: Content-Type must NOT be in headers, so fetch can set multipart boundary
     expect(init.headers).not.toHaveProperty('Content-Type');
@@ -175,7 +175,7 @@ describe('TypecastClient.deleteVoice', () => {
     });
     await expect(client.deleteVoice('uc_xxx')).resolves.toBeUndefined();
     const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain('/v1/voices/uc_xxx');
+    expect(url).toContain('/v1/custom-voices/uc_xxx');
     expect(init.method).toBe('DELETE');
   });
 
@@ -231,5 +231,101 @@ describe('TypecastClient.deleteVoice surfaces non-ok responses', () => {
     });
     const client = new TypecastClient({ baseHost: 'https://dummy-api.ai', apiKey: 'test-api-key' });
     await expect(client.deleteVoice('uc_xxx')).rejects.toThrow();
+  });
+});
+
+describe('TypecastClient custom voice workflows', () => {
+  const professionalVoice = {
+    voice_id: 'uc_professional',
+    name: 'narrator',
+    model: 'ssfm-v30',
+    source: 'professional',
+    status: 'processing',
+  };
+  let client: TypecastClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    client = new TypecastClient({ baseHost: 'https://dummy-api.ai', apiKey: 'test-api-key' });
+  });
+
+  it('starts a professional clone with the documented multipart fields', async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve(professionalVoice) });
+
+    const voice = await client.createProfessionalVoice({
+      audio: new Uint8Array(1024),
+      name: 'narrator',
+      language: 'en',
+      model: 'ssfm-v30',
+    });
+
+    const [url, init] = mockFetch.mock.calls[0] as [string, RequestInit & { body: FormData }];
+    expect(url).toContain('/v1/custom-voices/professional-clone');
+    expect(init.method).toBe('POST');
+    expect(init.headers).not.toHaveProperty('Content-Type');
+    expect(init.body.get('language')).toBe('en');
+    expect(init.body.get('files')).toBeTruthy();
+    expect(voice).toMatchObject({ voiceId: 'uc_professional', status: 'processing' });
+  });
+
+  it('lists and gets custom voices with their clone status', async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve([professionalVoice]) })
+      .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(professionalVoice) });
+
+    expect((await client.getCustomVoices())[0]).toMatchObject({ source: 'professional' });
+    expect(await client.getCustomVoice('uc_professional')).toMatchObject({
+      voiceId: 'uc_professional',
+    });
+    expect(mockFetch.mock.calls[0][0]).toContain('/v1/custom-voices');
+    expect(mockFetch.mock.calls[1][0]).toContain('/v1/custom-voices/uc_professional');
+  });
+
+  it('rejects malformed custom voice ids before fetching', async () => {
+    await expect(client.getCustomVoice('tc_voice')).rejects.toThrow(/uc_/);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsupported professional-clone models before fetching', async () => {
+    await expect(
+      client.createProfessionalVoice({
+        audio: new Uint8Array(1024),
+        name: 'narrator',
+        language: 'en',
+        model: 'ssfm-v99' as any,
+      }),
+    ).rejects.toThrow(/ssfm-v21.*ssfm-v30/);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('keeps optional clone metadata undefined when the API omits it', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([{ voice_id: 'uc_instant', name: 'instant', model: 'ssfm-v30' }]),
+    });
+
+    await expect(client.getCustomVoices()).resolves.toEqual([
+      {
+        voiceId: 'uc_instant',
+        name: 'instant',
+        model: 'ssfm-v30',
+        source: undefined,
+        status: undefined,
+        error: undefined,
+        createdAt: undefined,
+      },
+    ]);
+  });
+});
+
+describe('TypecastClient V3 voice list', () => {
+  it('uses the V3 endpoint and forwards filters', async () => {
+    vi.clearAllMocks();
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
+    const client = new TypecastClient({ baseHost: 'https://dummy-api.ai' });
+
+    await client.getVoicesV3({ model: 'ssfm-v30' });
+
+    expect(mockFetch.mock.calls[0][0]).toBe('https://dummy-api.ai/v3/voices?model=ssfm-v30');
   });
 });

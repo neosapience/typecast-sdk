@@ -87,10 +87,10 @@ pub use composer::{parse_pause_markup, ComposerSettings, SpeechComposer, SpeechP
 pub use errors::{Result, TypecastError};
 pub use models::{
     Age, AudioFormat, Credits, CustomVoice, EmotionPreset, ErrorResponse, Gender,
-    GenerateToFileRequest, Limits, ModelInfo, Output, OutputStream, PlanTier, PresetPrompt, Prompt,
-    RecommendedVoice, SmartPrompt, SubscriptionResponse, TTSModel, TTSPrompt, TTSRequest,
-    TTSRequestStream, TTSResponse, UseCase, VoiceV2, VoicesV2Filter, CLONING_MAX_FILE_SIZE,
-    NAME_MAX_LENGTH, NAME_MIN_LENGTH,
+    GenerateToFileRequest, Limits, LocalizedVoiceName, ModelInfo, Output, OutputStream, PlanTier,
+    PresetPrompt, Prompt, RecommendedVoice, SmartPrompt, SubscriptionResponse, TTSModel, TTSPrompt,
+    TTSRequest, TTSRequestStream, TTSResponse, UseCase, VoiceV2, VoiceV3, VoicesV2Filter,
+    CLONING_MAX_FILE_SIZE, NAME_MAX_LENGTH, NAME_MIN_LENGTH,
 };
 pub use timestamps::{
     AlignmentSegmentCharacter, AlignmentSegmentWord, TTSRequestWithTimestamps,

@@ -408,6 +408,25 @@ class TypecastClient private constructor(
         return executeRequest(httpRequest)
     }
 
+    /** Gets voices from the current V3 Voice API. */
+    fun getVoicesV3(filter: VoicesV2Filter? = null): List<VoiceV3Response> {
+        val urlBuilder = "$baseUrl/v3/voices".toHttpUrl().newBuilder()
+        filter?.let { f ->
+            f.model?.let { urlBuilder.addQueryParameter("model", it.value) }
+            f.gender?.let { urlBuilder.addQueryParameter("gender", it.value) }
+            f.age?.let { urlBuilder.addQueryParameter("age", it.value) }
+            f.useCases?.let { urlBuilder.addQueryParameter("use_cases", it.value) }
+        }
+        return executeRequest(Request.Builder().url(urlBuilder.build()).addAuthHeader().addUserAgentHeader().get().build())
+    }
+
+    /** Gets one voice from the current V3 Voice API. */
+    fun getVoiceV3(voiceId: String): VoiceV3Response {
+        require(voiceId.isNotBlank()) { "voiceId must not be blank" }
+        val url = baseUrl.toHttpUrl().newBuilder().addPathSegments("v3/voices").addPathSegment(voiceId).build()
+        return executeRequest(Request.Builder().url(url).addAuthHeader().addUserAgentHeader().get().build())
+    }
+
     /**
      * Recommends voices from a text description.
      *
@@ -505,7 +524,7 @@ class TypecastClient private constructor(
     /**
      * Creates a custom voice (created via instant cloning) from an audio sample.
      *
-     * Calls `POST /v1/voices/clone` with a multipart/form-data body containing
+     * Calls `POST /v1/custom-voices/instant-clone` with a multipart/form-data body containing
      * the audio file, voice name, and synthesis model.
      *
      * @param audio    the raw audio bytes (WAV, MP3, or other format; max 25 MB)
@@ -540,7 +559,7 @@ class TypecastClient private constructor(
             .build()
 
         val httpRequest = Request.Builder()
-            .url("$baseUrl/v1/voices/clone")
+            .url("$baseUrl/v1/custom-voices/instant-clone")
             .addAuthHeader()
             .addUserAgentHeader()
             .post(body)
@@ -565,17 +584,47 @@ class TypecastClient private constructor(
         return cloneVoice(bytes, audioFile.name, name, model)
     }
 
+    /** Starts professional cloning. The API returns the queued custom voice (HTTP 202). */
+    fun createProfessionalVoice(files: List<CustomVoiceFile>, name: String, model: String, language: String): CustomVoice {
+        require(files.size == 1) { "exactly one audio file is required" }
+        require(name.length in CustomVoice.NAME_MIN_LENGTH..CustomVoice.NAME_MAX_LENGTH) { "name must be 1-30 characters" }
+        val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("name", name)
+            .addFormDataPart("model", model)
+            .addFormDataPart("language", language)
+        val file = files.single()
+        require(file.data.size <= CustomVoice.CLONING_MAX_FILE_SIZE) { "audio file exceeds 25MB limit" }
+        body.addFormDataPart("files", file.filename, file.data.toRequestBody(guessAudioMime(file.filename).toMediaType()))
+        val request = Request.Builder().url("$baseUrl/v1/custom-voices/professional-clone")
+            .addAuthHeader().addUserAgentHeader().post(body.build()).build()
+        return executeRequest(request)
+    }
+
+    /** Lists the caller's custom voices. */
+    fun getCustomVoices(): List<CustomVoice> = executeRequest(
+        Request.Builder().url("$baseUrl/v1/custom-voices").addAuthHeader().addUserAgentHeader().get().build()
+    )
+
+    /** Gets the current status and metadata for a custom voice. */
+    fun getCustomVoice(voiceId: String): CustomVoice {
+        require(voiceId.isNotBlank()) { "voiceId must not be blank" }
+        val url = baseUrl.toHttpUrl().newBuilder().addPathSegments("v1/custom-voices").addPathSegment(voiceId).build()
+        return executeRequest(Request.Builder().url(url).addAuthHeader().addUserAgentHeader().get().build())
+    }
+
     /**
      * Deletes a custom voice (created via instant cloning).
      *
-     * Calls `DELETE /v1/voices/{voiceId}`. A 204 or 200 response is treated as success.
+     * Calls `DELETE /v1/custom-voices/{voiceId}`. A 204 or 200 response is treated as success.
      *
      * @param voiceId the ID of the custom voice to delete (has `"uc_"` prefix)
      * @throws TypecastException if the API returns an error response
      */
     fun deleteVoice(voiceId: String) {
+        require(voiceId.isNotBlank()) { "voiceId must not be blank" }
+        val url = baseUrl.toHttpUrl().newBuilder().addPathSegments("v1/custom-voices").addPathSegment(voiceId).build()
         val httpRequest = Request.Builder()
-            .url("$baseUrl/v1/voices/$voiceId")
+            .url(url)
             .addAuthHeader()
             .addUserAgentHeader()
             .delete()
@@ -675,7 +724,8 @@ class TypecastClient private constructor(
                 val env = dotenv {
                     ignoreIfMissing = true
                 }
-                env["TYPECAST_API_KEY"]?.takeIf { it.isNotBlank() }?.let { return it }
+                val dotenvApiKey = env["TYPECAST_API_KEY"]
+                if (!dotenvApiKey.isNullOrBlank()) return dotenvApiKey
             } catch (e: Exception) {
                 // Continue to system environment
             }
@@ -716,9 +766,8 @@ class TypecastClient private constructor(
                 val env = dotenv {
                     ignoreIfMissing = true
                 }
-                env["TYPECAST_API_HOST"]?.takeIf { it.isNotBlank() }?.let { 
-                    return it.trim().trimEnd('/')
-                }
+                val dotenvBaseUrl = env["TYPECAST_API_HOST"]
+                if (!dotenvBaseUrl.isNullOrBlank()) return dotenvBaseUrl.trim().trimEnd('/')
             } catch (e: Exception) {
                 // Continue to system environment
             }

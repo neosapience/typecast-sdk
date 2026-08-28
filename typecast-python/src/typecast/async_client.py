@@ -12,18 +12,21 @@ else:  # pragma: no cover
     aiohttp = None  # type: ignore[assignment]
 
 from . import conf
+from ._user_agent import aiohttp_user_agent, attribution_suffix, httpx_user_agent
 from ._voice_clone import (
     normalize_clone_model,
     validate_clone_inputs,
     validate_custom_voice_id,
+    validate_voice_id,
 )
-from ._user_agent import aiohttp_user_agent, attribution_suffix, httpx_user_agent
 
 if TYPE_CHECKING or sys.version_info < (3, 10):  # pragma: no cover
     from ._httpx_compat import AiohttpCompatSession, ClientTimeout, FormData
-from .client import _guess_audio_mime
-from .client import _output_with_inferred_format
-from .client import _validate_output_path
+from .client import (
+    _guess_audio_mime,
+    _output_with_inferred_format,
+    _validate_output_path,
+)
 from .exceptions import (
     BadRequestError,
     InternalServerError,
@@ -50,6 +53,7 @@ from .models import (
     VoicesResponse,
     VoicesV2Filter,
     VoiceV2Response,
+    VoiceV3Response,
 )
 
 
@@ -388,12 +392,12 @@ class AsyncTypecast:
             else ClientTimeout(total=300, connect=10)
         )
         async with self.session.post(
-            f"{self.host}/v1/voices/clone",
+            f"{self.host}/v1/custom-voices/instant-clone",
             data=form,
             timeout=timeout,
             headers=self._request_headers(),
         ) as response:
-            if response.status != 200:
+            if response.status not in (200, 201):
                 text = await response.text()
                 self._handle_error(response.status, text)
             body = await response.json()
@@ -418,13 +422,59 @@ class AsyncTypecast:
             else ClientTimeout(total=60, connect=10)
         )
         async with self.session.delete(
-            f"{self.host}/v1/voices/{quote(voice_id, safe='')}",
+            f"{self.host}/v1/custom-voices/{quote(voice_id, safe='')}",
             timeout=timeout,
             headers=self._request_headers(),
         ) as response:
             if response.status not in (200, 204):
                 text = await response.text()
                 self._handle_error(response.status, text)
+
+    async def create_professional_voice(
+        self,
+        audio: Union[str, Path, bytes, BinaryIO],
+        name: str,
+        language: Union[str, LanguageCode],
+        model: Union[str, "TTSModel"],
+    ) -> CustomVoice:
+        """Start an asynchronous professional custom-voice clone."""
+        if self.session is None:
+            raise TypecastError("Client session not initialized; use 'async with'.")
+        audio_bytes, filename = validate_clone_inputs(audio, name)
+        form: Any = aiohttp.FormData() if aiohttp else FormData()
+        form.add_field("name", name)
+        form.add_field("language", str(language.value if hasattr(language, "value") else language))
+        form.add_field("model", normalize_clone_model(model))
+        form.add_field("files", audio_bytes, filename=filename, content_type=_guess_audio_mime(filename))
+        timeout = aiohttp.ClientTimeout(total=300, connect=10) if aiohttp else ClientTimeout(total=300, connect=10)
+        async with self.session.post(
+            f"{self.host}/v1/custom-voices/professional-clone",
+            data=form, timeout=timeout, headers=self._request_headers(),
+        ) as response:
+            if response.status != 202:
+                self._handle_error(response.status, await response.text())
+            return CustomVoice.model_validate(await response.json())
+
+    async def get_custom_voices(self) -> list[CustomVoice]:
+        """List custom voices owned by the authenticated user."""
+        if self.session is None:
+            raise TypecastError("Client session not initialized; use 'async with'.")
+        async with self.session.get(f"{self.host}/v1/custom-voices", headers=self._request_headers()) as response:
+            if response.status != 200:
+                self._handle_error(response.status, await response.text())
+            return [CustomVoice.model_validate(item) for item in await response.json()]
+
+    async def get_custom_voice(self, voice_id: str) -> CustomVoice:
+        """Get a custom voice, including professional-clone status."""
+        if self.session is None:
+            raise TypecastError("Client session not initialized; use 'async with'.")
+        validate_custom_voice_id(voice_id)
+        async with self.session.get(
+            f"{self.host}/v1/custom-voices/{quote(voice_id, safe='')}", headers=self._request_headers()
+        ) as response:
+            if response.status != 200:
+                self._handle_error(response.status, await response.text())
+            return CustomVoice.model_validate(await response.json())
 
     async def voices(self, model: Optional[str] = None) -> list[VoicesResponse]:
         """Get available voices (V1 API) asynchronously.
@@ -579,6 +629,36 @@ class AsyncTypecast:
 
             data = await response.json()
             return VoiceV2Response.model_validate(data)
+
+    async def voices_v3(
+        self, filter: Optional[VoicesV2Filter] = None
+    ) -> list[VoiceV3Response]:
+        """Get voices using the current V3 Voice API asynchronously."""
+        if not self.session:
+            raise TypecastError("Client session not initialized. Use async with.")
+        params = {}
+        if filter:
+            for key, value in filter.model_dump(exclude_none=True).items():
+                params[key] = getattr(value, "value", value)
+        async with self.session.get(
+            f"{self.host}/v3/voices", params=params, headers=self._request_headers()
+        ) as response:
+            if response.status != 200:
+                self._handle_error(response.status, await response.text())
+            return [VoiceV3Response.model_validate(item) for item in await response.json()]
+
+    async def voice_v3(self, voice_id: str) -> VoiceV3Response:
+        """Get a voice by ID using the current V3 Voice API asynchronously."""
+        validate_voice_id(voice_id)
+        if not self.session:
+            raise TypecastError("Client session not initialized. Use async with.")
+        async with self.session.get(
+            f"{self.host}/v3/voices/{quote(voice_id, safe='')}",
+            headers=self._request_headers(),
+        ) as response:
+            if response.status != 200:
+                self._handle_error(response.status, await response.text())
+            return VoiceV3Response.model_validate(await response.json())
 
     async def recommend_voices(
         self, query: str, count: int = 5

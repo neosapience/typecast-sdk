@@ -110,7 +110,7 @@ public class QuickCloningTests : IDisposable
         await _client.CloneVoiceAsync(audio, "test.wav", "My Voice", "ssfm-v30");
 
         capturedMethod.Should().Be(HttpMethod.Post);
-        capturedUri!.ToString().Should().EndWith("/v1/voices/clone");
+        capturedUri!.ToString().Should().EndWith("/v1/custom-voices/instant-clone");
         capturedIsMultipart.Should().BeTrue();
         capturedContentType.Should().StartWith("multipart/form-data; boundary=");
         // .NET's MultipartFormDataContent writes: name=name (no quotes in some runtimes)
@@ -260,7 +260,7 @@ public class QuickCloningTests : IDisposable
 
         captured.Should().NotBeNull();
         captured!.Method.Should().Be(HttpMethod.Delete);
-        captured.RequestUri!.ToString().Should().EndWith("/v1/voices/uc_abc123");
+        captured.RequestUri!.ToString().Should().EndWith("/v1/custom-voices/uc_abc123");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -283,5 +283,11 @@ public class QuickCloningTests : IDisposable
             .ReturnsAsync(response);
 
         await Assert.ThrowsAsync<NotFoundException>(() => _client.DeleteVoiceAsync("uc_nonexistent"));
+    }
+
+    [Fact]
+    public async Task DeleteVoiceAsync_Rejects_Blank_Id()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _client.DeleteVoiceAsync(" "));
     }
 }

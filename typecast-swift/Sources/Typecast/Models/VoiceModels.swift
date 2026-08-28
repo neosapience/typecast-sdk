@@ -84,6 +84,28 @@ public struct VoiceV2: Codable, Sendable {
     }
 }
 
+/// Localized display name returned by the current V3 Voice API.
+public struct LocalizedVoiceName: Codable, Sendable {
+    public let eng: String
+    public let kor: String
+}
+
+/// Voice response from the current V3 Voice API.
+public struct VoiceV3: Codable, Sendable {
+    public let voiceId: String
+    public let voiceName: LocalizedVoiceName
+    public let models: [ModelInfo]
+    public let voiceType: String
+    public let gender: GenderEnum?
+    public let age: AgeEnum?
+    public let useCases: [String]?
+    public let previewUrl: String?
+    enum CodingKeys: String, CodingKey {
+        case voiceId = "voice_id", voiceName = "voice_name", models, voiceType = "voice_type"
+        case gender, age, useCases = "use_cases", previewUrl = "preview_url"
+    }
+}
+
 /// Voice recommendation result.
 ///
 /// Recommendation results only include the matched voice ID, voice name, and

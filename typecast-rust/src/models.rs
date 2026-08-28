@@ -619,6 +619,26 @@ pub struct VoiceV2 {
     pub use_cases: Option<Vec<String>>,
 }
 
+/// Localized display name returned by the current V3 Voice API.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocalizedVoiceName {
+    pub eng: String,
+    pub kor: String,
+}
+
+/// Voice from the current V3 Voice API.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VoiceV3 {
+    pub voice_id: String,
+    pub voice_name: LocalizedVoiceName,
+    pub models: Vec<ModelInfo>,
+    pub voice_type: String,
+    pub gender: Option<Gender>,
+    pub age: Option<Age>,
+    pub use_cases: Option<Vec<String>>,
+    pub preview_url: Option<String>,
+}
+
 /// Voice recommendation result.
 ///
 /// Recommendation results only include the matched voice ID, voice name, and
@@ -749,4 +769,12 @@ pub struct CustomVoice {
     pub name: String,
     /// TTS model the voice was cloned with (e.g. `"ssfm-v30"`)
     pub model: String,
+    /// Clone origin, such as `"instant"` or `"professional"`.
+    pub source: Option<String>,
+    /// Professional-clone progress status.
+    pub status: Option<String>,
+    /// Safe failure reason when a professional clone fails.
+    pub error: Option<String>,
+    /// UTC creation timestamp supplied by the API.
+    pub created_at: Option<String>,
 }

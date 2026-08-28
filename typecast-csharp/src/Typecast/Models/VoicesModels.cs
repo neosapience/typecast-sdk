@@ -95,6 +95,39 @@ public class VoiceV2Response
     public List<string>? UseCases { get; set; }
 }
 
+#pragma warning disable CS1591
+/// <summary>Localized display name returned by the V3 Voice API.</summary>
+public class LocalizedVoiceName
+{
+    [JsonPropertyName("eng")]
+    public string Eng { get; set; } = string.Empty;
+
+    [JsonPropertyName("kor")]
+    public string Kor { get; set; } = string.Empty;
+}
+
+/// <summary>Voice response from the current V3 Voice API.</summary>
+public class VoiceV3Response
+{
+    [JsonPropertyName("voice_id")]
+    public string VoiceId { get; set; } = string.Empty;
+    [JsonPropertyName("voice_name")]
+    public LocalizedVoiceName VoiceName { get; set; } = new();
+    [JsonPropertyName("models")]
+    public List<ModelInfo> Models { get; set; } = new();
+    [JsonPropertyName("voice_type")]
+    public string VoiceType { get; set; } = string.Empty;
+    [JsonPropertyName("gender")]
+    public GenderEnum? Gender { get; set; }
+    [JsonPropertyName("age")]
+    public AgeEnum? Age { get; set; }
+    [JsonPropertyName("use_cases")]
+    public List<string>? UseCases { get; set; }
+    [JsonPropertyName("preview_url")]
+    public string? PreviewUrl { get; set; }
+}
+#pragma warning restore CS1591
+
 /// <summary>
 /// Voice recommendation result.
 /// </summary>

@@ -3,13 +3,17 @@ using System.Text.Json.Serialization;
 namespace Typecast.Models;
 
 /// <summary>
-/// Response of POST /v1/voices/clone — custom voice (created via instant cloning) metadata.
+/// Response of POST /v1/custom-voices/instant-clone — custom voice (created via instant cloning) metadata.
 /// VoiceId has the "uc_" prefix and can be used directly as voice_id in TextToSpeechAsync.
 /// </summary>
 public record CustomVoice(
     [property: JsonPropertyName("voice_id")] string VoiceId,
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("model")] string Model
+    [property: JsonPropertyName("model")] string Model,
+    [property: JsonPropertyName("source")] string? Source = null,
+    [property: JsonPropertyName("status")] string? Status = null,
+    [property: JsonPropertyName("error")] string? Error = null,
+    [property: JsonPropertyName("created_at")] string? CreatedAt = null
 );
 
 /// <summary>

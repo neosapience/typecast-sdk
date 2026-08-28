@@ -478,6 +478,24 @@ public class TypecastClient : IDisposable
         return GetVoiceV2Async(voiceId).GetAwaiter().GetResult();
     }
 
+    /// <summary>Gets available voices from the current V3 Voice API.</summary>
+    public async Task<List<VoiceV3Response>> GetVoicesV3Async(VoicesV2Filter? filter = null, CancellationToken cancellationToken = default)
+    {
+        var url = $"{_apiHost}/v3/voices";
+        if (filter != null && filter.ToQueryParameters().Count > 0)
+            url += "?" + string.Join("&", filter.ToQueryParameters().Select(kvp => $"{Uri.EscapeDataString(kvp.Key)}={Uri.EscapeDataString(kvp.Value)}"));
+        using var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
+        return await HandleJsonResponseAsync<List<VoiceV3Response>>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Gets one voice from the current V3 Voice API.</summary>
+    public async Task<VoiceV3Response> GetVoiceV3Async(string voiceId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(voiceId)) throw new ArgumentException("Voice ID is required", nameof(voiceId));
+        using var response = await _httpClient.GetAsync($"{_apiHost}/v3/voices/{Uri.EscapeDataString(voiceId)}", cancellationToken).ConfigureAwait(false);
+        return await HandleJsonResponseAsync<VoiceV3Response>(response, cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Recommends voices from a text description.
     /// </summary>
@@ -541,7 +559,7 @@ public class TypecastClient : IDisposable
     #region Instant cloning
 
     /// <summary>
-    /// Clones a voice from an audio sample via POST /v1/voices/clone.
+    /// Clones a voice from an audio sample via POST /v1/custom-voices/instant-clone.
     /// The returned <see cref="CustomVoice.VoiceId"/> has the "uc_" prefix and
     /// can be passed directly as <c>voice_id</c> in <see cref="TextToSpeechAsync"/>.
     /// </summary>
@@ -584,7 +602,7 @@ public class TypecastClient : IDisposable
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(GuessAudioMime(filename));
         content.Add(fileContent, "file", filename);
 
-        var url = $"{_apiHost}/v1/voices/clone";
+        var url = $"{_apiHost}/v1/custom-voices/instant-clone";
         // Note: do not dispose content before the response is read; let the
         // HttpResponseMessage lifetime manage it (HttpClient disposes the
         // request content after sending).
@@ -593,7 +611,7 @@ public class TypecastClient : IDisposable
     }
 
     /// <summary>
-    /// Clones a voice from a local audio file via POST /v1/voices/clone.
+    /// Clones a voice from a local audio file via POST /v1/custom-voices/instant-clone.
     /// </summary>
     /// <param name="audioFile">Path to the audio file (WAV or MP3). Must not exceed 25 MB.</param>
     /// <param name="name">Display name for the cloned voice (1–30 characters).</param>
@@ -617,14 +635,16 @@ public class TypecastClient : IDisposable
     }
 
     /// <summary>
-    /// Deletes a custom voice via DELETE /v1/voices/{voiceId}.
+    /// Deletes a custom voice via DELETE /v1/custom-voices/{voiceId}.
     /// </summary>
     /// <param name="voiceId">The custom voice ID to delete (e.g., "uc_abc123").</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <exception cref="TypecastException">Thrown when the API returns an error.</exception>
     public async Task DeleteVoiceAsync(string voiceId, CancellationToken cancellationToken = default)
     {
-        var url = $"{_apiHost}/v1/voices/{Uri.EscapeDataString(voiceId)}";
+        if (string.IsNullOrWhiteSpace(voiceId))
+            throw new ArgumentException("voiceId must not be empty.", nameof(voiceId));
+        var url = $"{_apiHost}/v1/custom-voices/{Uri.EscapeDataString(voiceId)}";
         using var response = await _httpClient.DeleteAsync(url, cancellationToken).ConfigureAwait(false);
 
         if (!response.IsSuccessStatusCode)
@@ -632,6 +652,21 @@ public class TypecastClient : IDisposable
             var errorBody = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             throw TypecastException.FromStatusCode((int)response.StatusCode, errorBody);
         }
+    }
+
+    /// <summary>Lists custom voices owned by the authenticated user.</summary>
+    public async Task<List<CustomVoice>> GetCustomVoicesAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await _httpClient.GetAsync($"{_apiHost}/v1/custom-voices", cancellationToken).ConfigureAwait(false);
+        return await HandleJsonResponseAsync<List<CustomVoice>>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Gets a custom voice, including professional-clone status.</summary>
+    public async Task<CustomVoice> GetCustomVoiceAsync(string voiceId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(voiceId)) throw new ArgumentException("Voice ID is required", nameof(voiceId));
+        using var response = await _httpClient.GetAsync($"{_apiHost}/v1/custom-voices/{Uri.EscapeDataString(voiceId)}", cancellationToken).ConfigureAwait(false);
+        return await HandleJsonResponseAsync<CustomVoice>(response, cancellationToken).ConfigureAwait(false);
     }
 
     private static string GuessAudioMime(string filename)

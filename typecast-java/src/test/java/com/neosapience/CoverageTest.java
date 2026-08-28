@@ -540,6 +540,46 @@ class CoverageTest {
     }
 
     @Test
+    void v3_voice_endpoints_cover_success_filter_and_errors() throws Exception {
+        String voice = "{\"voice_id\":\"tc_v3\",\"voice_name\":{\"eng\":\"Voice\",\"kor\":\"보이스\"},\"models\":[],\"voice_type\":\"original\",\"gender\":\"female\",\"age\":\"young_adult\",\"use_cases\":[\"news\"],\"preview_url\":\"https://example.test/voice\"}";
+        mockServer.enqueue(new MockResponse().setResponseCode(200).setBody("[" + voice + "]"));
+        VoicesV2Filter filter = new VoicesV2Filter().setModel(TTSModel.SSFM_V30).setGender(GenderEnum.FEMALE).setAge(AgeEnum.YOUNG_ADULT).setUseCases(UseCaseEnum.NEWS);
+        VoiceV3Response listed = client.getVoicesV3(filter).get(0);
+        assertEquals("tc_v3", listed.getVoiceId());
+        assertEquals("Voice", listed.getVoiceName().eng);
+        assertEquals("보이스", listed.getVoiceName().kor);
+        assertTrue(listed.getModels().isEmpty());
+        assertEquals(GenderEnum.FEMALE, listed.getGender());
+        assertEquals(AgeEnum.YOUNG_ADULT, listed.getAge());
+        assertEquals(Collections.singletonList("news"), listed.getUseCases());
+        assertEquals("https://example.test/voice", listed.getPreviewUrl());
+        String path = mockServer.takeRequest().getPath();
+        assertTrue(path.contains("model=ssfm-v30") && path.contains("gender=female") && path.contains("age=young_adult") && path.contains("use_cases=news"));
+
+        mockServer.enqueue(new MockResponse().setResponseCode(200).setBody("[" + voice + "]"));
+        assertEquals(1, client.getVoicesV3(new VoicesV2Filter()).size());
+        assertEquals("/v3/voices", mockServer.takeRequest().getPath());
+
+        mockServer.enqueue(new MockResponse().setResponseCode(200).setBody(voice));
+        assertEquals("original", client.getVoiceV3("tc_v3").getVoiceType());
+        assertEquals("/v3/voices/tc_v3", mockServer.takeRequest().getPath());
+        mockServer.enqueue(new MockResponse().setResponseCode(200).setBody(voice));
+        client.getVoiceV3("tc/a?");
+        assertEquals("/v3/voices/tc%2Fa%3F", mockServer.takeRequest().getPath());
+        assertThrows(IllegalArgumentException.class, () -> client.getVoiceV3(" "));
+        assertThrows(IllegalArgumentException.class, () -> client.getVoiceV3(null));
+
+        mockServer.enqueue(new MockResponse().setResponseCode(500).setBody("{\"detail\":\"boom\"}"));
+        assertThrows(InternalServerException.class, () -> client.getVoicesV3(null));
+        mockServer.enqueue(new MockResponse().setResponseCode(404).setBody("{\"detail\":\"missing\"}"));
+        assertThrows(NotFoundException.class, () -> client.getVoiceV3("missing"));
+
+        mockServer.shutdown();
+        assertThrows(TypecastException.class, () -> client.getVoicesV3(null));
+        assertThrows(TypecastException.class, () -> client.getVoiceV3("tc_v3"));
+    }
+
+    @Test
     void getVoices_v1_ioException() throws IOException {
         mockServer.shutdown();
         @SuppressWarnings("deprecation")

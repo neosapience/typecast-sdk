@@ -337,6 +337,21 @@ public final class TypecastClient: Sendable {
     return try handleResponse(data: data, response: response)
   }
 
+  /// Gets voices from the current V3 Voice API.
+  public func getVoicesV3(filter: VoicesV2Filter? = nil) async throws -> [VoiceV3] {
+    let url = try buildURL(path: "/v3/voices", queryParams: filter?.toQueryParams())
+    let (data, response) = try await session.data(for: createRequest(url: url))
+    return try handleResponse(data: data, response: response)
+  }
+
+  /// Gets one voice from the current V3 Voice API.
+  public func getVoiceV3(voiceId: String) async throws -> VoiceV3 {
+    let id = try encodedPathComponent(voiceId, name: "voiceId")
+    let url = try buildURL(path: "/v3/voices/\(id)")
+    let (data, response) = try await session.data(for: createRequest(url: url))
+    return try handleResponse(data: data, response: response)
+  }
+
   /// Recommend voices from a text description.
   ///
   /// Results only include `voiceId`, `voiceName`, and `score`. Use
@@ -376,7 +391,7 @@ public final class TypecastClient: Sendable {
 
   /// Clone a voice from an audio sample.
   ///
-  /// Sends a `multipart/form-data` POST to `POST /v1/voices/clone` and
+  /// Sends a `multipart/form-data` POST to `POST /v1/custom-voices/instant-clone` and
   /// returns the metadata of the newly created custom voice.
   ///
   /// - Parameters:
@@ -432,7 +447,7 @@ public final class TypecastClient: Sendable {
     body.append(audio)
     appendStr("\(crlf)--\(boundary)--\(crlf)")
 
-    let url = try buildURL(path: "/v1/voices/clone")
+    let url = try buildURL(path: "/v1/custom-voices/instant-clone")
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue(
@@ -472,6 +487,45 @@ public final class TypecastClient: Sendable {
     )
   }
 
+  /// Starts professional voice cloning and returns its queued custom voice (HTTP 202).
+  public func createProfessionalVoice(samples: [CustomVoiceSample], name: String, model: String, language: String) async throws -> CustomVoice {
+    guard !samples.isEmpty else { throw TypecastError.badRequest("at least one audio file is required") }
+    guard (QuickCloningLimits.nameMinLength...QuickCloningLimits.nameMaxLength).contains(name.count) else { throw TypecastError.badRequest("name must be 1-30 characters") }
+    let boundary = "----TypecastBoundary\(UUID().uuidString)"
+    var body = Data()
+    func append(_ value: String) { body.append(value.data(using: .utf8)!) }
+    for (field, value) in [("name", name), ("model", model), ("language", language)] {
+      append("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(field)\"\r\n\r\n\(value)\r\n")
+    }
+    for sample in samples {
+      guard sample.audio.count <= QuickCloningLimits.cloningMaxFileSize else { throw TypecastError.badRequest("audio file exceeds 25 MB limit") }
+      append("--\(boundary)\r\nContent-Disposition: form-data; name=\"files\"; filename=\"\(sample.filename)\"\r\nContent-Type: \(guessAudioMime(sample.filename))\r\n\r\n")
+      body.append(sample.audio); append("\r\n")
+    }
+    append("--\(boundary)--\r\n")
+    let url = try buildURL(path: "/v1/custom-voices/professional-clone")
+    var request = URLRequest(url: url); request.httpMethod = "POST"; request.httpBody = body
+    request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+    setAuthHeader(&request); setUserAgentHeader(&request)
+    let (data, response) = try await session.data(for: request)
+    return try handleResponse(data: data, response: response)
+  }
+
+  /// Lists custom voices owned by the caller.
+  public func getCustomVoices() async throws -> [CustomVoice] {
+    let url = try buildURL(path: "/v1/custom-voices"); let request = createRequest(url: url)
+    let (data, response) = try await session.data(for: request)
+    return try handleResponse(data: data, response: response)
+  }
+
+  /// Gets the status and metadata of a custom voice.
+  public func getCustomVoice(voiceId: String) async throws -> CustomVoice {
+    let id = try encodedPathComponent(voiceId, name: "voiceId")
+    let url = try buildURL(path: "/v1/custom-voices/\(id)"); let request = createRequest(url: url)
+    let (data, response) = try await session.data(for: request)
+    return try handleResponse(data: data, response: response)
+  }
+
   /// Delete a previously cloned custom voice.
   ///
   /// Sends `DELETE /v1/voices/{voiceId}`. A 204 response is treated as
@@ -481,7 +535,7 @@ public final class TypecastClient: Sendable {
   ///   (the "uc_" prefixed string returned by ``cloneVoice(audio:filename:name:model:)``).
   public func deleteVoice(_ voiceId: String) async throws {
     let encodedVoiceId = try encodedPathComponent(voiceId, name: "voiceId")
-    let url = try buildURL(path: "/v1/voices/\(encodedVoiceId)")
+    let url = try buildURL(path: "/v1/custom-voices/\(encodedVoiceId)")
     var request = URLRequest(url: url)
     request.httpMethod = "DELETE"
     setAuthHeader(&request)

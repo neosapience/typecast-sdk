@@ -354,3 +354,33 @@ fn format_captions(resp: &TTSWithTimestampsResponse, srt: bool) -> Result<String
     }
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn group_into_cues_ignores_empty_text_and_splits_duration() {
+        let cues = group_into_cues(
+            &[
+                Segment {
+                    text: String::new(),
+                    start: 0.0,
+                    end: 0.0,
+                },
+                Segment {
+                    text: "first".into(),
+                    start: 0.0,
+                    end: 1.0,
+                },
+                Segment {
+                    text: "second".into(),
+                    start: 8.0,
+                    end: 9.0,
+                },
+            ],
+            true,
+        );
+        assert_eq!(cues.len(), 2);
+    }
+}

@@ -494,6 +494,27 @@ describe('TypecastClient', () => {
       );
     });
 
+    it('getVoiceV3 hits the by-id endpoint and preserves localized names', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+          voice_id: 'tc_v3',
+          voice_name: { eng: 'Voice', kor: '보이스' },
+          models: [{ version: 'ssfm-v30', emotions: ['normal'] }],
+          voice_type: 'original',
+        }),
+      });
+
+      const voice = await client.getVoiceV3('tc_v3');
+
+      expect(voice.voice_name.kor).toBe('보이스');
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://dummy-api.ai/v3/voices/tc_v3',
+        expect.anything(),
+      );
+    });
+
     it('getVoiceV2 throws TypecastAPIError on 404', async () => {
       mockFetch.mockResolvedValue({
         ok: false,

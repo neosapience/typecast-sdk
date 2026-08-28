@@ -19,6 +19,8 @@ export interface Credits {
 export interface Limits {
   /** Maximum number of concurrent requests allowed. */
   concurrency_limit: number;
+  /** Maximum active custom voices allowed by the current plan. */
+  custom_voice_slot?: number;
 }
 
 /**

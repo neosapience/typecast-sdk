@@ -572,6 +572,14 @@ static TypecastVoice* parse_voice_json(cJSON* json) {
     cJSON* voice_name = cJSON_GetObjectItem(json, "voice_name");
     if (cJSON_IsString(voice_name)) {
         voice->voice_name = strdup_safe(voice_name->valuestring);
+    } else if (cJSON_IsObject(voice_name)) {
+        cJSON* english_name = cJSON_GetObjectItem(voice_name, "eng");
+        cJSON* korean_name = cJSON_GetObjectItem(voice_name, "kor");
+        if (cJSON_IsString(english_name)) {
+            voice->voice_name = strdup_safe(english_name->valuestring);
+        } else if (cJSON_IsString(korean_name)) {
+            voice->voice_name = strdup_safe(korean_name->valuestring);
+        }
     }
     
     /* gender */
@@ -1598,7 +1606,7 @@ TYPECAST_API TypecastVoicesResponse* typecast_get_voices(
     
     /* Build URL with query parameters */
     char url[1024];
-    snprintf(url, sizeof(url), "%s/v2/voices", client->host);
+    snprintf(url, sizeof(url), "%s/v3/voices", client->host);
     
     /* Add filter parameters */
     int has_params = 0;
@@ -1730,9 +1738,23 @@ TYPECAST_API TypecastVoice* typecast_get_voice(
     
     clear_error(client);
     
+    char* encoded_voice_id = curl_easy_escape(client->curl, voice_id, 0);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="curl_easy_escape OOM requires a libcurl malloc shim" */
+    if (!encoded_voice_id) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to encode voice_id");
+        return NULL;
+    }
+    /* LCOV_EXCL_STOP */
+
     /* Build URL */
     char url[512];
-    snprintf(url, sizeof(url), "%s/v2/voices/%s", client->host, voice_id);
+    int url_len = snprintf(url, sizeof(url), "%s/v3/voices/%s", client->host, encoded_voice_id);
+    curl_free(encoded_voice_id);
+    if (url_len < 0 || (size_t)url_len >= sizeof(url)) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is too long");
+        return NULL;
+    }
     
     /* Setup response buffer */
     ResponseBuffer response_buf = {0};
@@ -3147,13 +3169,16 @@ static const char* guess_audio_mime(const char* filename) {
     return "application/octet-stream";
 }
 
-TYPECAST_API TypecastErrorCode typecast_clone_voice(
+static TypecastErrorCode create_custom_voice(
     TypecastClient* client,
     const unsigned char* audio,
     size_t audio_len,
     const char* filename,
     const char* name,
     const char* model,
+    const char* language,
+    const char* endpoint,
+    const char* file_field,
     TypecastCustomVoice* out
 ) {
     /* ---- Validate parameters ---- */
@@ -3182,6 +3207,10 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
         set_error(client, TYPECAST_ERROR_INVALID_PARAM, "model is required");
         return TYPECAST_ERROR_INVALID_PARAM;
     }
+    if (language && strlen(language) == 0) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "language is required");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
     if (!out) {
         set_error(client, TYPECAST_ERROR_INVALID_PARAM, "out must not be NULL");
         return TYPECAST_ERROR_INVALID_PARAM;
@@ -3191,7 +3220,7 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
 
     /* ---- Build URL ---- */
     char url[512];
-    snprintf(url, sizeof(url), "%s/v1/voices/clone", client->host);
+    snprintf(url, sizeof(url), "%s%s", client->host, endpoint);
 
     /* ---- Setup response buffer ---- */
     ResponseBuffer response_buf = {0};
@@ -3219,9 +3248,15 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
     curl_mime_name(part, "model");
     curl_mime_data(part, model, CURL_ZERO_TERMINATED);
 
+    if (language) {
+        part = curl_mime_addpart(mime);
+        curl_mime_name(part, "language");
+        curl_mime_data(part, language, CURL_ZERO_TERMINATED);
+    }
+
     /* "file" field */
     part = curl_mime_addpart(mime);
-    curl_mime_name(part, "file");
+    curl_mime_name(part, file_field);
     curl_mime_filename(part, filename ? filename : "audio");
     curl_mime_type(part, guess_audio_mime(filename));
     curl_mime_data(part, (const char*)audio, audio_len);
@@ -3253,7 +3288,7 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
-    if (http_code != 200 && http_code != 201) {
+    if (http_code != 200 && http_code != 201 && http_code != 202) {
         TypecastErrorCode err_code = http_status_to_error(http_code);
         char* err_msg = NULL;
         if (response_buf.data && response_buf.size > 0) {
@@ -3294,9 +3329,168 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
     if (cJSON_IsString(model_j)) {
         snprintf(out->model, sizeof(out->model), "%s", model_j->valuestring);
     }
+    cJSON* source_j = cJSON_GetObjectItem(json, "source");
+    if (cJSON_IsString(source_j)) snprintf(out->source, sizeof(out->source), "%s", source_j->valuestring);
+    cJSON* status_j = cJSON_GetObjectItem(json, "status");
+    if (cJSON_IsString(status_j)) snprintf(out->status, sizeof(out->status), "%s", status_j->valuestring);
+    cJSON* error_j = cJSON_GetObjectItem(json, "error");
+    if (cJSON_IsString(error_j)) snprintf(out->error, sizeof(out->error), "%s", error_j->valuestring);
+    cJSON* created_at_j = cJSON_GetObjectItem(json, "created_at");
+    if (cJSON_IsString(created_at_j)) snprintf(out->created_at, sizeof(out->created_at), "%s", created_at_j->valuestring);
 
     cJSON_Delete(json);
     return TYPECAST_OK;
+}
+
+TYPECAST_API TypecastErrorCode typecast_clone_voice(
+    TypecastClient* client,
+    const unsigned char* audio,
+    size_t audio_len,
+    const char* filename,
+    const char* name,
+    const char* model,
+    TypecastCustomVoice* out
+) {
+    return create_custom_voice(client, audio, audio_len, filename, name, model,
+                               NULL, "/v1/custom-voices/instant-clone", "file", out);
+}
+
+TYPECAST_API TypecastErrorCode typecast_clone_voice_professional(
+    TypecastClient* client,
+    const unsigned char* audio,
+    size_t audio_len,
+    const char* filename,
+    const char* name,
+    const char* model,
+    const char* language,
+    TypecastCustomVoice* out
+) {
+    return create_custom_voice(client, audio, audio_len, filename, name, model,
+                               language, "/v1/custom-voices/professional-clone", "files", out);
+}
+
+static TypecastCustomVoice* parse_custom_voice_json(const cJSON* json) {
+    if (!cJSON_IsObject(json)) return NULL;
+    TypecastCustomVoice* voice = calloc(1, sizeof(*voice));
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="calloc OOM cannot be induced through the public API" */
+    if (!voice) return NULL;
+    /* LCOV_EXCL_STOP */
+    cJSON* voice_id = cJSON_GetObjectItem(json, "voice_id");
+    cJSON* name = cJSON_GetObjectItem(json, "name");
+    cJSON* model = cJSON_GetObjectItem(json, "model");
+    cJSON* source = cJSON_GetObjectItem(json, "source");
+    cJSON* status = cJSON_GetObjectItem(json, "status");
+    cJSON* error = cJSON_GetObjectItem(json, "error");
+    cJSON* created_at = cJSON_GetObjectItem(json, "created_at");
+    if (cJSON_IsString(voice_id)) snprintf(voice->voice_id, sizeof(voice->voice_id), "%s", voice_id->valuestring);
+    if (cJSON_IsString(name)) snprintf(voice->name, sizeof(voice->name), "%s", name->valuestring);
+    if (cJSON_IsString(model)) snprintf(voice->model, sizeof(voice->model), "%s", model->valuestring);
+    if (cJSON_IsString(source)) snprintf(voice->source, sizeof(voice->source), "%s", source->valuestring);
+    if (cJSON_IsString(status)) snprintf(voice->status, sizeof(voice->status), "%s", status->valuestring);
+    if (cJSON_IsString(error)) snprintf(voice->error, sizeof(voice->error), "%s", error->valuestring);
+    if (cJSON_IsString(created_at)) snprintf(voice->created_at, sizeof(voice->created_at), "%s", created_at->valuestring);
+    return voice;
+}
+
+static cJSON* get_custom_voice_json(TypecastClient* client, const char* path) {
+    char url[512];
+    snprintf(url, sizeof(url), "%s%s", client->host, path);
+    ResponseBuffer response_buf = {0};
+    CURL* curl = client->curl;
+    curl_easy_reset(curl);
+    struct curl_slist* headers = append_common_headers(NULL, client, 30L);
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_buf);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    CURLcode res = curl_easy_perform(curl);
+    curl_slist_free_all(headers);
+    if (res != CURLE_OK) {
+        set_error(client, TYPECAST_ERROR_NETWORK, curl_easy_strerror(res));
+        free(response_buf.data);
+        return NULL;
+    }
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    if (http_code != 200) {
+        TypecastErrorCode error = http_status_to_error(http_code);
+        set_error(client, error, typecast_error_message(error));
+        free(response_buf.data);
+        return NULL;
+    }
+    cJSON* json = response_buf.data ? cJSON_Parse((const char*)response_buf.data) : NULL;
+    free(response_buf.data);
+    if (!json) set_error(client, TYPECAST_ERROR_JSON_PARSE, "Failed to parse custom voice response");
+    return json;
+}
+
+TYPECAST_API TypecastCustomVoice* typecast_get_custom_voice(TypecastClient* client, const char* voice_id) {
+    if (!client) return NULL;
+    if (!voice_id || !*voice_id) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is required");
+        return NULL;
+    }
+    clear_error(client);
+    char* encoded_voice_id = curl_easy_escape(client->curl, voice_id, 0);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="curl_easy_escape OOM requires a libcurl malloc shim" */
+    if (!encoded_voice_id) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to encode voice_id");
+        return NULL;
+    }
+    /* LCOV_EXCL_STOP */
+    char path[256];
+    int path_len = snprintf(path, sizeof(path), "/v1/custom-voices/%s", encoded_voice_id);
+    curl_free(encoded_voice_id);
+    if (path_len < 0 || (size_t)path_len >= sizeof(path)) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is too long");
+        return NULL;
+    }
+    cJSON* json = get_custom_voice_json(client, path);
+    if (!json) return NULL;
+    TypecastCustomVoice* voice = parse_custom_voice_json(json);
+    cJSON_Delete(json);
+    if (!voice) set_error(client, TYPECAST_ERROR_JSON_PARSE, "Expected custom voice object");
+    return voice;
+}
+
+TYPECAST_API TypecastCustomVoicesResponse* typecast_get_custom_voices(TypecastClient* client) {
+    if (!client) return NULL;
+    clear_error(client);
+    cJSON* json = get_custom_voice_json(client, "/v1/custom-voices");
+    if (!json) return NULL;
+    if (!cJSON_IsArray(json)) {
+        set_error(client, TYPECAST_ERROR_JSON_PARSE, "Expected custom voice array");
+        cJSON_Delete(json);
+        return NULL;
+    }
+    TypecastCustomVoicesResponse* response = calloc(1, sizeof(*response));
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="calloc OOM cannot be induced through the public API" */
+    if (!response) { cJSON_Delete(json); return NULL; }
+    /* LCOV_EXCL_STOP */
+    response->count = (size_t)cJSON_GetArraySize(json);
+    response->voices = calloc(response->count, sizeof(*response->voices));
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="calloc OOM cannot be induced through the public API" */
+    if (response->count && !response->voices) { free(response); cJSON_Delete(json); return NULL; }
+    /* LCOV_EXCL_STOP */
+    for (size_t i = 0; i < response->count; i++) {
+        TypecastCustomVoice* voice = parse_custom_voice_json(cJSON_GetArrayItem(json, (int)i));
+        if (voice) { response->voices[i] = *voice; free(voice); }
+    }
+    cJSON_Delete(json);
+    return response;
+}
+
+TYPECAST_API void typecast_custom_voice_free(TypecastCustomVoice* voice) { free(voice); }
+TYPECAST_API void typecast_custom_voices_free(TypecastCustomVoicesResponse* voices) {
+    if (!voices) return;
+    free(voices->voices);
+    free(voices);
 }
 
 TYPECAST_API TypecastErrorCode typecast_delete_voice(
@@ -3312,9 +3506,23 @@ TYPECAST_API TypecastErrorCode typecast_delete_voice(
 
     clear_error(client);
 
+    char* encoded_voice_id = curl_easy_escape(client->curl, voice_id, 0);
+    /* LCOV_EXCL_START */
+    /* category=unreachable reason="curl_easy_escape OOM requires a libcurl malloc shim" */
+    if (!encoded_voice_id) {
+        set_error(client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to encode voice_id");
+        return TYPECAST_ERROR_OUT_OF_MEMORY;
+    }
+    /* LCOV_EXCL_STOP */
+
     /* ---- Build URL ---- */
     char url[512];
-    snprintf(url, sizeof(url), "%s/v1/voices/%s", client->host, voice_id);
+    int url_len = snprintf(url, sizeof(url), "%s/v1/custom-voices/%s", client->host, encoded_voice_id);
+    curl_free(encoded_voice_id);
+    if (url_len < 0 || (size_t)url_len >= sizeof(url)) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is too long");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
 
     /* ---- Setup response buffer (DELETE may return a body on error) ---- */
     ResponseBuffer response_buf = {0};

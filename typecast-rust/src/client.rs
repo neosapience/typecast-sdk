@@ -7,7 +7,7 @@ use crate::errors::{Result, TypecastError};
 use crate::models::{
     Age, AudioFormat, CustomVoice, ErrorResponse, Gender, GenerateToFileRequest, RecommendedVoice,
     SubscriptionResponse, TTSModel, TTSRequest, TTSRequestStream, TTSResponse, UseCase, VoiceV2,
-    VoicesV2Filter, CLONING_MAX_FILE_SIZE, NAME_MAX_LENGTH, NAME_MIN_LENGTH,
+    VoiceV3, VoicesV2Filter, CLONING_MAX_FILE_SIZE, NAME_MAX_LENGTH, NAME_MIN_LENGTH,
 };
 use bytes::Bytes;
 use futures_util::stream::{Stream, StreamExt};
@@ -545,6 +545,54 @@ impl TypecastClient {
         Ok(voice)
     }
 
+    /// Gets voices from the current V3 Voice API.
+    pub async fn get_voices_v3(&self, filter: Option<VoicesV2Filter>) -> Result<Vec<VoiceV3>> {
+        let mut params = Vec::new();
+        if let Some(f) = filter {
+            if let Some(model) = f.model {
+                params.push(("model", model_query_value(model).to_string()));
+            }
+            if let Some(gender) = f.gender {
+                params.push(("gender", gender_query_value(gender).to_string()));
+            }
+            if let Some(age) = f.age {
+                params.push(("age", age_query_value(age).to_string()));
+            }
+            if let Some(use_cases) = f.use_cases {
+                params.push(("use_cases", use_case_query_value(use_cases).to_string()));
+            }
+        }
+        let response = self
+            .client
+            .get(self.build_url(
+                "/v3/voices",
+                if params.is_empty() {
+                    None
+                } else {
+                    Some(params)
+                },
+            ))
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+        Ok(response.json().await?)
+    }
+
+    /// Gets one voice from the current V3 Voice API.
+    pub async fn get_voice_v3(&self, voice_id: &str) -> Result<VoiceV3> {
+        let response = self
+            .client
+            .get(self.build_url(&format!("/v3/voices/{voice_id}"), None))
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+        Ok(response.json().await?)
+    }
+
     /// Recommend voices from a text description.
     ///
     /// Results only contain `voice_id`, `voice_name`, and `score`. Use
@@ -687,7 +735,7 @@ impl TypecastClient {
 
     /// Clone a voice from an audio recording.
     ///
-    /// Uploads the audio file as `multipart/form-data` to `POST /v1/voices/clone`
+    /// Uploads the audio file as `multipart/form-data` to `POST /v1/custom-voices/instant-clone`
     /// and returns a [`CustomVoice`] representing the newly created voice.
     ///
     /// # Arguments
@@ -748,7 +796,7 @@ impl TypecastClient {
             .text("model", model.to_string())
             .part("file", part);
 
-        let url = self.build_url("/v1/voices/clone", None);
+        let url = self.build_url("/v1/custom-voices/instant-clone", None);
         let response = self
             .with_auth_header(self.client.post(&url))
             .multipart(form)
@@ -786,7 +834,7 @@ impl TypecastClient {
     /// # }
     /// ```
     pub async fn delete_voice(&self, voice_id: &str) -> Result<()> {
-        let url = self.build_url(&format!("/v1/voices/{}", voice_id), None);
+        let url = self.build_url(&format!("/v1/custom-voices/{}", voice_id), None);
         let response = self
             .with_auth_header(self.client.delete(&url))
             .send()
@@ -797,6 +845,81 @@ impl TypecastClient {
             return Err(self.handle_error_response(response).await);
         }
         Ok(())
+    }
+
+    /// Start an asynchronous professional custom-voice clone.
+    ///
+    /// Poll [`Self::get_custom_voice`] until `status` is `"completed"` or `"failed"`.
+    pub async fn create_professional_voice(
+        &self,
+        audio: Vec<u8>,
+        filename: &str,
+        name: &str,
+        language: &str,
+        model: &str,
+    ) -> Result<CustomVoice> {
+        let name_len = name.chars().count();
+        if !(NAME_MIN_LENGTH..=NAME_MAX_LENGTH).contains(&name_len) {
+            return Err(TypecastError::ValidationError {
+                detail: format!(
+                    "name must be {}-{} characters; got {}",
+                    NAME_MIN_LENGTH, NAME_MAX_LENGTH, name_len
+                ),
+            });
+        }
+        if audio.len() > CLONING_MAX_FILE_SIZE {
+            return Err(TypecastError::ValidationError {
+                detail: format!("audio file exceeds 25MB limit; got {} bytes", audio.len()),
+            });
+        }
+        let part = reqwest::multipart::Part::bytes(audio)
+            .file_name(filename.to_string())
+            .mime_str(guess_audio_mime(filename))
+            .expect("guess_audio_mime only returns valid MIME constants");
+        let form = reqwest::multipart::Form::new()
+            .text("name", name.to_string())
+            .text("language", language.to_string())
+            .text("model", model.to_string())
+            .part("files", part);
+        let response = self
+            .with_auth_header(
+                self.client
+                    .post(self.build_url("/v1/custom-voices/professional-clone", None)),
+            )
+            .multipart(form)
+            .send()
+            .await?;
+        if response.status() != reqwest::StatusCode::ACCEPTED {
+            return Err(self.handle_error_response(response).await);
+        }
+        Ok(response.json().await?)
+    }
+
+    /// List custom voices owned by the authenticated user.
+    pub async fn get_custom_voices(&self) -> Result<Vec<CustomVoice>> {
+        let response = self
+            .with_auth_header(self.client.get(self.build_url("/v1/custom-voices", None)))
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+        Ok(response.json().await?)
+    }
+
+    /// Get a custom voice, including professional-clone status.
+    pub async fn get_custom_voice(&self, voice_id: &str) -> Result<CustomVoice> {
+        let response = self
+            .with_auth_header(
+                self.client
+                    .get(self.build_url(&format!("/v1/custom-voices/{voice_id}"), None)),
+            )
+            .send()
+            .await?;
+        if !response.status().is_success() {
+            return Err(self.handle_error_response(response).await);
+        }
+        Ok(response.json().await?)
     }
 }
 
@@ -897,14 +1020,21 @@ mod tests {
 
     #[test]
     fn user_agent_attribution_is_validated() {
+        assert_eq!(attribution_suffix(None).unwrap(), "");
         assert_eq!(
             attribution_suffix(Some(("skill", "codex"))).unwrap(),
             " typecast-integration/1 (source=skill; generated_by=codex)"
         );
-        for source in ["api-page", "api-docs"] {
+        for source in ["llms", "api-page", "api-docs"] {
             assert!(attribution_suffix(Some((source, "codex"))).is_ok());
         }
         assert!(attribution_suffix(Some(("skill", "Codex"))).is_err());
+        assert!(attribution_suffix(Some(("invalid", "codex"))).is_err());
+        assert!(attribution_suffix(Some(("skill", ""))).is_err());
+        assert!(attribution_suffix(Some(("skill", &"a".repeat(33)))).is_err());
+        assert!(attribution_suffix(Some(("skill", "-codex"))).is_err());
+        assert!(attribution_suffix(Some(("skill", "co!dex"))).is_err());
+        assert!(attribution_suffix(Some(("skill", "code-x_1.2"))).is_ok());
     }
 
     #[test]

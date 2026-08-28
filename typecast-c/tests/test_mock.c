@@ -1597,7 +1597,27 @@ static void test_get_voice_happy(void) {
     ASSERT_STREQ(v->voice_id, "tc_one");
     ASSERT_EQ(v->gender, TYPECAST_GENDER_UNKNOWN);
     ASSERT_EQ(v->age, TYPECAST_AGE_CHILD);
-    ASSERT(strstr(g_server.last_path, "/v2/voices/tc_one") != NULL);
+    ASSERT(strstr(g_server.last_path, "/v3/voices/tc_one") != NULL);
+    typecast_voice_free(v);
+    typecast_client_destroy(c);
+}
+
+static void test_get_voice_localized_name(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, NULL,
+        "{\"voice_id\":\"tc_en\",\"voice_name\":{\"eng\":\"English\",\"kor\":\"영문\"},\"models\":[],\"use_cases\":[]}");
+    TypecastVoice* v = typecast_get_voice(c, "tc_en");
+    ASSERT_NOT_NULL(v);
+    ASSERT_STREQ(v->voice_name, "English");
+    typecast_voice_free(v);
+    typecast_client_destroy(c);
+
+    c = new_client();
+    mock_enqueue_text(200, NULL,
+        "{\"voice_id\":\"tc_ko\",\"voice_name\":{\"kor\":\"한국어\"},\"models\":[],\"use_cases\":[]}");
+    v = typecast_get_voice(c, "tc_ko");
+    ASSERT_NOT_NULL(v);
+    ASSERT_STREQ(v->voice_name, "한국어");
     typecast_voice_free(v);
     typecast_client_destroy(c);
 }
@@ -1999,6 +2019,7 @@ int main(void) {
 
     /* get_voice */
     RUN(get_voice_happy);
+    RUN(get_voice_localized_name);
     RUN(get_voice_age_variants);
     RUN(get_voice_null_args);
     RUN(get_voice_http_error);

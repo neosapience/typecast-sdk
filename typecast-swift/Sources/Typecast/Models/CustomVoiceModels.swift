@@ -1,6 +1,6 @@
 import Foundation
 
-/// Metadata for a custom voice (created via instant cloning) returned by POST /v1/voices/clone.
+/// Metadata for a custom voice (created via instant cloning) returned by POST /v1/custom-voices/instant-clone.
 ///
 /// `voiceId` carries the "uc_" prefix and can be passed directly as
 /// `voiceId` in `textToSpeech` calls.
@@ -11,12 +11,30 @@ public struct CustomVoice: Codable, Equatable, Sendable {
     public let name: String
     /// The TTS model the voice was cloned for (e.g. "ssfm-v30").
     public let model: String
+    public let source: String?
+    public let status: String?
+    public let error: String?
+    public let createdAt: String?
+
+    public init(voiceId: String, name: String, model: String, source: String? = nil, status: String? = nil, error: String? = nil, createdAt: String? = nil) {
+        self.voiceId = voiceId; self.name = name; self.model = model
+        self.source = source; self.status = status; self.error = error; self.createdAt = createdAt
+    }
 
     public enum CodingKeys: String, CodingKey {
         case voiceId = "voice_id"
         case name
         case model
+        case source, status, error
+        case createdAt = "created_at"
     }
+}
+
+/** An audio sample for professional voice cloning. */
+public struct CustomVoiceSample: Sendable {
+    public let filename: String
+    public let audio: Data
+    public init(filename: String, audio: Data) { self.filename = filename; self.audio = audio }
 }
 
 /// Limit constants for the quick-voice-cloning endpoint.

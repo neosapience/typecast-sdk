@@ -70,6 +70,26 @@ class VoiceV2Response(BaseModel):
     use_cases: Optional[List[str]] = None
 
 
+class LocalizedVoiceName(BaseModel):
+    """English and Korean display names returned by the V3 Voice API."""
+
+    eng: str
+    kor: str
+
+
+class VoiceV3Response(BaseModel):
+    """V3 Voice response with localized name and preview metadata."""
+
+    voice_id: str
+    voice_name: LocalizedVoiceName
+    models: List[ModelInfo]
+    voice_type: str
+    gender: Optional[GenderEnum] = None
+    age: Optional[AgeEnum] = None
+    use_cases: Optional[List[str]] = None
+    preview_url: Optional[str] = None
+
+
 class RecommendedVoice(BaseModel):
     """Recommended voice result.
 
@@ -93,7 +113,7 @@ class VoicesV2Filter(BaseModel):
 
 
 class CustomVoice(BaseModel):
-    """Quick-cloned custom voice returned by `POST /v1/voices/clone`.
+    """Custom voice returned by the Custom Voice API.
 
     Attributes:
         voice_id: Custom voice identifier with `uc_` prefix.
@@ -105,3 +125,7 @@ class CustomVoice(BaseModel):
     voice_id: str = Field(..., description="Custom voice identifier (uc_ prefix)")
     name: str = Field(..., description="Human-readable voice name")
     model: str = Field(..., description="Engine model: ssfm-v21 or ssfm-v30")
+    source: Optional[str] = Field(default=None, description="instant or professional")
+    status: Optional[str] = Field(default=None, description="Cloning status")
+    error: Optional[str] = Field(default=None, description="Safe failure reason when status is failed")
+    created_at: Optional[str] = Field(default=None, description="UTC creation timestamp")

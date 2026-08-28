@@ -3,6 +3,24 @@ import XCTest
 
 final class QuickCloningTests: XCTestCase {
 
+    func testProfessionalCloneAndCustomVoiceQueries() async throws {
+        let voice = #"{"voice_id":"uc_prof","name":"Pro","model":"ssfm-v30","status":"processing"}"#.data(using: .utf8)!
+        var requests: [URLRequest] = []
+        MockURLProtocol.requestHandler = { req in
+            requests.append(req)
+            let response = self.httpResponse(url: req.url!, status: req.url!.path.contains("professional-clone") ? 202 : 200)
+            let data = req.url!.path == "/v1/custom-voices" ? #"[{"voice_id":"uc_prof","name":"Pro","model":"ssfm-v30"}]"#.data(using: .utf8)! : voice
+            return (response, data)
+        }
+        let created = try await client.createProfessionalVoice(samples: [CustomVoiceSample(filename: "a.wav", audio: Data([1]))], name: "Pro", model: "ssfm-v30", language: "en")
+        let listed = try await client.getCustomVoices()
+        let detail = try await client.getCustomVoice(voiceId: "uc_prof")
+        XCTAssertEqual(created.status, "processing")
+        XCTAssertEqual(listed[0].voiceId, "uc_prof")
+        XCTAssertEqual(detail.voiceId, "uc_prof")
+        XCTAssertEqual(requests.map { $0.url!.path }, ["/v1/custom-voices/professional-clone", "/v1/custom-voices", "/v1/custom-voices/uc_prof"])
+    }
+
     private let baseURL = "https://test.typecast.local"
     private var client: TypecastClient!
 
@@ -79,8 +97,8 @@ final class QuickCloningTests: XCTestCase {
 
         let req = try XCTUnwrap(capturedRequest)
 
-        // URL ends with /v1/voices/clone
-        XCTAssertEqual(req.url?.path, "/v1/voices/clone", "URL path must be /v1/voices/clone")
+        // URL ends with /v1/custom-voices/instant-clone
+        XCTAssertEqual(req.url?.path, "/v1/custom-voices/instant-clone", "URL path must be /v1/custom-voices/instant-clone")
 
         // HTTP method is POST
         XCTAssertEqual(req.httpMethod, "POST")
@@ -220,8 +238,8 @@ final class QuickCloningTests: XCTestCase {
 
         let req = try XCTUnwrap(capturedRequest)
         XCTAssertTrue(
-            req.url?.path.hasSuffix("/v1/voices/uc_xxx") ?? false,
-            "URL must end with /v1/voices/uc_xxx, got: \(req.url?.path ?? "(nil)")"
+            req.url?.path.hasSuffix("/v1/custom-voices/uc_xxx") ?? false,
+            "URL must end with /v1/custom-voices/uc_xxx, got: \(req.url?.path ?? "(nil)")"
         )
         XCTAssertEqual(req.httpMethod, "DELETE")
         XCTAssertEqual(req.value(forHTTPHeaderField: "X-API-KEY"), "test-key")
@@ -237,7 +255,7 @@ final class QuickCloningTests: XCTestCase {
         try await client.deleteVoice("uc/xxx #1")
 
         let req = try XCTUnwrap(capturedRequest)
-        XCTAssertTrue(req.url?.absoluteString.contains("/v1/voices/uc%2Fxxx%20%231") ?? false)
+        XCTAssertTrue(req.url?.absoluteString.contains("/v1/custom-voices/uc%2Fxxx%20%231") ?? false)
     }
 
     // MARK: - Test 6: deleteVoice throws on 404

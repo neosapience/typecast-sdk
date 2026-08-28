@@ -886,6 +886,35 @@ public class TypecastClient {
         }
     }
 
+    /** Gets voices from the current V3 Voice API. */
+    public List<VoiceV3Response> getVoicesV3(VoicesV2Filter filter) {
+        HttpUrl.Builder url = HttpUrl.get(baseUrl + "/v3/voices").newBuilder();
+        if (filter != null) {
+            if (filter.getModel() != null) url.addQueryParameter("model", filter.getModel().getValue());
+            if (filter.getGender() != null) url.addQueryParameter("gender", filter.getGender().getValue());
+            if (filter.getAge() != null) url.addQueryParameter("age", filter.getAge().getValue());
+            if (filter.getUseCases() != null) url.addQueryParameter("use_cases", filter.getUseCases().getValue());
+        }
+        Request request = addAuthHeader(new Request.Builder().url(url.build()).get().build());
+        try (Response response = httpClient.newCall(request).execute()) {
+            String body = response.body().string();
+            if (!response.isSuccessful()) throw createException(response.code(), body);
+            return gson.fromJson(body, new TypeToken<List<VoiceV3Response>>(){}.getType());
+        } catch (IOException e) { throw new TypecastException("Failed to make API request", e); }
+    }
+
+    /** Gets a voice from the current V3 Voice API. */
+    public VoiceV3Response getVoiceV3(String voiceId) {
+        if (voiceId == null || voiceId.trim().isEmpty()) throw new IllegalArgumentException("voiceId must not be blank");
+        HttpUrl url = HttpUrl.get(baseUrl).newBuilder().addPathSegments("v3/voices").addPathSegment(voiceId).build();
+        Request request = addAuthHeader(new Request.Builder().url(url).get().build());
+        try (Response response = httpClient.newCall(request).execute()) {
+            String body = response.body().string();
+            if (!response.isSuccessful()) throw createException(response.code(), body);
+            return gson.fromJson(body, VoiceV3Response.class);
+        } catch (IOException e) { throw new TypecastException("Failed to make API request", e); }
+    }
+
     /**
      * Recommends voices from a text description.
      *
@@ -978,7 +1007,7 @@ public class TypecastClient {
     /**
      * Creates a custom voice (created via instant cloning) from an audio sample.
      *
-     * <p>Calls {@code POST /v1/voices/clone} with a multipart/form-data body
+     * <p>Calls {@code POST /v1/custom-voices/instant-clone} with a multipart/form-data body
      * containing the audio file, voice name, and synthesis model.</p>
      *
      * @param audio    the raw audio bytes (WAV, MP3, or other format; max 25 MB)
@@ -1012,7 +1041,7 @@ public class TypecastClient {
                 .build();
 
         Request httpRequest = addAuthHeader(new Request.Builder()
-                .url(baseUrl + "/v1/voices/clone")
+                .url(baseUrl + "/v1/custom-voices/instant-clone")
                 .post(body)
                 .build());
 
@@ -1047,15 +1076,17 @@ public class TypecastClient {
     /**
      * Deletes a custom voice (created via instant cloning).
      *
-     * <p>Calls {@code DELETE /v1/voices/{voiceId}}. A 204 or 200 response is
+     * <p>Calls {@code DELETE /v1/custom-voices/{voiceId}}. A 204 or 200 response is
      * treated as success.</p>
      *
      * @param voiceId the ID of the custom voice to delete (must have "uc_" prefix)
      * @throws TypecastException if the API returns an error response
      */
     public void deleteVoice(String voiceId) {
+        if (voiceId == null || voiceId.trim().isEmpty()) throw new IllegalArgumentException("voiceId must not be blank");
+        HttpUrl url = HttpUrl.get(baseUrl).newBuilder().addPathSegments("v1/custom-voices").addPathSegment(voiceId).build();
         Request httpRequest = addAuthHeader(new Request.Builder()
-                .url(baseUrl + "/v1/voices/" + voiceId)
+                .url(url)
                 .delete()
                 .build());
 

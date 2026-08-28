@@ -468,7 +468,7 @@ static void test_clone_voice_returns_custom_voice(void) {
     ASSERT_STREQ(out.model,    "ssfm-v30");
 
     /* Verify endpoint and multipart fields were sent */
-    ASSERT(strstr(g_srv.last_path, "/v1/voices/clone") != NULL);
+    ASSERT(strstr(g_srv.last_path, "/v1/custom-voices/instant-clone") != NULL);
     ASSERT(strcmp(g_srv.last_method, "POST") == 0);
     ASSERT(strstr(g_srv.last_headers, "X-API-KEY: test_key") != NULL);
     /* multipart body should contain the field names */
@@ -575,6 +575,95 @@ static void test_clone_voice_invalid_json(void) {
     typecast_client_destroy(c);
 }
 
+static void test_professional_clone_uses_current_endpoint(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(202, "{\"voice_id\":\"uc_prof\",\"name\":\"Pro\",\"model\":\"ssfm-v30\"}");
+    unsigned char audio[8] = {0};
+    TypecastCustomVoice out;
+    TypecastErrorCode rc = typecast_clone_voice_professional(c, audio, sizeof(audio),
+        "sample.wav", "Pro", "ssfm-v30", "eng", &out);
+    ASSERT_EQ(rc, TYPECAST_OK);
+    ASSERT_STREQ(out.voice_id, "uc_prof");
+    ASSERT(strstr(g_srv.last_path, "/v1/custom-voices/professional-clone") != NULL);
+    ASSERT(strstr(g_srv.last_body, "name=\"files\"") != NULL);
+    ASSERT(strstr(g_srv.last_body, "name=\"language\"") != NULL);
+    typecast_client_destroy(c);
+}
+
+static void test_professional_clone_rejects_empty_language(void) {
+    TypecastClient* c = new_client();
+    unsigned char audio[1] = {0};
+    TypecastCustomVoice out;
+    ASSERT_EQ(typecast_clone_voice_professional(c, audio, sizeof(audio),
+        "sample.wav", "Pro", "ssfm-v30", "", &out), TYPECAST_ERROR_INVALID_PARAM);
+    typecast_client_destroy(c);
+}
+
+static void test_get_custom_voice(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, "{\"voice_id\":\"uc_one\",\"name\":\"One\",\"model\":\"ssfm-v30\",\"source\":\"professional\",\"status\":\"processing\",\"error\":\"retry\",\"created_at\":\"2026-08-27T00:00:00Z\"}");
+    TypecastCustomVoice* voice = typecast_get_custom_voice(c, "uc_one");
+    ASSERT_NOT_NULL(voice);
+    ASSERT_STREQ(voice->voice_id, "uc_one");
+    ASSERT_STREQ(voice->source, "professional");
+    ASSERT_STREQ(voice->status, "processing");
+    ASSERT_STREQ(voice->error, "retry");
+    ASSERT_STREQ(voice->created_at, "2026-08-27T00:00:00Z");
+    ASSERT(strstr(g_srv.last_path, "/v1/custom-voices/uc_one") != NULL);
+    typecast_custom_voice_free(voice);
+    typecast_client_destroy(c);
+}
+
+static void test_custom_voice_id_is_path_encoded(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, "{\"voice_id\":\"uc_one\",\"name\":\"One\",\"model\":\"ssfm-v30\"}");
+    TypecastCustomVoice* voice = typecast_get_custom_voice(c, "uc_one/a?");
+    ASSERT_NOT_NULL(voice);
+    ASSERT_STREQ(g_srv.last_path, "/v1/custom-voices/uc_one%2Fa%3F");
+    typecast_custom_voice_free(voice);
+    mock_enqueue_empty(204);
+    ASSERT_EQ(typecast_delete_voice(c, "uc_one/a?"), TYPECAST_OK);
+    ASSERT_STREQ(g_srv.last_path, "/v1/custom-voices/uc_one%2Fa%3F");
+    typecast_client_destroy(c);
+}
+
+static void test_voice_id_too_long_is_rejected(void) {
+    char voice_id[600];
+    memset(voice_id, 'a', sizeof(voice_id) - 1);
+    voice_id[sizeof(voice_id) - 1] = '\0';
+    TypecastClient* c = new_client();
+    ASSERT_NULL(typecast_get_voice(c, voice_id));
+    ASSERT_NULL(typecast_get_custom_voice(c, voice_id));
+    ASSERT_EQ(typecast_delete_voice(c, voice_id), TYPECAST_ERROR_INVALID_PARAM);
+    typecast_client_destroy(c);
+}
+
+static void test_list_custom_voices(void) {
+    TypecastClient* c = new_client();
+    mock_enqueue_text(200, "[{\"voice_id\":\"uc_one\",\"name\":\"One\",\"model\":\"ssfm-v30\"}]");
+    TypecastCustomVoicesResponse* voices = typecast_get_custom_voices(c);
+    ASSERT_NOT_NULL(voices);
+    ASSERT_EQ(voices->count, 1);
+    ASSERT_STREQ(voices->voices[0].voice_id, "uc_one");
+    ASSERT_STREQ(g_srv.last_path, "/v1/custom-voices");
+    typecast_custom_voices_free(voices);
+    typecast_client_destroy(c);
+}
+
+static void test_custom_voice_queries_report_errors(void) {
+    TypecastClient* c = new_client();
+    ASSERT_NULL(typecast_get_custom_voice(c, ""));
+    mock_enqueue_text(404, "{}");
+    ASSERT_NULL(typecast_get_custom_voice(c, "uc_missing"));
+    mock_enqueue_text(200, "[]");
+    ASSERT_NULL(typecast_get_custom_voice(c, "uc_bad"));
+    mock_enqueue_text(200, "{}");
+    ASSERT_NULL(typecast_get_custom_voices(c));
+    mock_enqueue_close();
+    ASSERT_NULL(typecast_get_custom_voices(c));
+    typecast_client_destroy(c);
+}
+
 /* ---- delete_voice happy path ---- */
 
 static void test_delete_voice_succeeds_on_204(void) {
@@ -584,7 +673,7 @@ static void test_delete_voice_succeeds_on_204(void) {
     TypecastErrorCode rc = typecast_delete_voice(c, "uc_aabbccdd");
     ASSERT_EQ(rc, TYPECAST_OK);
 
-    ASSERT(strstr(g_srv.last_path, "/v1/voices/uc_aabbccdd") != NULL);
+    ASSERT(strstr(g_srv.last_path, "/v1/custom-voices/uc_aabbccdd") != NULL);
     ASSERT(strcmp(g_srv.last_method, "DELETE") == 0);
     ASSERT(strstr(g_srv.last_headers, "X-API-KEY: test_key") != NULL);
 
@@ -660,6 +749,13 @@ int main(void) {
     RUN(clone_voice_404);
     RUN(clone_voice_network_error);
     RUN(clone_voice_invalid_json);
+    RUN(professional_clone_uses_current_endpoint);
+    RUN(professional_clone_rejects_empty_language);
+    RUN(get_custom_voice);
+    RUN(custom_voice_id_is_path_encoded);
+    RUN(voice_id_too_long_is_rejected);
+    RUN(list_custom_voices);
+    RUN(custom_voice_queries_report_errors);
 
     /* delete_voice HTTP paths */
     RUN(delete_voice_succeeds_on_204);

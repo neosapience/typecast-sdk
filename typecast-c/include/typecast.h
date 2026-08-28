@@ -741,7 +741,7 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_stream(
  * ============================================ */
 
 /**
- * Get available voices (V2 API)
+ * Get available voices (V3 API). V3 localized names use English when present.
  *
  * @param client Pointer to TypecastClient
  * @param filter Optional filter (can be NULL)
@@ -754,7 +754,7 @@ TYPECAST_API TypecastVoicesResponse* typecast_get_voices(
 );
 
 /**
- * Get a specific voice by ID (V2 API)
+ * Get a specific voice by ID (V3 API)
  *
  * @param client Pointer to TypecastClient
  * @param voice_id Voice ID to retrieve
@@ -864,12 +864,21 @@ typedef struct {
     char voice_id[64];  /* uc_<24-hex> + NUL; 64 bytes leaves headroom */
     char name[64];      /* Server enforces max 30 chars + NUL             */
     char model[16];     /* "ssfm-v21" / "ssfm-v30" + NUL                 */
+    char source[32];
+    char status[32];
+    char error[256];
+    char created_at[40];
 } TypecastCustomVoice;
+
+typedef struct {
+    TypecastCustomVoice* voices;
+    size_t count;
+} TypecastCustomVoicesResponse;
 
 /**
  * Clone a custom voice from raw audio bytes.
  *
- * Sends the audio data to POST /v1/voices/clone as a multipart upload.
+ * Sends the audio data to POST /v1/custom-voices/instant-clone as a multipart upload.
  * On success, writes the resulting voice descriptor into @p out and returns
  * TYPECAST_OK. On validation or HTTP failure, sets the client last_error
  * and returns a non-zero error code.
@@ -894,9 +903,41 @@ TYPECAST_API TypecastErrorCode typecast_clone_voice(
 );
 
 /**
+ * Start professional custom-voice cloning from its single supported audio sample.
+ *
+ * Sends the sample as the `files` multipart field to
+ * POST /v1/custom-voices/professional-clone. The API currently accepts exactly
+ * one file and returns the queued voice (HTTP 202).
+ */
+TYPECAST_API TypecastErrorCode typecast_clone_voice_professional(
+    TypecastClient* client,
+    const unsigned char* audio,
+    size_t audio_len,
+    const char* filename,
+    const char* name,
+    const char* model,
+    const char* language,
+    TypecastCustomVoice* out
+);
+
+/** Get one custom voice, including professional-clone status metadata. */
+TYPECAST_API TypecastCustomVoice* typecast_get_custom_voice(
+    TypecastClient* client,
+    const char* voice_id
+);
+
+/** List the caller's custom voices. Free with typecast_custom_voices_free(). */
+TYPECAST_API TypecastCustomVoicesResponse* typecast_get_custom_voices(
+    TypecastClient* client
+);
+
+TYPECAST_API void typecast_custom_voice_free(TypecastCustomVoice* voice);
+TYPECAST_API void typecast_custom_voices_free(TypecastCustomVoicesResponse* voices);
+
+/**
  * Soft-delete a custom voice by ID.
  *
- * Sends DELETE /v1/voices/{voice_id}. Returns TYPECAST_OK on 204 No Content.
+ * Sends DELETE /v1/custom-voices/{voice_id}. Returns TYPECAST_OK on 204 No Content.
  * On HTTP error, sets the client last_error and returns a non-zero code.
  *
  * @param client   Pointer to an initialized TypecastClient (required)
