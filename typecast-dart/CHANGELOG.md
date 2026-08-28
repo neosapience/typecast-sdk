@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.12
+
+- Added V3 voice retrieval and custom voice management.
+
 ## 0.1.11
 
 - Added `api-page` and `api-docs` as supported User-Agent attribution sources.

@@ -23,7 +23,7 @@ import {
 } from './types/QuickCloning';
 import { SpeechComposer, type ComposeSegment } from './composer';
 
-const SDK_VERSION = '0.4.11';
+const SDK_VERSION = '0.4.12';
 const DEFAULT_BASE_HOST = 'https://api.typecast.ai';
 type QueryParam = string | number | boolean | null | undefined;
 
