@@ -10,7 +10,7 @@ class ClientTest < Minitest::Test
     client = Typecast::Client.new(
       api_key: "key", source: "skill", generated_by: "codex"
     )
-    assert client.send(:user_agent).start_with?("typecast-ruby/0.1.9 ")
+    assert client.send(:user_agent).start_with?("typecast-ruby/0.1.10 ")
     assert client.send(:user_agent).end_with?(
       " typecast-integration/1 (source=skill; generated_by=codex)"
     )

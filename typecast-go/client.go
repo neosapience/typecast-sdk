@@ -27,7 +27,7 @@ const (
 
 // SDKVersion is the Typecast Go SDK version reported in User-Agent.
 // Release builds may override it with -ldflags "-X github.com/neosapience/typecast-sdk/typecast-go.SDKVersion=<version>".
-var SDKVersion = "0.3.12"
+var SDKVersion = "0.3.13"
 
 // ClientConfig holds configuration options for the TypecastClient
 type ClientConfig struct {
