@@ -157,6 +157,11 @@ impl TypecastClient {
                 detail: "API key is required for the default Typecast API host".to_string(),
             });
         }
+        if !api_key.is_empty() && !base_url.starts_with("https://") {
+            return Err(TypecastError::BadRequest {
+                detail: "HTTPS is required when using an API key".to_string(),
+            });
+        }
 
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
