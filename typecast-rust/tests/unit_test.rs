@@ -1589,7 +1589,7 @@ async fn get_voices_v2_send_error_when_connection_refused() {
 #[tokio::test]
 async fn authenticated_https_custom_host_attempts_request() {
     let config = ClientConfig::new("k")
-        .base_url("https://127.0.0.1:1")
+        .base_url("HTTPS://127.0.0.1:1")
         .timeout(Duration::from_secs(2));
     let client = TypecastClient::new(config).unwrap();
     let err = client.delete_voice("uc_test").await.unwrap_err();

@@ -158,10 +158,7 @@ impl TypecastClient {
             });
         }
         if !api_key.is_empty() {
-            let is_https = reqwest::Url::parse(&base_url)
-                .map(|url| url.scheme().eq_ignore_ascii_case("https"))
-                .unwrap_or(false);
-            if !is_https {
+            if !base_url.to_ascii_lowercase().starts_with("https://") {
                 return Err(TypecastError::BadRequest {
                     detail: "HTTPS is required when using an API key".to_string(),
                 });
@@ -1017,17 +1014,6 @@ fn normalize_arch_name(arch: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn authenticated_client_requires_https() {
-        TypecastClient::new(ClientConfig::new("test-key").base_url("HTTPS://proxy.example"))
-            .expect("uppercase HTTPS is accepted");
-
-        let error =
-            TypecastClient::new(ClientConfig::new("test-key").base_url("http://proxy.example"))
-                .unwrap_err();
-        assert!(matches!(error, TypecastError::BadRequest { .. }));
-    }
 
     #[test]
     fn user_agent_includes_sdk_metadata_and_base_timeout_context() {
