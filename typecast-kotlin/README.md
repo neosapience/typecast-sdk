@@ -79,7 +79,7 @@ client.close()
 // Get all voices (V3 API)
 val voices = client.getVoicesV3()
 voices.forEach { voice ->
-    println("${voice.voiceName} (${voice.voiceId})")
+    println("${voice.voiceName.eng} (${voice.voiceId})")
     println("  Gender: ${voice.gender}, Age: ${voice.age}")
     println("  Models: ${voice.models.map { it.version }}")
 }
@@ -98,7 +98,7 @@ val filteredVoices = client.getVoicesV3(filter)
 
 ```kotlin
 val voice = client.getVoiceV3("tc_60e5426de8b95f1d3000d7b5")
-println("Voice: ${voice.voiceName}")
+println("Voice: ${voice.voiceName.eng}")
 println("Supported emotions: ${voice.models.flatMap { it.emotions }}")
 ```
 
