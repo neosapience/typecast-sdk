@@ -52,7 +52,7 @@ fn parse_fixture(name: &str) -> TTSWithTimestampsResponse {
 }
 
 fn make_client(server: &Server) -> TypecastClient {
-    let config = ClientConfig::new("test-api-key")
+    let config = ClientConfig::new("")
         .base_url(server.url())
         .timeout(Duration::from_secs(5));
     TypecastClient::new(config).expect("client builds")
@@ -517,7 +517,7 @@ async fn client_text_to_speech_with_timestamps_propagates_server_error() {
 async fn client_text_to_speech_with_timestamps_propagates_network_error() {
     // Use a port that nobody is listening on to trigger a connection-refused send error.
     use typecast_rust::ClientConfig;
-    let config = ClientConfig::new("test-api-key")
+    let config = ClientConfig::new("")
         .base_url("http://127.0.0.1:1") // port 1 is always refused
         .timeout(Duration::from_secs(2));
     let client = TypecastClient::new(config).expect("client builds");

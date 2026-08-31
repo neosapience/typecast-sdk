@@ -101,7 +101,6 @@ async fn test_get_voice_v2_by_id() {
     assert!(!voice.models.is_empty(), "models should not be empty");
 
     println!("Voice: {} ({})", voice.voice_name, voice.voice_id);
-    println!("Gender: {:?}, Age: {:?}", voice.gender, voice.age);
     println!("Use cases: {:?}", voice.use_cases);
 
     for model in &voice.models {

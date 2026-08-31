@@ -22,7 +22,7 @@ use typecast_rust::{
 // ---------------------------------------------------------------------------
 
 fn make_client(server: &Server) -> TypecastClient {
-    let config = ClientConfig::new("test-api-key")
+    let config = ClientConfig::new("")
         .base_url(server.url())
         .timeout(Duration::from_secs(5));
     TypecastClient::new(config).expect("client builds")
@@ -173,7 +173,7 @@ async fn error_status_code_is_none_for_http_errors() {
         .create_async()
         .await;
 
-    let config = ClientConfig::new("k")
+    let config = ClientConfig::new("")
         .base_url(server.url())
         .timeout(Duration::from_millis(20));
     let client = TypecastClient::new(config).unwrap();
@@ -1567,7 +1567,7 @@ fn dead_base_url() -> String {
 
 #[tokio::test]
 async fn text_to_speech_send_error_when_connection_refused() {
-    let config = ClientConfig::new("k")
+    let config = ClientConfig::new("")
         .base_url(dead_base_url())
         .timeout(Duration::from_secs(2));
     let client = TypecastClient::new(config).unwrap();
@@ -1578,7 +1578,7 @@ async fn text_to_speech_send_error_when_connection_refused() {
 
 #[tokio::test]
 async fn get_voices_v2_send_error_when_connection_refused() {
-    let config = ClientConfig::new("k")
+    let config = ClientConfig::new("")
         .base_url(dead_base_url())
         .timeout(Duration::from_secs(2));
     let client = TypecastClient::new(config).unwrap();
@@ -1587,8 +1587,29 @@ async fn get_voices_v2_send_error_when_connection_refused() {
 }
 
 #[tokio::test]
-async fn get_voice_v2_send_error_when_connection_refused() {
+async fn authenticated_https_custom_host_attempts_request() {
     let config = ClientConfig::new("k")
+        .base_url("HTTPS://127.0.0.1:1")
+        .timeout(Duration::from_secs(2));
+    let client = TypecastClient::new(config).unwrap();
+    let err = client.delete_voice("uc_test").await.unwrap_err();
+    assert!(matches!(err, TypecastError::HttpError(_)));
+}
+
+#[test]
+fn authenticated_http_custom_host_is_rejected() {
+    assert_eq!(
+        TypecastClient::new(ClientConfig::new("test-key").base_url("http://proxy"))
+            .unwrap_err()
+            .to_string(),
+        "Bad Request - HTTPS is required when using an API key"
+    );
+    assert!(TypecastClient::new(ClientConfig::new("").base_url("http://proxy")).is_ok());
+}
+
+#[tokio::test]
+async fn get_voice_v2_send_error_when_connection_refused() {
+    let config = ClientConfig::new("")
         .base_url(dead_base_url())
         .timeout(Duration::from_secs(2));
     let client = TypecastClient::new(config).unwrap();
@@ -1611,7 +1632,7 @@ async fn text_to_speech_send_error_on_timeout() {
         .create_async()
         .await;
 
-    let config = ClientConfig::new("k")
+    let config = ClientConfig::new("")
         .base_url(server.url())
         .timeout(Duration::from_millis(20));
     let client = TypecastClient::new(config).unwrap();
@@ -1633,7 +1654,7 @@ async fn get_voice_v2_send_error_on_timeout() {
         .create_async()
         .await;
 
-    let config = ClientConfig::new("k")
+    let config = ClientConfig::new("")
         .base_url(server.url())
         .timeout(Duration::from_millis(20));
     let client = TypecastClient::new(config).unwrap();
@@ -1757,7 +1778,7 @@ async fn get_my_subscription_propagates_invalid_json_body() {
 
 #[tokio::test]
 async fn get_my_subscription_send_error_when_connection_refused() {
-    let config = ClientConfig::new("k")
+    let config = ClientConfig::new("")
         .base_url(dead_base_url())
         .timeout(Duration::from_secs(2));
     let client = TypecastClient::new(config).unwrap();
