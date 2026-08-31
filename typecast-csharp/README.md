@@ -173,7 +173,7 @@ double duration = response.Duration;
 
 ```csharp
 // Get all voices
-var voices = await client.GetVoicesV2Async();
+var voices = await client.GetVoicesV3Async();
 
 foreach (var voice in voices)
 {
@@ -188,7 +188,7 @@ var filter = new VoicesV2Filter
     Age = AgeEnum.YoungAdult
 };
 
-var filteredVoices = await client.GetVoicesV2Async(filter);
+var filteredVoices = await client.GetVoicesV3Async(filter);
 ```
 
 ### Emotion Control
@@ -570,7 +570,7 @@ public class TTSService
 @code {
     private string Text { get; set; } = "";
     private string SelectedVoiceId { get; set; } = "";
-    private List<VoiceV2Response> Voices { get; set; } = new();
+    private List<VoiceV3Response> Voices { get; set; } = new();
     private bool IsProcessing { get; set; }
     private bool HasAudio { get; set; }
 
@@ -703,10 +703,8 @@ The SDK supports 37 languages with ISO 639-3 codes:
 | `TextToSpeechAsync(TTSRequest)`                                   | Synthesize text to speech (async)                       |
 | `TextToSpeech(TTSRequest)`                                        | Synthesize text to speech (sync)                        |
 | `TextToSpeechWithTimestampsAsync(TTSRequestWithTimestamps, ...)`  | Synthesize with word/character alignment timestamps     |
-| `GetVoicesV2Async(VoicesV2Filter?)`                               | Get available voices with metadata (async)              |
-| `GetVoicesV2(VoicesV2Filter?)`                                    | Get available voices with metadata (sync)               |
-| `GetVoiceV2Async(string voiceId)`                                 | Get a specific voice by ID (async)                      |
-| `GetVoiceV2(string voiceId)`                                      | Get a specific voice by ID (sync)                       |
+| `GetVoicesV3Async(VoicesV2Filter?)`                               | Get available voices with current metadata (async)      |
+| `GetVoiceV3Async(string voiceId)`                                 | Get a specific voice by ID (async)                      |
 | `CloneVoiceAsync(byte[], string, string, string)`                 | Clone a voice from raw audio bytes (async)              |
 | `CloneVoiceAsync(string, string, string)`                         | Clone a voice from a local file path (async)            |
 | `DeleteVoiceAsync(string voiceId)`                                | Delete a custom voice (async)                           |
@@ -720,7 +718,7 @@ The SDK supports 37 languages with ISO 639-3 codes:
 - `WordSegment` / `CharacterSegment` - Alignment segment with text, start, and end time
 - `Output` - Audio output settings
 - `Prompt` / `PresetPrompt` / `SmartPrompt` - Emotion control
-- `VoiceV2Response` - Voice information with metadata
+- `VoiceV3Response` - Voice information with localized names and metadata
 - `VoicesV2Filter` - Voice filtering options
 - `CustomVoice` - Cloned voice metadata (`VoiceId`, `Name`, `Model`)
 - `QuickCloningLimits` - Constants: `CloningMaxFileSize` (25 MB), `NameMinLength` (1), `NameMaxLength` (30)

@@ -76,8 +76,8 @@ client.close()
 ### List Available Voices
 
 ```kotlin
-// Get all voices (V2 API with enhanced metadata)
-val voices = client.getVoicesV2()
+// Get all voices (V3 API)
+val voices = client.getVoicesV3()
 voices.forEach { voice ->
     println("${voice.voiceName} (${voice.voiceId})")
     println("  Gender: ${voice.gender}, Age: ${voice.age}")
@@ -91,13 +91,13 @@ val filter = VoicesV2Filter.builder()
     .age(AgeEnum.YOUNG_ADULT)
     .build()
 
-val filteredVoices = client.getVoicesV2(filter)
+val filteredVoices = client.getVoicesV3(filter)
 ```
 
 ### Get Specific Voice
 
 ```kotlin
-val voice = client.getVoiceV2("tc_60e5426de8b95f1d3000d7b5")
+val voice = client.getVoiceV3("tc_60e5426de8b95f1d3000d7b5")
 println("Voice: ${voice.voiceName}")
 println("Supported emotions: ${voice.models.flatMap { it.emotions }}")
 ```
