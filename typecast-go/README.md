@@ -246,7 +246,7 @@ voices, err := client.GetVoicesV3(ctx, &typecast.VoicesV2Filter{
 
 // Display voice info
 voice := voices[0]
-fmt.Printf("Name: %s\n", voice.VoiceName)
+fmt.Printf("Name: %s\n", voice.VoiceName.Eng)
 fmt.Printf("Gender: %s, Age: %s\n", *voice.Gender, *voice.Age)
 for _, m := range voice.Models {
     fmt.Printf("Model: %s, Emotions: %v\n", m.Version, m.Emotions)

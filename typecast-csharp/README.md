@@ -177,7 +177,7 @@ var voices = await client.GetVoicesV3Async();
 
 foreach (var voice in voices)
 {
-    Console.WriteLine($"{voice.VoiceId}: {voice.VoiceName}");
+    Console.WriteLine($"{voice.VoiceId}: {voice.VoiceName.Eng}");
 }
 
 // Filter voices
@@ -556,7 +556,7 @@ public class TTSService
     <select @bind="SelectedVoiceId" class="form-select">
         @foreach (var voice in Voices)
         {
-            <option value="@voice.VoiceId">@voice.VoiceName</option>
+            <option value="@voice.VoiceId">@voice.VoiceName.Eng</option>
         }
     </select>
 </div>
