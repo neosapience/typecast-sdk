@@ -126,16 +126,16 @@ echo "Plan: {$sub->plan}, Credits: {$sub->usedCredits}/{$sub->planCredits}\n";
 // V1 API
 $voices = $client->getVoices(model: 'ssfm-v21');
 
-// V2 API with filters
+// V3 API with filters
 use Neosapience\Typecast\Models\VoicesV2Filter;
 
-$voices = $client->getVoicesV2(new VoicesV2Filter(
+$voices = $client->getVoicesV3(new VoicesV2Filter(
     model: 'ssfm-v30',
     gender: 'female',
 ));
 
 // Get specific voice
-$voice = $client->getVoiceV2('tc_xxx');
+$voice = $client->getVoiceV3('tc_xxx');
 ```
 
 ### Instant cloning
