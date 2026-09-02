@@ -15,7 +15,7 @@ use typecast_rust::{
 // ---------------------------------------------------------------------------
 
 fn make_client(server: &Server) -> TypecastClient {
-    let config = ClientConfig::new("test-api-key")
+    let config = ClientConfig::new("")
         .base_url(server.url())
         .timeout(Duration::from_secs(5));
     TypecastClient::new(config).expect("client builds")
@@ -236,7 +236,7 @@ async fn clone_voice_returns_err_on_malformed_success_json() {
 
 #[tokio::test]
 async fn clone_voice_returns_err_on_transport_failure() {
-    let config = ClientConfig::new("test-api-key")
+    let config = ClientConfig::new("")
         .base_url("http://127.0.0.1:9")
         .timeout(Duration::from_millis(100));
     let client = TypecastClient::new(config).expect("client builds");
@@ -381,7 +381,7 @@ async fn delete_voice_returns_err_on_404() {
 
 #[tokio::test]
 async fn delete_voice_returns_err_on_transport_failure() {
-    let config = ClientConfig::new("test-api-key")
+    let config = ClientConfig::new("")
         .base_url("http://127.0.0.1:9")
         .timeout(Duration::from_millis(100));
     let client = TypecastClient::new(config).expect("client builds");

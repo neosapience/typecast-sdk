@@ -234,11 +234,11 @@ func main() {
 ### Voice Discovery
 
 ```go
-// Get all voices (V2 API - recommended)
-voices, err := client.GetVoicesV2(ctx, nil)
+// Get all voices (V3 API)
+voices, err := client.GetVoicesV3(ctx, nil)
 
 // Filter by criteria
-voices, err := client.GetVoicesV2(ctx, &typecast.VoicesV2Filter{
+voices, err := client.GetVoicesV3(ctx, &typecast.VoicesV2Filter{
     Model:  typecast.ModelSSFMV30,
     Gender: typecast.GenderFemale,
     Age:    typecast.AgeYoungAdult,
@@ -246,7 +246,7 @@ voices, err := client.GetVoicesV2(ctx, &typecast.VoicesV2Filter{
 
 // Display voice info
 voice := voices[0]
-fmt.Printf("Name: %s\n", voice.VoiceName)
+fmt.Printf("Name: %s\n", voice.VoiceName.Eng)
 fmt.Printf("Gender: %s, Age: %s\n", *voice.Gender, *voice.Age)
 for _, m := range voice.Models {
     fmt.Printf("Model: %s, Emotions: %v\n", m.Version, m.Emotions)
@@ -385,8 +385,8 @@ if err != nil {
 | Method | Description |
 |--------|-------------|
 | `TextToSpeech(ctx, request)` | Convert text to speech |
-| `GetVoicesV2(ctx, filter)` | List available voices with filtering |
-| `GetVoiceV2(ctx, voiceID)` | Get specific voice details |
+| `GetVoicesV3(ctx, filter)` | List available voices with filtering |
+| `GetVoiceV3(ctx, voiceID)` | Get specific voice details |
 | `GetVoices(ctx, model)` | List voices (V1 API, deprecated) |
 | `GetVoice(ctx, voiceID, model)` | Get voice (V1 API, deprecated) |
 
