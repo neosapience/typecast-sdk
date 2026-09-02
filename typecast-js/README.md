@@ -170,11 +170,11 @@ const audio = await client.textToSpeech({
 ### Voice Discovery
 
 ```typescript
-// Get all voices (V2 API - recommended)
-const voices = await client.getVoicesV2();
+// Get all voices (V3 API)
+const voices = await client.getVoicesV3();
 
 // Filter by criteria
-const filtered = await client.getVoicesV2({
+const filtered = await client.getVoicesV3({
   model: 'ssfm-v30',
   gender: 'female',
   age: 'young_adult'
@@ -390,7 +390,7 @@ import type {
   PresetPrompt,
   SmartPrompt,
   Output,
-  VoiceV2Response,
+  VoiceV3Response,
   VoicesV2Filter
 } from '@neosapience/typecast-js';
 ```

@@ -130,7 +130,7 @@ let request = TTSRequest::new(voice_id, text, TTSModel::SsfmV30)
 use typecast_rust::{VoicesV2Filter, TTSModel, Gender, Age};
 
 // Get all voices
-let voices = client.get_voices_v2(None).await?;
+let voices = client.get_voices_v3(None).await?;
 
 // Filter voices
 let filter = VoicesV2Filter::new()
@@ -138,11 +138,11 @@ let filter = VoicesV2Filter::new()
     .gender(Gender::Female)
     .age(Age::YoungAdult);
 
-let voices = client.get_voices_v2(Some(filter)).await?;
+let voices = client.get_voices_v3(Some(filter)).await?;
 
 // Get specific voice
-let voice = client.get_voice_v2("tc_60e5426de8b95f1d3000d7b5").await?;
-println!("Voice: {} ({:?})", voice.voice_name, voice.gender);
+let voice = client.get_voice_v3("tc_60e5426de8b95f1d3000d7b5").await?;
+println!("Voice: {} ({:?})", voice.voice_name.eng, voice.gender);
 ```
 
 ## Error Handling

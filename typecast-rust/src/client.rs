@@ -157,6 +157,13 @@ impl TypecastClient {
                 detail: "API key is required for the default Typecast API host".to_string(),
             });
         }
+        if !api_key.is_empty() {
+            if !base_url.to_ascii_lowercase().starts_with("https://") {
+                return Err(TypecastError::BadRequest {
+                    detail: "HTTPS is required when using an API key".to_string(),
+                });
+            }
+        }
 
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -180,9 +187,13 @@ impl TypecastClient {
 
         // `reqwest::Client::builder().build()` only fails if TLS init fails,
         // which is not something we can usefully recover from at this layer.
-        let client = reqwest::Client::builder()
+        let mut client_builder = reqwest::Client::builder()
             .default_headers(headers)
-            .timeout(config.timeout)
+            .timeout(config.timeout);
+        if !api_key.is_empty() {
+            client_builder = client_builder.redirect(reqwest::redirect::Policy::none());
+        }
+        let client = client_builder
             .build()
             .expect("reqwest client builder should not fail");
 
