@@ -136,11 +136,11 @@ response = client.text_to_speech(TTSRequest(
 ```python
 from typecast.models import VoicesV2Filter, TTSModel, GenderEnum, AgeEnum
 
-# Get all voices (V2 API - recommended)
-voices = client.voices_v2()
+# Get all voices (V3 API)
+voices = client.voices_v3()
 
 # Filter by criteria
-filtered = client.voices_v2(VoicesV2Filter(
+filtered = client.voices_v3(VoicesV2Filter(
     model=TTSModel.SSFM_V30,
     gender=GenderEnum.FEMALE,
     age=AgeEnum.YOUNG_ADULT

@@ -362,7 +362,7 @@ mod tests {
             .create_async()
             .await;
 
-        let config = ClientConfig::new("test-api-key")
+        let config = ClientConfig::new("")
             .base_url(server.url())
             .timeout(Duration::from_secs(5));
         let client = TypecastClient::new(config).expect("client builds");

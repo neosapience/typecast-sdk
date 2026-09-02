@@ -246,12 +246,12 @@ Captioning rules applied automatically:
 ### Voice Discovery
 
 ```zig
-// Get all voices (V2 API - recommended)
-const voices = try client.getVoicesV2(null);
+// Get all voices (V3 API)
+const voices = try client.getVoicesV3Json(null);
 defer allocator.free(voices);
 
 // Filter by criteria
-const filtered = try client.getVoicesV2(.{
+const filtered = try client.getVoicesV3Json(.{
     .model = .ssfm_v30,
     .gender = .female,
     .age = .young_adult,
@@ -259,7 +259,8 @@ const filtered = try client.getVoicesV2(.{
 defer allocator.free(filtered);
 
 // Get a single voice by ID
-const voice = try client.getVoiceV2("tc_672c5f5ce59fac2a48faeaee", null);
+const voice = try client.getVoiceV3Json("tc_672c5f5ce59fac2a48faeaee");
+defer allocator.free(voice);
 ```
 
 ### Emotion Control
@@ -451,8 +452,8 @@ const response = client.textToSpeech(request) catch |err| switch (err) {
 | `textToSpeech(request)` | Convert text to speech (full response) |
 | `textToSpeechStream(request, callback)` | Stream audio chunks via callback |
 | `textToSpeechWithTimestamps(request, granularity)` | TTS with word/character alignment data |
-| `getVoicesV2(filter)` | List available voices with filtering |
-| `getVoiceV2(voice_id, model)` | Get specific voice details |
+| `getVoicesV3Json(filter)` | List available voice JSON with filtering |
+| `getVoiceV3Json(voice_id)` | Get specific voice JSON |
 | `getVoices(model)` | List voices (V1 API) |
 | `getMySubscription()` | Get current subscription info |
 | `cloneVoice(allocator, audio, filename, name, model)` | Clone a voice from an audio file |

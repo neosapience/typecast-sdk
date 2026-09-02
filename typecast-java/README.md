@@ -94,7 +94,7 @@ public class QuickStart {
         TypecastClient client = new TypecastClient("your-api-key");
 
         // Get available voices
-        var voices = client.getVoicesV2();
+        var voices = client.getVoicesV3();
         String voiceId = voices.get(0).getVoiceId();
 
         // Generate speech
@@ -276,7 +276,7 @@ TTSResponse response = client.textToSpeech(request);
 
 ```java
 // Get all voices
-List<VoiceV2Response> allVoices = client.getVoicesV2();
+List<VoiceV3Response> allVoices = client.getVoicesV3();
 
 // Filter voices
 VoicesV2Filter filter = VoicesV2Filter.builder()
@@ -285,10 +285,10 @@ VoicesV2Filter filter = VoicesV2Filter.builder()
         .age(AgeEnum.YOUNG_ADULT)
         .build();
 
-List<VoiceV2Response> filteredVoices = client.getVoicesV2(filter);
+List<VoiceV3Response> filteredVoices = client.getVoicesV3(filter);
 
 // Get specific voice
-VoiceV2Response voice = client.getVoiceV2("tc_voice_id");
+VoiceV3Response voice = client.getVoiceV3("tc_voice_id");
 ```
 
 </details>
@@ -501,9 +501,9 @@ mvn clean install
 | --------------------------------------------------------- | ------------------------------------ |
 | `textToSpeech(TTSRequest)`                                | Convert text to speech audio         |
 | `textToSpeechWithTimestamps(TTSRequestWithTimestamps, String)` | TTS with word/char alignment + SRT/VTT |
-| `getVoicesV2()`                                           | Get all available voices (V2 API)    |
-| `getVoicesV2(VoicesV2Filter)`                             | Get filtered voices (V2 API)         |
-| `getVoiceV2(String voiceId)`                              | Get a specific voice by ID           |
+| `getVoicesV3()`                                           | Get all available voices (V3 API)    |
+| `getVoicesV3(VoicesV2Filter)`                             | Get filtered voices (V3 API)         |
+| `getVoiceV3(String voiceId)`                              | Get a specific voice by ID           |
 | `getVoices()`                                             | Get voices (V1 API, deprecated)      |
 | `getVoice(String voiceId)`                                | Get voice by ID (V1 API, deprecated) |
 | `close()`                                                 | Release resources                    |
