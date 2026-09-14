@@ -65,22 +65,22 @@
     "node": ">=16.0.0"
   },
   "devDependencies": {
-    "@types/node": "^20.19.43",
+    "@types/node": "^22.20.2",
     "@typescript-eslint/eslint-plugin": "^8.65.0",
     "@typescript-eslint/parser": "^8.65.0",
-    "@vitest/coverage-v8": "^3.2.6",
+    "@vitest/coverage-v8": "^5.0.0",
     "dotenv": "^17.4.2",
     "eslint": "^8.57.1",
     "prettier": "^3.2.5",
     "tsup": "^8.4.0",
     "typescript": "^6.0.3",
-    "vitest": "^3.2.6"
+    "vitest": "^5.0.0"
   },
   "overrides": {
     "brace-expansion@1": "1.1.18",
     "brace-expansion@2": "2.1.4",
     "brace-expansion@>=3 <5.0.9": "5.0.9",
-    "js-yaml": "4.3.1",
+    "js-yaml": "4.3.2",
     "esbuild": "^0.28.1"
   },
   "dependencies": {}
