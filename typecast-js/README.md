@@ -397,6 +397,13 @@ import type {
 
 ---
 
+## Development
+
+Use Node.js 22.12 or newer in the Node.js 22, 24, or 26+ release lines to install
+development dependencies and run Vitest 5 tests. CI uses Node.js 22. This tooling
+requirement does not change the published SDK runtime requirements above;
+Vitest and the other development dependencies are not runtime dependencies.
+
 ## License
 
 [Apache-2.0](LICENSE) © [Neosapience](https://typecast.ai/?lang=en)
