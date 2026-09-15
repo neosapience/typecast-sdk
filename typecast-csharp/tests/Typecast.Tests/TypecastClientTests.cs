@@ -914,7 +914,7 @@ public class TypecastClientTests : IDisposable
             Model = TTSModel.SsfmV21,
             Language = LanguageCode.English,
             Prompt = new Prompt { EmotionPreset = EmotionPreset.Happy, EmotionIntensity = 1.5 },
-            Output = new Output(volume: 80, audioPitch: 0, audioTempo: 1.0, audioFormat: AudioFormat.Wav),
+            Output = new Output(volume: 80, audioPitch: 0, audioTempo: 1.0, audioFormat: AudioFormat.Wav) { RemoveSilenceMs = 0 },
             Seed = 42,
         };
 
@@ -922,6 +922,7 @@ public class TypecastClientTests : IDisposable
 
         capturedBody.Should().NotBeNull();
         capturedBody!.Should().Contain("\"text\":\"Hello\"");
+        capturedBody.Should().Contain("\"remove_silence_ms\":0");
         capturedBody.Should().Contain("\"voice_id\":\"v1\"");
         capturedBody.Should().Contain("\"emotion_preset\":\"happy\"");
     }
@@ -1154,7 +1155,7 @@ public class TypecastClientTests : IDisposable
         {
             Language = LanguageCode.English,
             Prompt = new Prompt { EmotionPreset = EmotionPreset.Happy, EmotionIntensity = 1.2 },
-            Output = new OutputStream(audioPitch: 2, audioTempo: 1.1, audioFormat: AudioFormat.Wav, targetLufs: -14.0),
+            Output = new OutputStream(audioPitch: 2, audioTempo: 1.1, audioFormat: AudioFormat.Wav, targetLufs: -14.0) { RemoveSilenceMs = 0 },
             Seed = 7,
         };
 
@@ -1172,6 +1173,7 @@ public class TypecastClientTests : IDisposable
 
         capturedBody.Should().NotBeNull();
         capturedBody!.Should().Contain("\"text\":\"Streaming hello\"");
+        capturedBody.Should().Contain("\"remove_silence_ms\":0");
         capturedBody.Should().Contain("\"voice_id\":\"voice_stream\"");
         capturedBody.Should().Contain("\"language\":\"eng\"");
         capturedBody.Should().Contain("\"audio_pitch\":2");

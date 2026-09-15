@@ -178,6 +178,8 @@ pub const TtsPrompt = union(enum) {
 // ── Output types ───────────────────────────────────────────────────────
 
 pub const Output = struct {
+    /// Remaining detected silence (0–1000 ms). Null disables processing; zero removes silence.
+    remove_silence_ms: ?u16 = null,
     volume: ?i32 = 100,
     target_lufs: ?f64 = null,
     audio_pitch: ?i32 = 0,
@@ -186,6 +188,7 @@ pub const Output = struct {
 };
 
 pub const OutputStream = struct {
+    remove_silence_ms: ?u16 = null,
     /// Target loudness in LUFS. Valid range: -70.0 to 0.0.
     target_lufs: ?f64 = null,
     audio_pitch: ?i32 = 0,

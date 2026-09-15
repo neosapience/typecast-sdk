@@ -173,6 +173,7 @@ class SpeechComposer
         return new Output(
             volume: $override?->volume ?? $base?->volume,
             targetLufs: $override?->targetLufs ?? $base?->targetLufs,
+            removeSilenceMs: $override?->removeSilenceMs ?? $base?->removeSilenceMs,
             audioPitch: $override?->audioPitch ?? $base?->audioPitch,
             audioTempo: $override?->audioTempo ?? $base?->audioTempo,
             audioFormat: $override?->audioFormat ?? $base?->audioFormat,

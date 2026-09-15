@@ -7,6 +7,10 @@ namespace Typecast.Models;
 /// </summary>
 public class Output
 {
+    /// <summary>Remaining detected silence (0–1000 ms). Null disables processing; zero removes silence.</summary>
+    [JsonPropertyName("remove_silence_ms")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? RemoveSilenceMs { get; set; }
     /// <summary>
     /// Volume level (0-200, default 100).
     /// Cannot be used simultaneously with TargetLufs.
@@ -72,6 +76,10 @@ public class Output
     /// <exception cref="ArgumentOutOfRangeException">Thrown when values are out of valid range.</exception>
     public void Validate()
     {
+        if (RemoveSilenceMs.HasValue && (RemoveSilenceMs.Value < 0 || RemoveSilenceMs.Value > 1000))
+        {
+            throw new ArgumentOutOfRangeException(nameof(RemoveSilenceMs), "RemoveSilenceMs must be between 0 and 1000.");
+        }
         if (Volume.HasValue && (Volume.Value < 0 || Volume.Value > 200))
         {
             throw new ArgumentOutOfRangeException(nameof(Volume), "Volume must be between 0 and 200.");

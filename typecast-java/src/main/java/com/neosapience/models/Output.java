@@ -4,6 +4,18 @@ package com.neosapience.models;
  * Audio output configuration for TTS synthesis.
  */
 public class Output {
+    private Integer removeSilenceMs;
+
+    /** Remaining detected silence (0–1000 ms); null disables processing, zero removes silence. */
+    public Integer getRemoveSilenceMs() { return removeSilenceMs; }
+
+    public Output setRemoveSilenceMs(Integer value) {
+        if (value != null && (value < 0 || value > 1000)) {
+            throw new IllegalArgumentException("removeSilenceMs must be between 0 and 1000");
+        }
+        this.removeSilenceMs = value;
+        return this;
+    }
     private Integer volume;
     private Double targetLufs;
     private Integer audioPitch;
@@ -156,6 +168,12 @@ public class Output {
      * Builder class for Output.
      */
     public static class Builder {
+        private Integer removeSilenceMs;
+
+        public Builder removeSilenceMs(Integer value) {
+            this.removeSilenceMs = value;
+            return this;
+        }
         private Integer volume = 100;
         private boolean volumeExplicitlySet = false;
         private Double targetLufs;
@@ -226,6 +244,7 @@ public class Output {
          */
         public Output build() {
             Output output = new Output();
+            output.setRemoveSilenceMs(removeSilenceMs);
             Integer effectiveVolume = (targetLufs != null && !volumeExplicitlySet) ? null : volume;
             output.setVolume(effectiveVolume);
             output.setTargetLufs(targetLufs);

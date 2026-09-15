@@ -487,6 +487,9 @@ public class TypecastClient {
             if (output.getTargetLufs() != null) {
                 outputJson.addProperty("target_lufs", output.getTargetLufs());
             }
+            if (output.getRemoveSilenceMs() != null) {
+                outputJson.addProperty("remove_silence_ms", output.getRemoveSilenceMs());
+            }
             if (output.getAudioPitch() != null) {
                 outputJson.addProperty("audio_pitch", output.getAudioPitch());
             }
@@ -609,6 +612,9 @@ public class TypecastClient {
             if (output.getTargetLufs() != null) {
                 outputJson.addProperty("target_lufs", output.getTargetLufs());
             }
+            if (output.getRemoveSilenceMs() != null) {
+                outputJson.addProperty("remove_silence_ms", output.getRemoveSilenceMs());
+            }
             if (output.getAudioPitch() != null) {
                 outputJson.addProperty("audio_pitch", output.getAudioPitch());
             }
@@ -684,6 +690,9 @@ public class TypecastClient {
             }
             if (output.getTargetLufs() != null) {
                 outputJson.addProperty("target_lufs", output.getTargetLufs());
+            }
+            if (output.getRemoveSilenceMs() != null) {
+                outputJson.addProperty("remove_silence_ms", output.getRemoveSilenceMs());
             }
             if (output.getAudioPitch() != null) {
                 outputJson.addProperty("audio_pitch", output.getAudioPitch());

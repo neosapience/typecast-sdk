@@ -451,6 +451,9 @@ static cJSON* build_tts_request_json(const TypecastTTSRequest* request) {
     if (request->output) {
         cJSON* output = cJSON_CreateObject();
         if (output) {
+            if (request->output->use_remove_silence_ms) {
+                cJSON_AddNumberToObject(output, "remove_silence_ms", request->output->remove_silence_ms);
+            }
             if (request->output->use_target_lufs) {
                 cJSON_AddNumberToObject(output, "target_lufs", request->output->target_lufs);
             } else {
@@ -770,6 +773,11 @@ TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
     }
     
     clear_error(client);
+    if (request->output && request->output->use_remove_silence_ms &&
+        (request->output->remove_silence_ms < 0 || request->output->remove_silence_ms > 1000)) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "remove_silence_ms must be between 0 and 1000");
+        return NULL;
+    }
     
     /* Build URL */
     char url[512];
@@ -1069,6 +1077,10 @@ static TypecastComposerOutput merge_composer_output(TypecastComposerOutput base,
         out.use_target_lufs = 1;
         out.target_lufs = overrides.target_lufs;
     }
+    if (overrides.use_remove_silence_ms) {
+        out.use_remove_silence_ms = 1;
+        out.remove_silence_ms = overrides.remove_silence_ms;
+    }
     if (overrides.use_audio_pitch) {
         out.use_audio_pitch = 1;
         out.audio_pitch = overrides.audio_pitch;
@@ -1109,6 +1121,8 @@ static TypecastOutput composer_output_to_tts(TypecastComposerOutput output) {
     out.volume = output.use_volume ? output.volume : 100;
     out.use_target_lufs = output.use_target_lufs;
     out.target_lufs = output.target_lufs;
+    out.use_remove_silence_ms = output.use_remove_silence_ms;
+    out.remove_silence_ms = output.remove_silence_ms;
     out.audio_pitch = output.use_audio_pitch ? output.audio_pitch : 0;
     out.audio_tempo = output.use_audio_tempo ? output.audio_tempo : 1.0f;
     out.audio_format = TYPECAST_AUDIO_FORMAT_WAV;
@@ -1264,6 +1278,12 @@ TYPECAST_API TypecastTTSResponse* typecast_speech_composer_generate(
             continue;
         }
         TypecastComposerSettings merged = merge_composer_settings(composer->defaults, composer->parts[i].settings);
+        if (merged.output.use_remove_silence_ms &&
+            (merged.output.remove_silence_ms < 0 || merged.output.remove_silence_ms > 1000)) {
+            cJSON_Delete(root);
+            set_error(composer->client, TYPECAST_ERROR_INVALID_PARAM, "remove_silence_ms must be between 0 and 1000");
+            return NULL;
+        }
         if (is_blank_string(merged.voice_id)) {
             cJSON_Delete(root);
             set_error(composer->client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is required for composed speech");
@@ -1473,6 +1493,9 @@ static cJSON* build_tts_stream_request_json(const TypecastTTSRequestStream* requ
     if (request->output) {
         cJSON* output = cJSON_CreateObject();
         if (output) {
+            if (request->output->use_remove_silence_ms) {
+                cJSON_AddNumberToObject(output, "remove_silence_ms", request->output->remove_silence_ms);
+            }
             if (request->output->use_target_lufs) {
                 cJSON_AddNumberToObject(output, "target_lufs", request->output->target_lufs);
             }
@@ -1518,6 +1541,11 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_stream(
     snprintf(url, sizeof(url), "%s/v1/text-to-speech/stream", client->host);
 
     /* Build JSON body */
+    if (request->output && request->output->use_remove_silence_ms &&
+        (request->output->remove_silence_ms < 0 || request->output->remove_silence_ms > 1000)) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "remove_silence_ms must be between 0 and 1000");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
     cJSON* json = build_tts_stream_request_json(request);
     /* LCOV_EXCL_START */
     /* category=unreachable reason="cJSON OOM; cannot be triggered in unit tests" */
@@ -2840,6 +2868,11 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps(
     }
 
     /* Build JSON body */
+    if (request->output && request->output->use_remove_silence_ms &&
+        (request->output->remove_silence_ms < 0 || request->output->remove_silence_ms > 1000)) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "remove_silence_ms must be between 0 and 1000");
+        return TYPECAST_ERROR_INVALID_PARAM;
+    }
     cJSON* json = build_tts_with_timestamps_request_json(request);
     /* LCOV_EXCL_START */
     /* category=unreachable reason="cJSON_CreateObject OOM; requires malloc shim" */

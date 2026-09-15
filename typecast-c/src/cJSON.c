@@ -522,7 +522,7 @@ static int print_number(const cJSON *item, printbuffer *buffer)
     output = ensure(buffer, 64);
     if (output == NULL) return 0;
     
-    if (d == d && (d != d - d) && ((d * 0) == 0))
+    if (isfinite(d))
     {
         length = sprintf((char*)output, "%.15g", d);
     }

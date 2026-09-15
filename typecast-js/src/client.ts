@@ -27,6 +27,13 @@ const SDK_VERSION = '0.4.12';
 const DEFAULT_BASE_HOST = 'https://api.typecast.ai';
 type QueryParam = string | number | boolean | null | undefined;
 
+function validateSilence(output: unknown): void {
+  const value = (output as { remove_silence_ms?: number | null } | undefined)?.remove_silence_ms;
+  if (value != null && (!Number.isInteger(value) || value < 0 || value > 1000)) {
+    throw new RangeError('remove_silence_ms must be an integer between 0 and 1000');
+  }
+}
+
 export class TypecastClient {
   private baseHost: string;
   private headers: Record<string, string>;
@@ -139,6 +146,7 @@ export class TypecastClient {
    * @returns TTSResponse containing audio data, duration, and format
    */
   async textToSpeech(request: TTSRequest): Promise<TTSResponse> {
+    validateSilence(request.output);
     const response = await fetch(this.buildUrl('/v1/text-to-speech'), {
       method: 'POST',
       headers: this.headers,
@@ -182,6 +190,9 @@ export class TypecastClient {
   }
 
   async composeTextToSpeech(segments: ComposeSegment[]): Promise<TTSResponse> {
+    for (const segment of segments) {
+      if (segment.type === 'tts') validateSilence(segment.output);
+    }
     const response = await fetch(this.buildUrl('/v1/text-to-speech/compose'), {
       method: 'POST',
       headers: this.headers,
@@ -243,6 +254,7 @@ export class TypecastClient {
    * @returns A `ReadableStream` of `Uint8Array` chunks containing the audio
    */
   async textToSpeechStream(request: TTSRequestStream): Promise<ReadableStream<Uint8Array>> {
+    validateSilence(request.output);
     const response = await fetch(this.buildUrl('/v1/text-to-speech/stream'), {
       method: 'POST',
       headers: this.headers,
@@ -278,6 +290,7 @@ export class TypecastClient {
     request: TTSRequestWithTimestamps,
     options: { granularity?: 'word' | 'char' } = {},
   ): Promise<WithTimestampsResult> {
+    validateSilence(request.output);
     const { granularity } = options;
     if (granularity !== undefined && granularity !== 'word' && granularity !== 'char') {
       throw new Error(

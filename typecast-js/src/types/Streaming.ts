@@ -7,6 +7,8 @@ import { TTSModel, LanguageCode, TTSPrompt } from './TextToSpeech';
  * Streaming supports `target_lufs` for absolute loudness normalization.
  */
 export interface OutputStream {
+  /** Remaining detected silence in ms (integer 0–1000). 0 removes silence; null/omission disables this processing. */
+  remove_silence_ms?: number | null;
   /**
    * Audio pitch adjustment in semitones
    * @min -12

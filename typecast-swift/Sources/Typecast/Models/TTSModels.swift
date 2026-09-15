@@ -181,6 +181,8 @@ public enum TTSPrompt: Codable, Sendable {
 
 /// Audio output settings for controlling the final audio characteristics
 public struct OutputSettings: Codable, Sendable {
+  /// Remaining detected silence (0–1000 ms); nil disables processing, zero removes silence.
+  public var removeSilenceMs: Int?
   /// Output volume (0-200, default: 100). Cannot be used simultaneously with targetLufs.
   public var volume: Int?
   /// Target loudness in LUFS for absolute loudness normalization (-70 to 0).
@@ -195,6 +197,7 @@ public struct OutputSettings: Codable, Sendable {
 
   enum CodingKeys: String, CodingKey {
     case volume
+    case removeSilenceMs = "remove_silence_ms"
     case targetLufs = "target_lufs"
     case audioPitch = "audio_pitch"
     case audioTempo = "audio_tempo"
@@ -206,9 +209,11 @@ public struct OutputSettings: Codable, Sendable {
     targetLufs: Double? = nil,
     audioPitch: Int? = nil,
     audioTempo: Double? = nil,
-    audioFormat: AudioFormat? = nil
+    audioFormat: AudioFormat? = nil,
+    removeSilenceMs: Int? = nil
   ) {
     self.volume = volume
+    self.removeSilenceMs = removeSilenceMs
     self.targetLufs = targetLufs
     self.audioPitch = audioPitch
     self.audioTempo = audioTempo

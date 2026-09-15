@@ -260,6 +260,7 @@ TEST(tts_missing_voice_id) {
 TEST(output_default) {
     TypecastOutput output = TYPECAST_OUTPUT_DEFAULT();
     ASSERT_EQ(output.volume, 100);
+    ASSERT_EQ(output.use_remove_silence_ms, 0);
     ASSERT_EQ(output.audio_pitch, 0);
     ASSERT(output.audio_tempo == 1.0f);
     ASSERT_EQ(output.audio_format, TYPECAST_AUDIO_FORMAT_WAV);

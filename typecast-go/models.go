@@ -78,6 +78,8 @@ const (
 
 // Output represents audio output settings
 type Output struct {
+	// RemoveSilenceMS is remaining detected silence (0–1000 ms). Nil disables processing; zero removes silence.
+	RemoveSilenceMS *int `json:"remove_silence_ms,omitempty"`
 	// Volume controls the volume level (0-200, default: 100).
 	// Cannot be used simultaneously with TargetLUFS.
 	Volume *int `json:"volume,omitempty"`
@@ -96,6 +98,9 @@ type Output struct {
 func (o *Output) Validate() error {
 	if o == nil {
 		return nil
+	}
+	if o.RemoveSilenceMS != nil && (*o.RemoveSilenceMS < 0 || *o.RemoveSilenceMS > 1000) {
+		return fmt.Errorf("remove_silence_ms must be between 0 and 1000")
 	}
 	if o.Volume != nil && o.TargetLUFS != nil {
 		return fmt.Errorf("volume and target_lufs are mutually exclusive")
@@ -221,6 +226,8 @@ func (r GenerateToFileRequest) toTTSRequest() *TTSRequest {
 // OutputStream represents audio output settings for the streaming endpoint.
 // Unlike Output, it does not support Volume. Streaming supports TargetLUFS.
 type OutputStream struct {
+	// RemoveSilenceMS is remaining detected silence (0–1000 ms). Nil disables processing; zero removes silence.
+	RemoveSilenceMS *int `json:"remove_silence_ms,omitempty"`
 	// AudioPitch adjusts pitch in semitones (-12 to +12, default: 0)
 	AudioPitch *int `json:"audio_pitch,omitempty"`
 	// AudioTempo controls speech speed (0.5 to 2.0, default: 1.0)
@@ -235,6 +242,9 @@ type OutputStream struct {
 func (o *OutputStream) Validate() error {
 	if o == nil {
 		return nil
+	}
+	if o.RemoveSilenceMS != nil && (*o.RemoveSilenceMS < 0 || *o.RemoveSilenceMS > 1000) {
+		return fmt.Errorf("remove_silence_ms must be between 0 and 1000")
 	}
 	if o.AudioPitch != nil && (*o.AudioPitch < -12 || *o.AudioPitch > 12) {
 		return fmt.Errorf("audio_pitch must be between -12 and 12")

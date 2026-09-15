@@ -15,6 +15,7 @@ class Output
         public ?int $audioPitch = 0,
         public ?float $audioTempo = 1.0,
         public ?string $audioFormat = 'wav',
+        public ?int $removeSilenceMs = null,
     ) {
     }
 
@@ -23,7 +24,13 @@ class Output
      */
     public function toArray(): array
     {
+        if ($this->removeSilenceMs !== null && ($this->removeSilenceMs < 0 || $this->removeSilenceMs > 1000)) {
+            throw new \InvalidArgumentException('removeSilenceMs must be between 0 and 1000');
+        }
         $data = [];
+        if ($this->removeSilenceMs !== null) {
+            $data['remove_silence_ms'] = $this->removeSilenceMs;
+        }
 
         if ($this->targetLufs !== null) {
             $data['target_lufs'] = $this->targetLufs;

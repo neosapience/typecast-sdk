@@ -45,12 +45,12 @@ public class SpeechComposerTests : IDisposable
             .Defaults(new ComposerSettings
             {
                 VoiceId = "voice-a", Model = TTSModel.SsfmV30,
-                Output = new Output(volume: null, audioPitch: 1, audioFormat: AudioFormat.Mp3)
+                Output = new Output(volume: null, audioPitch: 1, audioFormat: AudioFormat.Mp3) { RemoveSilenceMs = 300 }
             })
             .Say("Hello<|0.3s|>world", new ComposerSettings
             {
                 VoiceId = "voice-b",
-                Output = new Output(volume: null, audioPitch: null, audioTempo: 1.1, audioFormat: null)
+                Output = new Output(volume: null, audioPitch: null, audioTempo: 1.1, audioFormat: null) { RemoveSilenceMs = 0 }
             })
             .GenerateAsync(AudioFormat.Mp3);
 
@@ -64,6 +64,7 @@ public class SpeechComposerTests : IDisposable
         segments[0].GetProperty("output").GetProperty("audio_format").GetString().Should().Be("mp3");
         segments[0].GetProperty("output").GetProperty("audio_pitch").GetInt32().Should().Be(1);
         segments[0].GetProperty("output").GetProperty("audio_tempo").GetDouble().Should().Be(1.1);
+        segments[0].GetProperty("output").GetProperty("remove_silence_ms").GetInt32().Should().Be(0);
         segments[1].GetProperty("type").GetString().Should().Be("pause");
         segments[1].GetProperty("duration_seconds").GetDouble().Should().Be(0.3);
         segments[2].GetProperty("text").GetString().Should().Be("world");
