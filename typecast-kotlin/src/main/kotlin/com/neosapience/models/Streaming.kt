@@ -26,9 +26,15 @@ data class OutputStream(
     val audioTempo: Double? = 1.0,
 
     @SerialName("audio_format")
-    val audioFormat: String? = "wav"
+    val audioFormat: String? = "wav",
+    /** Remaining detected silence (0–1000 ms); null disables processing, zero removes silence. */
+    @SerialName("remove_silence_ms")
+    val removeSilenceMs: Int? = null
 ) {
     init {
+        require(removeSilenceMs == null || removeSilenceMs in 0..1000) {
+            "RemoveSilenceMs must be between 0 and 1000"
+        }
         audioPitch?.let {
             require(it in -12..12) { "AudioPitch must be between -12 and 12" }
         }
@@ -48,6 +54,8 @@ data class OutputStream(
     }
 
     class Builder {
+        private var removeSilenceMs: Int? = null
+        fun removeSilenceMs(value: Int?) = apply { removeSilenceMs = value }
         private var audioPitch: Int? = 0
         private var audioTempo: Double? = 1.0
         private var audioFormat: String? = "wav"
@@ -60,6 +68,7 @@ data class OutputStream(
 
         fun build(): OutputStream {
             return OutputStream(
+                removeSilenceMs = removeSilenceMs,
                 targetLufs = targetLufs,
                 audioPitch = audioPitch,
                 audioTempo = audioTempo,

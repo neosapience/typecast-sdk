@@ -243,13 +243,17 @@ public class SpeechComposer
         if (overrideOutput.AudioTempo.HasValue) merged.AudioTempo = overrideOutput.AudioTempo;
         if (overrideOutput.AudioFormat.HasValue) merged.AudioFormat = overrideOutput.AudioFormat;
         if (overrideOutput.TargetLufs.HasValue) merged.TargetLufs = overrideOutput.TargetLufs;
+        if (overrideOutput.RemoveSilenceMs.HasValue) merged.RemoveSilenceMs = overrideOutput.RemoveSilenceMs;
         return merged;
     }
 
     private static Output? CopyOutput(Output? output)
     {
         if (output is null) return null;
-        return new Output(output.Volume, output.AudioPitch, output.AudioTempo, output.AudioFormat, output.TargetLufs);
+        return new Output(output.Volume, output.AudioPitch, output.AudioTempo, output.AudioFormat, output.TargetLufs)
+        {
+            RemoveSilenceMs = output.RemoveSilenceMs
+        };
     }
 
     private static bool TryParsePauseToken(string token, out double seconds)

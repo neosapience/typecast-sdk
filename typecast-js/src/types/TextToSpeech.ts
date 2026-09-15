@@ -113,6 +113,8 @@ export type TTSPrompt = Prompt | PresetPrompt | SmartPrompt;
  * Audio output settings for controlling the final audio characteristics
  */
 export interface Output {
+  /** Remaining detected silence in ms (integer 0–1000). 0 removes silence; null/omission disables this processing. */
+  remove_silence_ms?: number | null;
   /**
    * Relative volume scaling of the output audio.
    * Cannot be used simultaneously with target_lufs.

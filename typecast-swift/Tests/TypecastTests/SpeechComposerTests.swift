@@ -25,14 +25,14 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
         ComposerSettings(
           voiceId: "voice-a",
           model: .ssfmV30,
-          output: OutputSettings(audioPitch: 1, audioFormat: .mp3)
+          output: OutputSettings(audioPitch: 1, audioFormat: .mp3, removeSilenceMs: 300)
         )
       )
       .say(
         "Hello<|0.3s|>world",
         overrides: ComposerSettings(
           voiceId: "voice-b",
-          output: OutputSettings(audioTempo: 1.1)
+          output: OutputSettings(audioTempo: 1.1, removeSilenceMs: 0)
         )
       )
       .generate()
@@ -46,6 +46,7 @@ final class SpeechComposerTests: TypecastClientMockTestCase {
     XCTAssertEqual(output["audio_format"] as? String, "mp3")
     XCTAssertEqual(output["audio_pitch"] as? Int, 1)
     XCTAssertEqual(output["audio_tempo"] as? Double, 1.1)
+    XCTAssertEqual(output["remove_silence_ms"] as? Int, 0)
     XCTAssertEqual(segments[1]["duration_seconds"] as? Double, 0.3)
     XCTAssertEqual(segments[2]["text"] as? String, "world")
     XCTAssertEqual(response.audioData, Data("composed-audio".utf8))

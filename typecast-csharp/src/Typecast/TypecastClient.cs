@@ -703,6 +703,8 @@ public class TypecastClient : IDisposable
                 outputDict["volume"] = request.Output.Volume.Value;
             if (request.Output.TargetLufs.HasValue)
                 outputDict["target_lufs"] = request.Output.TargetLufs.Value;
+            if (request.Output.RemoveSilenceMs.HasValue)
+                outputDict["remove_silence_ms"] = request.Output.RemoveSilenceMs.Value;
             if (request.Output.AudioPitch.HasValue)
                 outputDict["audio_pitch"] = request.Output.AudioPitch.Value;
             if (request.Output.AudioTempo.HasValue)
@@ -746,6 +748,8 @@ public class TypecastClient : IDisposable
                 outputDict["volume"] = request.Output.Volume.Value;
             if (request.Output.TargetLufs.HasValue)
                 outputDict["target_lufs"] = request.Output.TargetLufs.Value;
+            if (request.Output.RemoveSilenceMs.HasValue)
+                outputDict["remove_silence_ms"] = request.Output.RemoveSilenceMs.Value;
             if (request.Output.AudioPitch.HasValue)
                 outputDict["audio_pitch"] = request.Output.AudioPitch.Value;
             if (request.Output.AudioTempo.HasValue)
@@ -791,6 +795,8 @@ public class TypecastClient : IDisposable
             var outputDict = new Dictionary<string, object>();
             if (request.Output.TargetLufs.HasValue)
                 outputDict["target_lufs"] = request.Output.TargetLufs.Value;
+            if (request.Output.RemoveSilenceMs.HasValue)
+                outputDict["remove_silence_ms"] = request.Output.RemoveSilenceMs.Value;
             if (request.Output.AudioPitch.HasValue)
                 outputDict["audio_pitch"] = request.Output.AudioPitch.Value;
             if (request.Output.AudioTempo.HasValue)

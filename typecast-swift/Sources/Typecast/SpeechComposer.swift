@@ -250,6 +250,7 @@ private func mergeOutput(_ base: OutputSettings?, _ override: OutputSettings?) -
     targetLufs: override?.targetLufs ?? base?.targetLufs,
     audioPitch: override?.audioPitch ?? base?.audioPitch,
     audioTempo: override?.audioTempo ?? base?.audioTempo,
-    audioFormat: override?.audioFormat ?? base?.audioFormat
+    audioFormat: override?.audioFormat ?? base?.audioFormat,
+    removeSilenceMs: override?.removeSilenceMs ?? base?.removeSilenceMs
   )
 }

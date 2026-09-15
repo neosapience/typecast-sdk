@@ -700,6 +700,7 @@ static void test_tts_with_output_lufs(void) {
 
     TypecastOutput out = TYPECAST_OUTPUT_DEFAULT();
     out.use_target_lufs = 1; out.target_lufs = -16.0f;
+    out.use_remove_silence_ms = 1; out.remove_silence_ms = 0;
 
     TypecastTTSRequest req = {0};
     req.text = "x"; req.voice_id = "y"; req.model = TYPECAST_MODEL_SSFM_V30;
@@ -709,6 +710,7 @@ static void test_tts_with_output_lufs(void) {
     ASSERT_NOT_NULL(r);
     ASSERT_EQ(r->duration, 0); /* No header */
     ASSERT(strstr(g_server.last_body, "\"target_lufs\":-16") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"remove_silence_ms\":0") != NULL);
 
     typecast_tts_response_free(r);
     typecast_client_destroy(c);
@@ -1113,11 +1115,14 @@ static void test_tts_stream_with_output_mp3(void) {
 
     out.use_target_lufs = 1;
     out.target_lufs = -14.0f;
+    out.use_remove_silence_ms = 1;
+    out.remove_silence_ms = 0;
     mock_enqueue_text(200, NULL, "MP3DATA");
     rc = typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s);
     ASSERT_EQ(rc, TYPECAST_OK);
     ASSERT(strstr(g_server.last_body, "\"volume\"") == NULL);
     ASSERT(strstr(g_server.last_body, "\"target_lufs\":-14") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"remove_silence_ms\":0") != NULL);
 
     free(s.data);
     typecast_client_destroy(c);
@@ -1917,7 +1922,45 @@ static void test_subscription_missing_concurrency_limit(void) {
  * Main
  * ============================================ */
 
+static void test_remove_silence_invalid_before_network(void) {
+    TypecastClient* c = new_client();
+    int values[] = {-1, 1001};
+    for (size_t i = 0; i < 2; i++) {
+        TypecastOutput out = {0};
+        out.use_remove_silence_ms = 1;
+        out.remove_silence_ms = values[i];
+        TypecastTTSRequest req = {0};
+        req.voice_id = "voice"; req.text = "Hello"; req.output = &out;
+        ASSERT_NULL(typecast_text_to_speech(c, &req));
+        ASSERT_EQ(typecast_client_get_error(c)->code, TYPECAST_ERROR_INVALID_PARAM);
+        TypecastTTSRequestWithTimestamps timestamps = {0};
+        timestamps.voice_id = "voice"; timestamps.text = "Hello"; timestamps.output = &out;
+        TypecastTTSWithTimestampsResponse* result = NULL;
+        ASSERT_EQ(typecast_text_to_speech_with_timestamps(c, &timestamps, &result), TYPECAST_ERROR_INVALID_PARAM);
+        TypecastOutputStream stream_out = {0};
+        stream_out.use_remove_silence_ms = 1;
+        stream_out.remove_silence_ms = values[i];
+        TypecastTTSRequestStream stream = {0};
+        stream.voice_id = "voice"; stream.text = "Hello"; stream.output = &stream_out;
+        StreamSink sink = {0};
+        ASSERT_EQ(typecast_text_to_speech_stream(c, &stream, stream_sink_cb, &sink), TYPECAST_ERROR_INVALID_PARAM);
+        TypecastSpeechComposer* composer = typecast_speech_composer_create(c);
+        TypecastComposerSettings settings = {0};
+        settings.voice_id = "voice";
+        settings.use_model = 1; settings.model = TYPECAST_MODEL_SSFM_V30;
+        settings.use_output = 1;
+        settings.output.use_remove_silence_ms = 1;
+        settings.output.remove_silence_ms = values[i];
+        ASSERT_EQ(typecast_speech_composer_say(composer, "Hello", &settings), TYPECAST_OK);
+        ASSERT_NULL(typecast_speech_composer_generate(composer, TYPECAST_AUDIO_FORMAT_WAV));
+        ASSERT_EQ(typecast_client_get_error(c)->code, TYPECAST_ERROR_INVALID_PARAM);
+        typecast_speech_composer_destroy(composer);
+    }
+    typecast_client_destroy(c);
+}
+
 int main(void) {
+    RUN(remove_silence_invalid_before_network);
     printf("===========================================\n");
     printf("Typecast C SDK Mock Coverage Tests\n");
     printf("===========================================\n\n");

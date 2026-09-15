@@ -202,6 +202,8 @@ typedef struct {
     int audio_pitch;         /* -12 to 12, default 0 */
     float audio_tempo;       /* 0.5 to 2.0, default 1.0 */
     TypecastAudioFormat audio_format; /* wav or mp3, default wav */
+    int use_remove_silence_ms; /* Set to 1 to send remove_silence_ms; default 0 leaves behavior unchanged */
+    int remove_silence_ms;     /* Remaining detected silence (0-1000 ms); zero removes silence */
 } TypecastOutput;
 
 /**
@@ -298,6 +300,8 @@ typedef struct {
     int audio_pitch;                    /* -12 to 12, default 0 */
     float audio_tempo;                  /* 0.5 to 2.0, default 1.0 */
     TypecastAudioFormat audio_format;   /* wav or mp3, default wav */
+    int use_remove_silence_ms;
+    int remove_silence_ms; /* Remaining detected silence (0-1000 ms) */
 } TypecastOutputStream;
 
 /**
@@ -345,6 +349,8 @@ typedef struct {
     float audio_tempo;
     int use_audio_format;
     TypecastAudioFormat audio_format;
+    int use_remove_silence_ms;
+    int remove_silence_ms; /* Remaining detected silence (0-1000 ms) */
 } TypecastComposerOutput;
 
 typedef struct {
@@ -1077,6 +1083,8 @@ struct Output {
     int audioPitch = 0;
     float audioTempo = 1.0f;
     AudioFormat audioFormat = AudioFormat::WAV;
+    bool useRemoveSilenceMs = false;
+    int removeSilenceMs = 0;
 };
 
 struct Prompt {
@@ -1209,6 +1217,8 @@ public:
 
         TypecastOutput output = {};
         output.volume = request.output.volume;
+        output.use_remove_silence_ms = request.output.useRemoveSilenceMs;
+        output.remove_silence_ms = request.output.removeSilenceMs;
         output.audio_pitch = request.output.audioPitch;
         output.audio_tempo = request.output.audioTempo;
         output.audio_format = static_cast<TypecastAudioFormat>(

@@ -9,6 +9,10 @@ namespace Typecast.Models;
 /// </summary>
 public class OutputStream
 {
+    /// <summary>Remaining detected silence (0–1000 ms). Null disables processing; zero removes silence.</summary>
+    [JsonPropertyName("remove_silence_ms")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? RemoveSilenceMs { get; set; }
     /// <summary>
     /// Target loudness in LUFS for streaming output normalization (-70 to 0).
     /// </summary>
@@ -63,6 +67,10 @@ public class OutputStream
     /// <exception cref="ArgumentOutOfRangeException">Thrown when values are out of valid range.</exception>
     public void Validate()
     {
+        if (RemoveSilenceMs.HasValue && (RemoveSilenceMs.Value < 0 || RemoveSilenceMs.Value > 1000))
+        {
+            throw new ArgumentOutOfRangeException(nameof(RemoveSilenceMs), "RemoveSilenceMs must be between 0 and 1000.");
+        }
         if (AudioPitch.HasValue && (AudioPitch.Value < -12 || AudioPitch.Value > 12))
         {
             throw new ArgumentOutOfRangeException(nameof(AudioPitch), "AudioPitch must be between -12 and 12.");

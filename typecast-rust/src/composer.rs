@@ -312,6 +312,7 @@ fn merge_output(base: Option<Output>, override_output: Option<Output>) -> Option
         (Some(base), Some(override_output)) => Some(Output {
             volume: override_output.volume.or(base.volume),
             target_lufs: override_output.target_lufs.or(base.target_lufs),
+            remove_silence_ms: override_output.remove_silence_ms.or(base.remove_silence_ms),
             audio_pitch: override_output.audio_pitch.or(base.audio_pitch),
             audio_tempo: override_output.audio_tempo.or(base.audio_tempo),
             audio_format: override_output.audio_format.or(base.audio_format),

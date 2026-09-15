@@ -7,6 +7,8 @@ import Foundation
 /// Unlike `OutputSettings`, this struct intentionally omits `volume`.
 /// The `/v1/text-to-speech/stream` endpoint supports `target_lufs`.
 public struct OutputStream: Codable, Sendable {
+    /// Remaining detected silence (0–1000 ms); nil disables processing, zero removes silence.
+    public var removeSilenceMs: Int?
     /// Target loudness in LUFS (-70 to 0)
     public var targetLufs: Double?
     /// Audio pitch adjustment in semitones (-12 to +12, default: 0)
@@ -17,6 +19,7 @@ public struct OutputStream: Codable, Sendable {
     public var audioFormat: AudioFormat?
 
     enum CodingKeys: String, CodingKey {
+        case removeSilenceMs = "remove_silence_ms"
         case targetLufs = "target_lufs"
         case audioPitch = "audio_pitch"
         case audioTempo = "audio_tempo"
@@ -32,9 +35,11 @@ public struct OutputStream: Codable, Sendable {
         targetLufs: Double? = nil,
         audioPitch: Int? = nil,
         audioTempo: Double? = nil,
-        audioFormat: AudioFormat? = nil
+        audioFormat: AudioFormat? = nil,
+        removeSilenceMs: Int? = nil
     ) {
         precondition(Self.isValidTargetLufs(targetLufs))
+        self.removeSilenceMs = removeSilenceMs
         self.targetLufs = targetLufs
         self.audioPitch = audioPitch
         self.audioTempo = audioTempo
@@ -43,6 +48,7 @@ public struct OutputStream: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.removeSilenceMs = try container.decodeIfPresent(Int.self, forKey: .removeSilenceMs)
         let targetLufs = try container.decodeIfPresent(Double.self, forKey: .targetLufs)
         guard Self.isValidTargetLufs(targetLufs) else {
             throw DecodingError.dataCorruptedError(

@@ -3,6 +3,40 @@ const testing = std.testing;
 const models = @import("typecast").models;
 const json_helpers = @import("typecast").json_helpers;
 
+test "remove silence preserves zero and validates range" {
+    const allocator = testing.allocator;
+    for ([_]?u16{ null, 0, 300, 1000 }) |ms| {
+        const normal = try json_helpers.serializeTtsRequest(allocator, .{
+            .voice_id = "test",
+            .text = "test",
+            .model = .ssfm_v30,
+            .output = .{ .remove_silence_ms = ms },
+        });
+        defer allocator.free(normal);
+        const stream = try json_helpers.serializeTtsRequestStream(allocator, .{
+            .voice_id = "test",
+            .text = "test",
+            .model = .ssfm_v30,
+            .output = .{ .remove_silence_ms = ms },
+        });
+        defer allocator.free(stream);
+        try testing.expectEqual(ms != null, std.mem.indexOf(u8, normal, "remove_silence_ms") != null);
+        try testing.expectEqual(ms != null, std.mem.indexOf(u8, stream, "remove_silence_ms") != null);
+    }
+    try testing.expectError(error.InvalidRemoveSilenceMs, json_helpers.serializeTtsRequest(allocator, .{
+        .voice_id = "test",
+        .text = "test",
+        .model = .ssfm_v30,
+        .output = .{ .remove_silence_ms = 1001 },
+    }));
+    try testing.expectError(error.InvalidRemoveSilenceMs, json_helpers.serializeTtsRequestStream(allocator, .{
+        .voice_id = "test",
+        .text = "test",
+        .model = .ssfm_v30,
+        .output = .{ .remove_silence_ms = 1001 },
+    }));
+}
+
 // ── TtsModel ───────────────────────────────────────────────────────────
 
 test "TtsModel toString" {

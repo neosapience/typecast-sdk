@@ -186,16 +186,23 @@ public class TimestampTTSTests : IDisposable
         };
 
         HttpRequestMessage? captured = null;
+        string? capturedBody = null;
         _mockHandler
             .Protected()
             .Setup<Task<HttpResponseMessage>>(
                 "SendAsync",
                 ItExpr.IsAny<HttpRequestMessage>(),
                 ItExpr.IsAny<System.Threading.CancellationToken>())
-            .Callback<HttpRequestMessage, System.Threading.CancellationToken>((req, _) => captured = req)
+            .Callback<HttpRequestMessage, System.Threading.CancellationToken>((req, _) => {
+                captured = req;
+                capturedBody = req.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            })
             .ReturnsAsync(httpResponse);
 
-        var request = new TTSRequestWithTimestamps("Hello", "v1", TTSModel.SsfmV30);
+        var request = new TTSRequestWithTimestamps("Hello", "v1", TTSModel.SsfmV30)
+        {
+            Output = new Output { RemoveSilenceMs = 0 }
+        };
         var result = await _client.TextToSpeechWithTimestampsAsync(request);
 
         result.Should().NotBeNull();
@@ -204,6 +211,7 @@ public class TimestampTTSTests : IDisposable
         captured!.Method.Should().Be(HttpMethod.Post);
         captured.RequestUri!.AbsolutePath.Should().Be("/v1/text-to-speech/with-timestamps");
         captured.RequestUri.Query.Should().BeEmpty();
+        capturedBody.Should().Contain("\"remove_silence_ms\":0");
     }
 
     [Fact]

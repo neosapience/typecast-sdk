@@ -116,6 +116,8 @@ static void test_segment_requests_merge_defaults_and_overrides(void) {
     defaults.use_output = 1;
     defaults.output.use_audio_pitch = 1;
     defaults.output.audio_pitch = 1;
+    defaults.output.use_remove_silence_ms = 1;
+    defaults.output.remove_silence_ms = 300;
     ASSERT_EQ(typecast_speech_composer_defaults(composer, &defaults), TYPECAST_OK);
     TypecastComposerSettings overrides = {0};
     overrides.use_output = 1;
@@ -125,6 +127,8 @@ static void test_segment_requests_merge_defaults_and_overrides(void) {
     overrides.output.target_lufs = -18.0f;
     overrides.output.use_audio_tempo = 1;
     overrides.output.audio_tempo = 1.1f;
+    overrides.output.use_remove_silence_ms = 1;
+    overrides.output.remove_silence_ms = 0;
     overrides.use_seed = 1;
     overrides.seed = 77;
     ASSERT_EQ(typecast_speech_composer_say(composer, "First", &overrides), TYPECAST_OK);
@@ -139,6 +143,8 @@ static void test_segment_requests_merge_defaults_and_overrides(void) {
     ASSERT(requests[0].output->target_lufs < -17.9f && requests[0].output->target_lufs > -18.1f);
     ASSERT(requests[0].output->audio_tempo > 1.09f && requests[0].output->audio_tempo < 1.11f);
     ASSERT_EQ(requests[0].seed, 77);
+    ASSERT_EQ(requests[0].output->use_remove_silence_ms, 1);
+    ASSERT_EQ(requests[0].output->remove_silence_ms, 0);
     typecast_speech_composer_segment_requests_free(requests, count);
     typecast_speech_composer_destroy(composer);
     typecast_client_destroy(client);
