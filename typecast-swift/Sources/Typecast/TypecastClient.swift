@@ -7,7 +7,7 @@ public final class TypecastClient: Sendable {
       throw EncodingError.invalidValue(value, .init(codingPath: [], debugDescription: "removeSilenceMs must be between 0 and 1000"))
     }
   }
-  private static let sdkVersion = "0.3.13"
+  private static let sdkVersion = "0.3.14"
   private let configuration: TypecastConfiguration
   private let session: URLSession
   private let decoder: JSONDecoder
