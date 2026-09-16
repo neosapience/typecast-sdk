@@ -66,11 +66,13 @@ typedef struct {
     char* text;
     float pause_seconds;
     TypecastComposerSettings settings;
+    int remove_silence_ms; /* -1 inherits the composer default */
 } ComposerPart;
 
 struct TypecastSpeechComposer {
     TypecastClient* client;
     TypecastComposerSettings defaults;
+    int remove_silence_ms; /* -1 omits length-based processing */
     ComposerPart* parts;
     size_t count;
     size_t capacity;
@@ -451,9 +453,6 @@ static cJSON* build_tts_request_json(const TypecastTTSRequest* request) {
     if (request->output) {
         cJSON* output = cJSON_CreateObject();
         if (output) {
-            if (request->output->use_remove_silence_ms) {
-                cJSON_AddNumberToObject(output, "remove_silence_ms", request->output->remove_silence_ms);
-            }
             if (request->output->use_target_lufs) {
                 cJSON_AddNumberToObject(output, "target_lufs", request->output->target_lufs);
             } else {
@@ -762,6 +761,33 @@ TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
     TypecastClient* client,
     const TypecastTTSRequest* request
 ) {
+    return typecast_text_to_speech_with_silence(client, request, NULL);
+}
+
+static int validate_remove_silence(TypecastClient* client, const int* ms) {
+    if (ms && (*ms < 0 || *ms > 1000)) {
+        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "remove_silence_ms must be between 0 and 1000");
+        return 0;
+    }
+    return 1;
+}
+
+static cJSON* add_remove_silence(cJSON* root, const int* ms) {
+    if (!root || !ms) return root;
+    cJSON* output = cJSON_GetObjectItem(root, "output");
+    if (!output) output = cJSON_AddObjectToObject(root, "output");
+    /* LCOV_EXCL_START - allocation failure requires a malloc shim. */
+    if (!output || !cJSON_AddNumberToObject(output, "remove_silence_ms", *ms)) {
+        cJSON_Delete(root);
+        return NULL;
+    }
+    /* LCOV_EXCL_STOP */
+    return root;
+}
+
+TYPECAST_API TypecastTTSResponse* typecast_text_to_speech_with_silence(
+    TypecastClient* client, const TypecastTTSRequest* request, const int* remove_silence_ms
+) {
     if (!client || !request) {
         if (client) set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Invalid parameters");
         return NULL;
@@ -773,18 +799,14 @@ TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
     }
     
     clear_error(client);
-    if (request->output && request->output->use_remove_silence_ms &&
-        (request->output->remove_silence_ms < 0 || request->output->remove_silence_ms > 1000)) {
-        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "remove_silence_ms must be between 0 and 1000");
-        return NULL;
-    }
+    if (!validate_remove_silence(client, remove_silence_ms)) return NULL;
     
     /* Build URL */
     char url[512];
     snprintf(url, sizeof(url), "%s/v1/text-to-speech", client->host);
     
     /* Build JSON body */
-    cJSON* json = build_tts_request_json(request);
+    cJSON* json = add_remove_silence(build_tts_request_json(request), remove_silence_ms);
     /* LCOV_EXCL_START */
     /* category=unreachable reason="cJSON OOM; cannot be triggered in unit tests" */
     if (!json) {
@@ -1077,10 +1099,6 @@ static TypecastComposerOutput merge_composer_output(TypecastComposerOutput base,
         out.use_target_lufs = 1;
         out.target_lufs = overrides.target_lufs;
     }
-    if (overrides.use_remove_silence_ms) {
-        out.use_remove_silence_ms = 1;
-        out.remove_silence_ms = overrides.remove_silence_ms;
-    }
     if (overrides.use_audio_pitch) {
         out.use_audio_pitch = 1;
         out.audio_pitch = overrides.audio_pitch;
@@ -1121,8 +1139,6 @@ static TypecastOutput composer_output_to_tts(TypecastComposerOutput output) {
     out.volume = output.use_volume ? output.volume : 100;
     out.use_target_lufs = output.use_target_lufs;
     out.target_lufs = output.target_lufs;
-    out.use_remove_silence_ms = output.use_remove_silence_ms;
-    out.remove_silence_ms = output.remove_silence_ms;
     out.audio_pitch = output.use_audio_pitch ? output.audio_pitch : 0;
     out.audio_tempo = output.use_audio_tempo ? output.audio_tempo : 1.0f;
     out.audio_format = TYPECAST_AUDIO_FORMAT_WAV;
@@ -1139,6 +1155,7 @@ TYPECAST_API TypecastSpeechComposer* typecast_speech_composer_create(TypecastCli
     }
     /* LCOV_EXCL_STOP */
     composer->client = client;
+    composer->remove_silence_ms = -1;
     return composer;
 }
 
@@ -1152,8 +1169,16 @@ TYPECAST_API void typecast_speech_composer_destroy(TypecastSpeechComposer* compo
 }
 
 TYPECAST_API TypecastErrorCode typecast_speech_composer_defaults(TypecastSpeechComposer* composer, const TypecastComposerSettings* settings) {
+    return typecast_speech_composer_defaults_with_silence(composer, settings, NULL);
+}
+
+TYPECAST_API TypecastErrorCode typecast_speech_composer_defaults_with_silence(
+    TypecastSpeechComposer* composer, const TypecastComposerSettings* settings, const int* remove_silence_ms
+) {
     if (!composer || !settings) return TYPECAST_ERROR_INVALID_PARAM;
+    if (!validate_remove_silence(composer->client, remove_silence_ms)) return TYPECAST_ERROR_INVALID_PARAM;
     composer->defaults = merge_composer_settings(composer->defaults, *settings);
+    if (remove_silence_ms) composer->remove_silence_ms = *remove_silence_ms;
     return TYPECAST_OK;
 }
 
@@ -1179,7 +1204,15 @@ TYPECAST_API TypecastErrorCode typecast_speech_composer_say(
     const char* text,
     const TypecastComposerSettings* overrides
 ) {
+    return typecast_speech_composer_say_with_silence(composer, text, overrides, NULL);
+}
+
+TYPECAST_API TypecastErrorCode typecast_speech_composer_say_with_silence(
+    TypecastSpeechComposer* composer, const char* text,
+    const TypecastComposerSettings* overrides, const int* remove_silence_ms
+) {
     if (!composer || !text) return TYPECAST_ERROR_INVALID_PARAM;
+    if (!validate_remove_silence(composer->client, remove_silence_ms)) return TYPECAST_ERROR_INVALID_PARAM;
     char* copy = strdup_safe(text);
     /* LCOV_EXCL_START */
     if (!copy) {
@@ -1190,6 +1223,7 @@ TYPECAST_API TypecastErrorCode typecast_speech_composer_say(
     ComposerPart part = {0};
     part.kind = COMPOSER_PART_SPEECH;
     part.text = copy;
+    part.remove_silence_ms = remove_silence_ms ? *remove_silence_ms : -1;
     if (overrides) part.settings = *overrides;
     TypecastErrorCode err = append_composer_part(composer, part);
     if (err != TYPECAST_OK) free(copy);
@@ -1254,6 +1288,21 @@ TYPECAST_API TypecastErrorCode typecast_speech_composer_segment_requests(
     return TYPECAST_OK;
 }
 
+TYPECAST_API TypecastErrorCode typecast_speech_composer_get_remove_silence_ms(
+    const TypecastSpeechComposer* composer, size_t speech_index, int* out_ms
+) {
+    if (!composer || !out_ms) return TYPECAST_ERROR_INVALID_PARAM;
+    for (size_t i = 0; i < composer->count; i++) {
+        if (composer->parts[i].kind != COMPOSER_PART_SPEECH) continue;
+        if (speech_index-- == 0) {
+            int ms = composer->parts[i].remove_silence_ms;
+            *out_ms = ms >= 0 ? ms : composer->remove_silence_ms;
+            return TYPECAST_OK;
+        }
+    }
+    return TYPECAST_ERROR_INVALID_PARAM;
+}
+
 TYPECAST_API void typecast_speech_composer_segment_requests_free(TypecastTTSRequest* requests, size_t count) {
     (void)count;
     if (!requests) return;
@@ -1278,12 +1327,8 @@ TYPECAST_API TypecastTTSResponse* typecast_speech_composer_generate(
             continue;
         }
         TypecastComposerSettings merged = merge_composer_settings(composer->defaults, composer->parts[i].settings);
-        if (merged.output.use_remove_silence_ms &&
-            (merged.output.remove_silence_ms < 0 || merged.output.remove_silence_ms > 1000)) {
-            cJSON_Delete(root);
-            set_error(composer->client, TYPECAST_ERROR_INVALID_PARAM, "remove_silence_ms must be between 0 and 1000");
-            return NULL;
-        }
+        int ms = composer->parts[i].remove_silence_ms;
+        if (ms < 0) ms = composer->remove_silence_ms;
         if (is_blank_string(merged.voice_id)) {
             cJSON_Delete(root);
             set_error(composer->client, TYPECAST_ERROR_INVALID_PARAM, "voice_id is required for composed speech");
@@ -1318,7 +1363,15 @@ TYPECAST_API TypecastTTSResponse* typecast_speech_composer_generate(
             request.prompt = merged.prompt;
             request.output = &output;
             request.seed = merged.use_seed ? merged.seed : 0;
-            cJSON* speech = build_tts_request_json(&request);
+            cJSON* speech = add_remove_silence(build_tts_request_json(&request), ms >= 0 ? &ms : NULL);
+            /* LCOV_EXCL_START - valid internal arguments can only fail on allocation. */
+            if (!speech) {
+                typecast_speech_parts_free(parsed, parsed_count);
+                cJSON_Delete(root);
+                set_error(composer->client, TYPECAST_ERROR_OUT_OF_MEMORY, "Failed to build JSON");
+                return NULL;
+            }
+            /* LCOV_EXCL_STOP */
             cJSON_AddStringToObject(speech, "type", "tts");
             cJSON_AddItemToArray(segments, speech);
             has_speech = 1;
@@ -1339,6 +1392,13 @@ TYPECAST_API TypecastErrorCode typecast_generate_to_file(
     TypecastClient* client,
     const char* file_path,
     const TypecastGenerateToFileRequest* request
+) {
+    return typecast_generate_to_file_with_silence(client, file_path, request, NULL);
+}
+
+TYPECAST_API TypecastErrorCode typecast_generate_to_file_with_silence(
+    TypecastClient* client, const char* file_path,
+    const TypecastGenerateToFileRequest* request, const int* remove_silence_ms
 ) {
     if (!client || !file_path || !request) {
         if (client) set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Invalid parameters");
@@ -1372,7 +1432,7 @@ TYPECAST_API TypecastErrorCode typecast_generate_to_file(
         tts_request.output = &inferred_output;
     }
 
-    TypecastTTSResponse* response = typecast_text_to_speech(client, &tts_request);
+    TypecastTTSResponse* response = typecast_text_to_speech_with_silence(client, &tts_request, remove_silence_ms);
     if (!response) {
         const TypecastError* error = typecast_client_get_error(client);
         return error ? error->code : TYPECAST_ERROR_NETWORK;
@@ -1493,9 +1553,6 @@ static cJSON* build_tts_stream_request_json(const TypecastTTSRequestStream* requ
     if (request->output) {
         cJSON* output = cJSON_CreateObject();
         if (output) {
-            if (request->output->use_remove_silence_ms) {
-                cJSON_AddNumberToObject(output, "remove_silence_ms", request->output->remove_silence_ms);
-            }
             if (request->output->use_target_lufs) {
                 cJSON_AddNumberToObject(output, "target_lufs", request->output->target_lufs);
             }
@@ -1524,6 +1581,13 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_stream(
     typecast_stream_callback_t on_chunk,
     void* user_data
 ) {
+    return typecast_text_to_speech_stream_with_silence(client, request, on_chunk, user_data, NULL);
+}
+
+TYPECAST_API TypecastErrorCode typecast_text_to_speech_stream_with_silence(
+    TypecastClient* client, const TypecastTTSRequestStream* request,
+    typecast_stream_callback_t on_chunk, void* user_data, const int* remove_silence_ms
+) {
     if (!client || !request || !on_chunk) {
         if (client) set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Invalid parameters");
         return TYPECAST_ERROR_INVALID_PARAM;
@@ -1541,12 +1605,8 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_stream(
     snprintf(url, sizeof(url), "%s/v1/text-to-speech/stream", client->host);
 
     /* Build JSON body */
-    if (request->output && request->output->use_remove_silence_ms &&
-        (request->output->remove_silence_ms < 0 || request->output->remove_silence_ms > 1000)) {
-        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "remove_silence_ms must be between 0 and 1000");
-        return TYPECAST_ERROR_INVALID_PARAM;
-    }
-    cJSON* json = build_tts_stream_request_json(request);
+    if (!validate_remove_silence(client, remove_silence_ms)) return TYPECAST_ERROR_INVALID_PARAM;
+    cJSON* json = add_remove_silence(build_tts_stream_request_json(request), remove_silence_ms);
     /* LCOV_EXCL_START */
     /* category=unreachable reason="cJSON OOM; cannot be triggered in unit tests" */
     if (!json) {
@@ -2846,6 +2906,13 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps(
     const TypecastTTSRequestWithTimestamps* request,
     TypecastTTSWithTimestampsResponse** out_response
 ) {
+    return typecast_text_to_speech_with_timestamps_and_silence(client, request, out_response, NULL);
+}
+
+TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps_and_silence(
+    TypecastClient* client, const TypecastTTSRequestWithTimestamps* request,
+    TypecastTTSWithTimestampsResponse** out_response, const int* remove_silence_ms
+) {
     if (!client || !request || !out_response) {
         if (client) set_error(client, TYPECAST_ERROR_INVALID_PARAM, "Invalid parameters");
         return TYPECAST_ERROR_INVALID_PARAM;
@@ -2868,12 +2935,8 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps(
     }
 
     /* Build JSON body */
-    if (request->output && request->output->use_remove_silence_ms &&
-        (request->output->remove_silence_ms < 0 || request->output->remove_silence_ms > 1000)) {
-        set_error(client, TYPECAST_ERROR_INVALID_PARAM, "remove_silence_ms must be between 0 and 1000");
-        return TYPECAST_ERROR_INVALID_PARAM;
-    }
-    cJSON* json = build_tts_with_timestamps_request_json(request);
+    if (!validate_remove_silence(client, remove_silence_ms)) return TYPECAST_ERROR_INVALID_PARAM;
+    cJSON* json = add_remove_silence(build_tts_with_timestamps_request_json(request), remove_silence_ms);
     /* LCOV_EXCL_START */
     /* category=unreachable reason="cJSON_CreateObject OOM; requires malloc shim" */
     if (!json) {

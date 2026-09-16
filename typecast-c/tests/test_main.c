@@ -10,6 +10,15 @@
 #include <string.h>
 #include "typecast.h"
 
+/* These v1 output layouts are embedded in caller-owned request/settings
+ * structs. New options must not change their size or existing offsets. */
+_Static_assert(sizeof(TypecastOutput) == 24, "v1 output ABI");
+_Static_assert(sizeof(TypecastOutputStream) == 20, "v1 streaming output ABI");
+_Static_assert(sizeof(TypecastComposerOutput) == 40, "v1 composer output ABI");
+_Static_assert(offsetof(TypecastOutput, audio_format) == 20, "v1 output ABI");
+_Static_assert(offsetof(TypecastOutputStream, audio_format) == 16, "v1 stream ABI");
+_Static_assert(offsetof(TypecastComposerOutput, audio_format) == 36, "v1 composer ABI");
+
 /* Test counters */
 static int tests_run = 0;
 static int tests_passed = 0;
@@ -260,7 +269,6 @@ TEST(tts_missing_voice_id) {
 TEST(output_default) {
     TypecastOutput output = TYPECAST_OUTPUT_DEFAULT();
     ASSERT_EQ(output.volume, 100);
-    ASSERT_EQ(output.use_remove_silence_ms, 0);
     ASSERT_EQ(output.audio_pitch, 0);
     ASSERT(output.audio_tempo == 1.0f);
     ASSERT_EQ(output.audio_format, TYPECAST_AUDIO_FORMAT_WAV);
