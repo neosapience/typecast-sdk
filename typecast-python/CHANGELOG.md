@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.15] - 2026-09-16
+
+### Added
+
+- Optional `output.remove_silence_ms` (strict integer 0–1000) for speech, streaming, timestamps, and Compose speech segments. The value is the detected silence duration to retain; 0 removes detected silence, while omission or null leaves duration-based processing disabled. Explicit Compose pauses are preserved.
+
 ## [0.3.14] - 2026-08-28
 
 ### Added
