@@ -124,6 +124,13 @@ TTSPrompt = Union[Prompt, PresetPrompt, SmartPrompt]
 
 
 class Output(BaseModel):
+    remove_silence_ms: Optional[int] = Field(
+        default=None,
+        strict=True,
+        ge=0,
+        le=1000,
+        description="Remaining detected silence in milliseconds. 0 removes silence; None disables this processing.",
+    )
     volume: Optional[int] = Field(
         default=100,
         ge=0,
@@ -190,6 +197,14 @@ class OutputStream(BaseModel):
     """
 
     model_config = ConfigDict(extra="forbid")
+
+    remove_silence_ms: Optional[int] = Field(
+        default=None,
+        strict=True,
+        ge=0,
+        le=1000,
+        description="Remaining detected silence in milliseconds. 0 removes silence; None disables this processing.",
+    )
 
     audio_pitch: Optional[int] = Field(default=0, ge=-12, le=12)
     audio_tempo: Optional[float] = Field(default=1.0, ge=0.5, le=2.0)
@@ -419,6 +434,7 @@ class TTSWithTimestampsResponse(BaseModel):
     def audio_bytes(self) -> bytes:
         """Return decoded audio bytes from the base64 `audio` field."""
         import base64
+
         return base64.b64decode(self.audio, validate=True)
 
     def save_audio(self, path: str) -> None:
@@ -436,7 +452,9 @@ class TTSWithTimestampsResponse(BaseModel):
         subtitle guidelines (7.0s / 42 chars).
         """
         segments, word_mode = _segments_for_captioning(self.words, self.characters)
-        cues = _group_into_cues(segments, word_mode=word_mode, max_seconds=max_seconds, max_chars=max_chars)
+        cues = _group_into_cues(
+            segments, word_mode=word_mode, max_seconds=max_seconds, max_chars=max_chars
+        )
         if not cues:
             raise ValueError("no alignment segments to caption from")
         lines = []
@@ -457,7 +475,9 @@ class TTSWithTimestampsResponse(BaseModel):
         subtitle guidelines (7.0s / 42 chars).
         """
         segments, word_mode = _segments_for_captioning(self.words, self.characters)
-        cues = _group_into_cues(segments, word_mode=word_mode, max_seconds=max_seconds, max_chars=max_chars)
+        cues = _group_into_cues(
+            segments, word_mode=word_mode, max_seconds=max_seconds, max_chars=max_chars
+        )
         if not cues:
             raise ValueError("no alignment segments to caption from")
         lines = ["WEBVTT", ""]

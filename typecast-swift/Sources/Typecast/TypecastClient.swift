@@ -2,6 +2,11 @@ import Foundation
 
 /// Typecast API client for text-to-speech and voice operations
 public final class TypecastClient: Sendable {
+  private func validateSilence(_ value: Int?) throws {
+    if let value, !(0...1000).contains(value) {
+      throw EncodingError.invalidValue(value, .init(codingPath: [], debugDescription: "removeSilenceMs must be between 0 and 1000"))
+    }
+  }
   private static let sdkVersion = "0.3.13"
   private let configuration: TypecastConfiguration
   private let session: URLSession
@@ -161,6 +166,7 @@ public final class TypecastClient: Sendable {
   /// - Parameter request: TTS request parameters including text, voice_id, model, and optional settings
   /// - Returns: TTSResponse containing audio data, duration, and format
   public func textToSpeech(_ request: TTSRequest) async throws -> TTSResponse {
+    try validateSilence(request.output?.removeSilenceMs)
     let url = try buildURL(path: "/v1/text-to-speech")
     let bodyData = try encoder.encode(request)
     let urlRequest = createRequest(url: url, method: "POST", body: bodyData)
@@ -187,6 +193,7 @@ public final class TypecastClient: Sendable {
   }
 
   func composeTextToSpeech(_ segments: [ComposeSegment]) async throws -> TTSResponse {
+    for segment in segments { try validateSilence(segment.output?.removeSilenceMs) }
     let url = try buildURL(path: "/v1/text-to-speech/compose")
     let body = try encoder.encode(ComposeRequest(segments: segments))
     let (data, response) = try await session.data(
@@ -252,6 +259,7 @@ public final class TypecastClient: Sendable {
     _ request: TTSRequestStream
   ) async throws -> AsyncThrowingStream<Data, Error> {
     let url = try buildURL(path: "/v1/text-to-speech/stream")
+    try validateSilence(request.output?.removeSilenceMs)
     let bodyData = try encoder.encode(request)
     let urlRequest = createRequest(url: url, method: "POST", body: bodyData)
 
@@ -303,6 +311,7 @@ public final class TypecastClient: Sendable {
     }
 
     let url = try buildURL(path: "/v1/text-to-speech/with-timestamps", queryParams: queryParams)
+    try validateSilence(request.output?.removeSilenceMs)
     let bodyData = try encoder.encode(request)
     let urlRequest = createRequest(url: url, method: "POST", body: bodyData)
 

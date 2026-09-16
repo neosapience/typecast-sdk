@@ -116,7 +116,8 @@ static void test_segment_requests_merge_defaults_and_overrides(void) {
     defaults.use_output = 1;
     defaults.output.use_audio_pitch = 1;
     defaults.output.audio_pitch = 1;
-    ASSERT_EQ(typecast_speech_composer_defaults(composer, &defaults), TYPECAST_OK);
+    int ms = 300;
+    ASSERT_EQ(typecast_speech_composer_defaults_with_silence(composer, &defaults, &ms), TYPECAST_OK);
     TypecastComposerSettings overrides = {0};
     overrides.use_output = 1;
     overrides.output.use_volume = 1;
@@ -125,9 +126,10 @@ static void test_segment_requests_merge_defaults_and_overrides(void) {
     overrides.output.target_lufs = -18.0f;
     overrides.output.use_audio_tempo = 1;
     overrides.output.audio_tempo = 1.1f;
+    ms = 0;
     overrides.use_seed = 1;
     overrides.seed = 77;
-    ASSERT_EQ(typecast_speech_composer_say(composer, "First", &overrides), TYPECAST_OK);
+    ASSERT_EQ(typecast_speech_composer_say_with_silence(composer, "First", &overrides, &ms), TYPECAST_OK);
 
     TypecastTTSRequest* requests = NULL;
     size_t count = 0;
@@ -139,6 +141,15 @@ static void test_segment_requests_merge_defaults_and_overrides(void) {
     ASSERT(requests[0].output->target_lufs < -17.9f && requests[0].output->target_lufs > -18.1f);
     ASSERT(requests[0].output->audio_tempo > 1.09f && requests[0].output->audio_tempo < 1.11f);
     ASSERT_EQ(requests[0].seed, 77);
+    ASSERT_EQ(typecast_speech_composer_get_remove_silence_ms(composer, 0, &ms), TYPECAST_OK);
+    ASSERT_EQ(ms, 0);
+    ASSERT_EQ(typecast_speech_composer_pause(composer, 0.25f), TYPECAST_OK);
+    ASSERT_EQ(typecast_speech_composer_say(composer, "Second", NULL), TYPECAST_OK);
+    ASSERT_EQ(typecast_speech_composer_get_remove_silence_ms(composer, 1, &ms), TYPECAST_OK);
+    ASSERT_EQ(ms, 300);
+    ASSERT_EQ(typecast_speech_composer_get_remove_silence_ms(composer, 2, &ms), TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT_EQ(typecast_speech_composer_get_remove_silence_ms(NULL, 0, &ms), TYPECAST_ERROR_INVALID_PARAM);
+    ASSERT_EQ(typecast_speech_composer_get_remove_silence_ms(composer, 0, NULL), TYPECAST_ERROR_INVALID_PARAM);
     typecast_speech_composer_segment_requests_free(requests, count);
     typecast_speech_composer_destroy(composer);
     typecast_client_destroy(client);
@@ -158,9 +169,11 @@ static void test_generate_uses_compose_api_once(void) {
     defaults.use_output = 1;
     defaults.output.use_audio_format = 1;
     defaults.output.audio_format = TYPECAST_AUDIO_FORMAT_MP3;
-    ASSERT_EQ(typecast_speech_composer_defaults(composer, &defaults), TYPECAST_OK);
+    int ms = 300;
+    ASSERT_EQ(typecast_speech_composer_defaults_with_silence(composer, &defaults, &ms), TYPECAST_OK);
     ASSERT_EQ(typecast_speech_composer_pause(composer, 0.25f), TYPECAST_OK);
-    ASSERT_EQ(typecast_speech_composer_say(composer, "Hello<|0.3s|>world", NULL), TYPECAST_OK);
+    ms = 0;
+    ASSERT_EQ(typecast_speech_composer_say_with_silence(composer, "Hello<|0.3s|>world", NULL, &ms), TYPECAST_OK);
 
     TypecastTTSResponse* response = typecast_speech_composer_generate(composer, TYPECAST_AUDIO_FORMAT_MP3);
     ASSERT(response != NULL);
@@ -176,6 +189,8 @@ static void test_generate_uses_compose_api_once(void) {
     ASSERT(strstr(server.request, "\"duration_seconds\":0.25") != NULL);
     ASSERT(strstr(server.request, "\"text\":\"Hello\"") != NULL);
     ASSERT(strstr(server.request, "\"text\":\"world\"") != NULL);
+    ASSERT(strstr(server.request, "\"remove_silence_ms\":0") != NULL);
+    ASSERT(strstr(server.request, "\"remove_silence_ms\":300") == NULL);
 
     typecast_tts_response_free(response);
     typecast_speech_composer_destroy(composer);

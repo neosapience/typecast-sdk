@@ -7,6 +7,18 @@ package com.neosapience.models;
  * by the streaming endpoint. Streaming supports {@code targetLufs}.</p>
  */
 public class OutputStream {
+    private Integer removeSilenceMs;
+
+    /** Remaining detected silence (0–1000 ms); null disables processing, zero removes silence. */
+    public Integer getRemoveSilenceMs() { return removeSilenceMs; }
+
+    public OutputStream setRemoveSilenceMs(Integer value) {
+        if (value != null && (value < 0 || value > 1000)) {
+            throw new IllegalArgumentException("removeSilenceMs must be between 0 and 1000");
+        }
+        this.removeSilenceMs = value;
+        return this;
+    }
     private Double targetLufs;
     private Integer audioPitch;
     private Double audioTempo;
@@ -115,6 +127,12 @@ public class OutputStream {
      * Builder class for OutputStream.
      */
     public static class Builder {
+        private Integer removeSilenceMs;
+
+        public Builder removeSilenceMs(Integer value) {
+            this.removeSilenceMs = value;
+            return this;
+        }
         private Integer audioPitch = 0;
         private Double audioTempo = 1.0;
         private AudioFormat audioFormat = AudioFormat.WAV;
@@ -165,6 +183,7 @@ public class OutputStream {
          */
         public OutputStream build() {
             OutputStream output = new OutputStream();
+            output.setRemoveSilenceMs(removeSilenceMs);
             output.setAudioPitch(audioPitch);
             output.setAudioTempo(audioTempo);
             output.setAudioFormat(audioFormat);

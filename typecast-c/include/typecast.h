@@ -534,6 +534,19 @@ TYPECAST_API TypecastTTSResponse* typecast_text_to_speech(
     const TypecastTTSRequest* request
 );
 
+/** ABI-safe extension: NULL disables length-based processing; 0-1000 is
+ * remaining detected silence in milliseconds. The value is copied during
+ * this call. Existing request/output layouts remain unchanged. */
+TYPECAST_API TypecastTTSResponse* typecast_text_to_speech_with_silence(
+    TypecastClient* client, const TypecastTTSRequest* request,
+    const int* remove_silence_ms
+);
+
+TYPECAST_API TypecastErrorCode typecast_generate_to_file_with_silence(
+    TypecastClient* client, const char* file_path,
+    const TypecastGenerateToFileRequest* request, const int* remove_silence_ms
+);
+
 /**
  * Convert text to speech and write the audio bytes to a file.
  *
@@ -599,6 +612,22 @@ TYPECAST_API TypecastErrorCode typecast_speech_composer_pause(
     float seconds
 );
 
+/** NULL preserves/inherits the default; non-NULL copies a value in 0-1000.
+ * Explicit pause segments are not trimmed. */
+TYPECAST_API TypecastErrorCode typecast_speech_composer_defaults_with_silence(
+    TypecastSpeechComposer* composer, const TypecastComposerSettings* settings,
+    const int* remove_silence_ms
+);
+TYPECAST_API TypecastErrorCode typecast_speech_composer_say_with_silence(
+    TypecastSpeechComposer* composer, const char* text,
+    const TypecastComposerSettings* overrides, const int* remove_silence_ms
+);
+/** Read the effective option for a speech-only segment_requests index.
+ * Returns -1 through out_ms when unset; legacy request structs omit it. */
+TYPECAST_API TypecastErrorCode typecast_speech_composer_get_remove_silence_ms(
+    const TypecastSpeechComposer* composer, size_t speech_index, int* out_ms
+);
+
 TYPECAST_API TypecastErrorCode typecast_speech_composer_segment_requests(
     TypecastSpeechComposer* composer,
     TypecastTTSRequest** out_requests,
@@ -632,6 +661,13 @@ TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps(
     TypecastClient* client,
     const TypecastTTSRequestWithTimestamps* request,
     TypecastTTSWithTimestampsResponse** out_response
+);
+
+/** Same option contract as typecast_text_to_speech_with_silence.
+ * Returned timestamps describe the processed audio. */
+TYPECAST_API TypecastErrorCode typecast_text_to_speech_with_timestamps_and_silence(
+    TypecastClient* client, const TypecastTTSRequestWithTimestamps* request,
+    TypecastTTSWithTimestampsResponse** out_response, const int* remove_silence_ms
 );
 
 /**
@@ -713,6 +749,14 @@ typedef int (*typecast_stream_callback_t)(
     const uint8_t* data,
     size_t len,
     void* user_data
+);
+
+/** Same option contract as typecast_text_to_speech_with_silence.
+ * Small values may need playback buffering between arriving chunks. */
+TYPECAST_API TypecastErrorCode typecast_text_to_speech_stream_with_silence(
+    TypecastClient* client, const TypecastTTSRequestStream* request,
+    typecast_stream_callback_t on_chunk, void* user_data,
+    const int* remove_silence_ms
 );
 
 /**
@@ -1181,6 +1225,10 @@ public:
     }
 
     TTSResponse textToSpeech(const TTSRequest& request) {
+        return textToSpeechWithSilence(request, nullptr);
+    }
+
+    TTSResponse textToSpeechWithSilence(const TTSRequest& request, const int* removeSilenceMs) {
         TypecastTTSRequest req = {};
         req.text = request.text.c_str();
         req.voice_id = request.voiceId.c_str();
@@ -1217,7 +1265,7 @@ public:
 
         req.seed = request.seed;
 
-        TypecastTTSResponse* resp = typecast_text_to_speech(client_, &req);
+        TypecastTTSResponse* resp = typecast_text_to_speech_with_silence(client_, &req, removeSilenceMs);
         if (!resp) {
             const TypecastError* err = typecast_client_get_error(client_);
             throw TypecastException(err->code, err->message ? err->message : "Unknown error");
@@ -1233,6 +1281,10 @@ public:
     }
 
     TTSResponse generateToFile(const std::string& filePath, const GenerateToFileRequest& request) {
+        return generateToFileWithSilence(filePath, request, nullptr);
+    }
+
+    TTSResponse generateToFileWithSilence(const std::string& filePath, const GenerateToFileRequest& request, const int* removeSilenceMs) {
         TTSRequest ttsRequest;
         ttsRequest.text = request.text;
         ttsRequest.voiceId = request.voiceId;
@@ -1253,7 +1305,7 @@ public:
             }
         }
 
-        TTSResponse response = textToSpeech(ttsRequest);
+        TTSResponse response = textToSpeechWithSilence(ttsRequest, removeSilenceMs);
         std::ofstream out(filePath, std::ios::binary);
         if (!out) {
             throw TypecastException(TYPECAST_ERROR_INVALID_PARAM, "Failed to open output file");

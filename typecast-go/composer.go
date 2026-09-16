@@ -122,7 +122,11 @@ func (c *SpeechComposer) Generate(ctx context.Context) (*TTSResponse, error) {
 			segments = append(segments, composePauseSegment{Type: "pause", DurationSeconds: part.seconds})
 			continue
 		}
-		segments = append(segments, composeTTSSegment{Type: "tts", TTSRequest: requestFromComposerPart(part, outputFormat)})
+		request := requestFromComposerPart(part, outputFormat)
+		if err := request.Output.Validate(); err != nil {
+			return nil, err
+		}
+		segments = append(segments, composeTTSSegment{Type: "tts", TTSRequest: request})
 	}
 	return c.client.composeTextToSpeech(ctx, struct {
 		Segments []interface{} `json:"segments"`
@@ -232,6 +236,9 @@ func mergeComposerOutput(base, override *Output) *Output {
 		merged = *base
 	}
 	if override != nil {
+		if override.RemoveSilenceMS != nil {
+			merged.RemoveSilenceMS = override.RemoveSilenceMS
+		}
 		if override.Volume != nil {
 			merged.Volume = override.Volume
 		}

@@ -13,9 +13,13 @@ module Typecast
     ].freeze
 
     class Output
-      attr_reader :volume, :target_lufs, :audio_pitch, :audio_tempo, :audio_format
+      attr_reader :volume, :target_lufs, :audio_pitch, :audio_tempo, :audio_format, :remove_silence_ms
 
-      def initialize(volume: nil, target_lufs: nil, audio_pitch: nil, audio_tempo: nil, audio_format: nil)
+      def initialize(volume: nil, target_lufs: nil, audio_pitch: nil, audio_tempo: nil, audio_format: nil, remove_silence_ms: nil)
+        unless remove_silence_ms.nil? || (remove_silence_ms.is_a?(Integer) && (0..1000).cover?(remove_silence_ms))
+          raise ArgumentError, "remove_silence_ms must be an integer between 0 and 1000"
+        end
+        @remove_silence_ms = remove_silence_ms
         @volume = volume
         @target_lufs = target_lufs
         @audio_pitch = audio_pitch
@@ -26,6 +30,7 @@ module Typecast
       def to_h
         Models.compact(
           volume: volume,
+          remove_silence_ms: remove_silence_ms,
           target_lufs: target_lufs,
           audio_pitch: audio_pitch,
           audio_tempo: audio_tempo,
@@ -35,9 +40,13 @@ module Typecast
     end
 
     class OutputStream
-      attr_reader :audio_pitch, :audio_tempo, :audio_format, :target_lufs
+      attr_reader :audio_pitch, :audio_tempo, :audio_format, :target_lufs, :remove_silence_ms
 
-      def initialize(audio_pitch: nil, audio_tempo: nil, audio_format: nil, target_lufs: nil)
+      def initialize(audio_pitch: nil, audio_tempo: nil, audio_format: nil, target_lufs: nil, remove_silence_ms: nil)
+        unless remove_silence_ms.nil? || (remove_silence_ms.is_a?(Integer) && (0..1000).cover?(remove_silence_ms))
+          raise ArgumentError, "remove_silence_ms must be an integer between 0 and 1000"
+        end
+        @remove_silence_ms = remove_silence_ms
         @audio_pitch = audio_pitch
         @audio_tempo = audio_tempo
         @audio_format = audio_format
@@ -49,7 +58,8 @@ module Typecast
           audio_pitch: audio_pitch,
           audio_tempo: audio_tempo,
           audio_format: audio_format,
-          target_lufs: target_lufs
+          target_lufs: target_lufs,
+          remove_silence_ms: remove_silence_ms
         )
       end
     end

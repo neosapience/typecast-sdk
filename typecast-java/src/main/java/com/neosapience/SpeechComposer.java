@@ -152,6 +152,7 @@ public class SpeechComposer {
         if (overrides == null) return out;
         if (overrides.getVolume() != null) out.setVolume(overrides.getVolume());
         if (overrides.getTargetLufs() != null) out.setTargetLufs(overrides.getTargetLufs());
+        if (overrides.getRemoveSilenceMs() != null) out.setRemoveSilenceMs(overrides.getRemoveSilenceMs());
         if (overrides.getAudioPitch() != null) out.setAudioPitch(overrides.getAudioPitch());
         if (overrides.getAudioTempo() != null) out.setAudioTempo(overrides.getAudioTempo());
         if (overrides.getAudioFormat() != null) out.setAudioFormat(overrides.getAudioFormat());
@@ -163,6 +164,7 @@ public class SpeechComposer {
         return Output.builder()
                 .volume(output.getVolume())
                 .targetLufs(output.getTargetLufs())
+                .removeSilenceMs(output.getRemoveSilenceMs())
                 .audioPitch(output.getAudioPitch())
                 .audioTempo(output.getAudioTempo())
                 .audioFormat(output.getAudioFormat())

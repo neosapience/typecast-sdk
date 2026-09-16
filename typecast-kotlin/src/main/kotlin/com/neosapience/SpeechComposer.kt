@@ -185,6 +185,7 @@ class SpeechComposer internal constructor(private val client: TypecastClient) {
             if (overrides == null) return merged
             if (overrides.volume != null) merged = merged.copy(volume = overrides.volume)
             if (overrides.targetLufs != null) merged = merged.copy(targetLufs = overrides.targetLufs)
+            if (overrides.removeSilenceMs != null) merged = merged.copy(removeSilenceMs = overrides.removeSilenceMs)
             if (overrides.audioPitch != null) merged = merged.copy(audioPitch = overrides.audioPitch)
             if (overrides.audioTempo != null) merged = merged.copy(audioTempo = overrides.audioTempo)
             if (overrides.audioFormat != null) merged = merged.copy(audioFormat = overrides.audioFormat)

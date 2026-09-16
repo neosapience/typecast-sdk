@@ -4,6 +4,13 @@
 
 use serde::{Deserialize, Serialize};
 
+fn serialize_silence<S: serde::Serializer>(value: &Option<u16>, serializer: S) -> Result<S::Ok, S::Error> {
+    if value.is_some_and(|ms| ms > 1000) {
+        return Err(serde::ser::Error::custom("remove_silence_ms must be between 0 and 1000"));
+    }
+    value.serialize(serializer)
+}
+
 /// TTS model version to use for speech synthesis
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TTSModel {
@@ -112,6 +119,9 @@ pub enum UseCase {
 /// Audio output settings
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Output {
+    /// Remaining detected silence (0–1000 ms). None disables processing; zero removes silence.
+    #[serde(default, skip_serializing_if = "Option::is_none", serialize_with = "serialize_silence")]
+    pub remove_silence_ms: Option<u16>,
     /// Volume level (0-200, default: 100).
     /// Cannot be used simultaneously with target_lufs.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -132,6 +142,11 @@ pub struct Output {
 }
 
 impl Output {
+    /// Set remaining detected silence in milliseconds (0–1000).
+    pub fn remove_silence_ms(mut self, milliseconds: u16) -> Self {
+        self.remove_silence_ms = Some(milliseconds);
+        self
+    }
     /// Create a new Output with default values
     pub fn new() -> Self {
         Self::default()
@@ -175,6 +190,9 @@ impl Output {
 /// streaming endpoint. Streaming supports `target_lufs`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct OutputStream {
+    /// Remaining detected silence (0–1000 ms). None disables processing; zero removes silence.
+    #[serde(default, skip_serializing_if = "Option::is_none", serialize_with = "serialize_silence")]
+    pub remove_silence_ms: Option<u16>,
     /// Target loudness in LUFS (-70 to 0)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target_lufs: Option<f64>,
@@ -190,6 +208,11 @@ pub struct OutputStream {
 }
 
 impl OutputStream {
+    /// Set remaining detected silence in milliseconds (0–1000).
+    pub fn remove_silence_ms(mut self, milliseconds: u16) -> Self {
+        self.remove_silence_ms = Some(milliseconds);
+        self
+    }
     /// Create a new OutputStream with default values
     pub fn new() -> Self {
         Self::default()

@@ -75,6 +75,7 @@ enum LanguageCode {
 
 class Output {
   const Output({
+    this.removeSilenceMs,
     this.volume,
     this.targetLufs,
     this.audioPitch,
@@ -83,22 +84,34 @@ class Output {
   });
 
   final int? volume;
+
+  /// Remaining detected silence (0–1000 ms); null disables processing, zero removes silence.
+  final int? removeSilenceMs;
   final double? targetLufs;
   final int? audioPitch;
   final double? audioTempo;
   final AudioFormat? audioFormat;
 
-  Map<String, Object?> toJson() => _withoutNulls({
-        'volume': volume,
-        'target_lufs': targetLufs,
-        'audio_pitch': audioPitch,
-        'audio_tempo': audioTempo,
-        'audio_format': audioFormat?.value,
-      });
+  Map<String, Object?> toJson() {
+    if (removeSilenceMs != null &&
+        (removeSilenceMs! < 0 || removeSilenceMs! > 1000)) {
+      throw ArgumentError.value(
+          removeSilenceMs, 'removeSilenceMs', 'must be between 0 and 1000');
+    }
+    return _withoutNulls({
+      'volume': volume,
+      'remove_silence_ms': removeSilenceMs,
+      'target_lufs': targetLufs,
+      'audio_pitch': audioPitch,
+      'audio_tempo': audioTempo,
+      'audio_format': audioFormat?.value,
+    });
+  }
 }
 
 class OutputStream {
   const OutputStream({
+    this.removeSilenceMs,
     this.audioPitch,
     this.audioTempo,
     this.audioFormat,
@@ -109,16 +122,25 @@ class OutputStream {
         );
 
   final int? audioPitch;
+  final int? removeSilenceMs;
   final double? audioTempo;
   final AudioFormat? audioFormat;
   final double? targetLufs;
 
-  Map<String, Object?> toJson() => _withoutNulls({
-        'audio_pitch': audioPitch,
-        'audio_tempo': audioTempo,
-        'audio_format': audioFormat?.value,
-        'target_lufs': targetLufs,
-      });
+  Map<String, Object?> toJson() {
+    if (removeSilenceMs != null &&
+        (removeSilenceMs! < 0 || removeSilenceMs! > 1000)) {
+      throw ArgumentError.value(
+          removeSilenceMs, 'removeSilenceMs', 'must be between 0 and 1000');
+    }
+    return _withoutNulls({
+      'audio_pitch': audioPitch,
+      'audio_tempo': audioTempo,
+      'audio_format': audioFormat?.value,
+      'target_lufs': targetLufs,
+      'remove_silence_ms': removeSilenceMs,
+    });
+  }
 }
 
 class Prompt {

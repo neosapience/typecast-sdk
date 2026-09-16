@@ -15,6 +15,7 @@ pub const ComposerSettings = struct {
 };
 
 pub const ComposerOutput = struct {
+    remove_silence_ms: ?u16 = null,
     volume: ?i32 = null,
     target_lufs: ?f64 = null,
     audio_pitch: ?i32 = null,
@@ -248,6 +249,7 @@ fn mergeOutput(base: ?ComposerOutput, overrides: ?ComposerOutput) ?ComposerOutpu
     return .{
         .volume = o.volume orelse b.volume,
         .target_lufs = o.target_lufs orelse b.target_lufs,
+        .remove_silence_ms = o.remove_silence_ms orelse b.remove_silence_ms,
         .audio_pitch = o.audio_pitch orelse b.audio_pitch,
         .audio_tempo = o.audio_tempo orelse b.audio_tempo,
         .audio_format = o.audio_format orelse b.audio_format,
@@ -259,6 +261,7 @@ fn toModelOutput(output: ?ComposerOutput) models.Output {
     return .{
         .volume = o.volume,
         .target_lufs = o.target_lufs,
+        .remove_silence_ms = o.remove_silence_ms,
         .audio_pitch = o.audio_pitch,
         .audio_tempo = o.audio_tempo,
         .audio_format = o.audio_format,

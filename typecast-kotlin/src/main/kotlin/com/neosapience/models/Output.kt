@@ -27,9 +27,15 @@ data class Output(
     val audioTempo: Double? = 1.0,
     
     @SerialName("audio_format")
-    val audioFormat: AudioFormat? = AudioFormat.WAV
+    val audioFormat: AudioFormat? = AudioFormat.WAV,
+    /** Remaining detected silence (0–1000 ms); null disables processing, zero removes silence. */
+    @SerialName("remove_silence_ms")
+    val removeSilenceMs: Int? = null
 ) {
     init {
+        require(removeSilenceMs == null || removeSilenceMs in 0..1000) {
+            "RemoveSilenceMs must be between 0 and 1000"
+        }
         volume?.let {
             require(it in 0..200) { "Volume must be between 0 and 200" }
         }
@@ -52,6 +58,8 @@ data class Output(
     }
     
     class Builder {
+        private var removeSilenceMs: Int? = null
+        fun removeSilenceMs(value: Int?) = apply { removeSilenceMs = value }
         private var volume: Int? = null
         private var targetLufs: Double? = null
         private var audioPitch: Int? = 0
@@ -66,6 +74,7 @@ data class Output(
 
         fun build(): Output {
             return Output(
+                removeSilenceMs = removeSilenceMs,
                 volume = volume,
                 targetLufs = targetLufs,
                 audioPitch = audioPitch,

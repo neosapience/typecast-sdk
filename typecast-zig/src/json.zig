@@ -127,7 +127,14 @@ fn writePrompt(ws: *std.json.Stringify, prompt: models.TtsPrompt) !void {
 }
 
 fn writeOutput(ws: *std.json.Stringify, output: models.Output) !void {
+    if (output.remove_silence_ms) |ms| {
+        if (ms > 1000) return error.InvalidRemoveSilenceMs;
+    }
     try ws.beginObject();
+    if (output.remove_silence_ms) |ms| {
+        try ws.objectField("remove_silence_ms");
+        try ws.write(ms);
+    }
 
     // If target_lufs is set, use it; otherwise use volume
     if (output.target_lufs) |lufs| {
@@ -161,7 +168,14 @@ fn writeOutput(ws: *std.json.Stringify, output: models.Output) !void {
 }
 
 fn writeOutputStream(ws: *std.json.Stringify, output: models.OutputStream) !void {
+    if (output.remove_silence_ms) |ms| {
+        if (ms > 1000) return error.InvalidRemoveSilenceMs;
+    }
     try ws.beginObject();
+    if (output.remove_silence_ms) |ms| {
+        try ws.objectField("remove_silence_ms");
+        try ws.write(ms);
+    }
 
     if (output.target_lufs) |lufs| {
         try ws.objectField("target_lufs");
@@ -458,10 +472,21 @@ pub fn parseCustomVoice(allocator: std.mem.Allocator, data: []const u8) !models.
 pub fn parseCustomVoices(allocator: std.mem.Allocator, data: []const u8) ![]models.CustomVoice {
     const parsed = try std.json.parseFromSlice(std.json.Value, allocator, data, .{});
     defer parsed.deinit();
-    const items = switch (parsed.value) { .array => |a| a.items, else => return error.JsonParseError };
+    const items = switch (parsed.value) {
+        .array => |a| a.items,
+        else => return error.JsonParseError,
+    };
     var voices = try allocator.alloc(models.CustomVoice, items.len);
     var initialized: usize = 0;
-    errdefer { for (voices[0..initialized]) |voice| { allocator.free(voice.voice_id); allocator.free(voice.name); allocator.free(voice.model); if (voice.status) |s| allocator.free(s); } allocator.free(voices); }
+    errdefer {
+        for (voices[0..initialized]) |voice| {
+            allocator.free(voice.voice_id);
+            allocator.free(voice.name);
+            allocator.free(voice.model);
+            if (voice.status) |s| allocator.free(s);
+        }
+        allocator.free(voices);
+    }
     for (items, 0..) |item, i| {
         const encoded = try std.json.Stringify.valueAlloc(allocator, item, .{});
         defer allocator.free(encoded);

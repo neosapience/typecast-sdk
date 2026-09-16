@@ -700,15 +700,17 @@ static void test_tts_with_output_lufs(void) {
 
     TypecastOutput out = TYPECAST_OUTPUT_DEFAULT();
     out.use_target_lufs = 1; out.target_lufs = -16.0f;
+    int ms = 0;
 
     TypecastTTSRequest req = {0};
     req.text = "x"; req.voice_id = "y"; req.model = TYPECAST_MODEL_SSFM_V30;
     req.output = &out;
 
-    TypecastTTSResponse* r = typecast_text_to_speech(c, &req);
+    TypecastTTSResponse* r = typecast_text_to_speech_with_silence(c, &req, &ms);
     ASSERT_NOT_NULL(r);
     ASSERT_EQ(r->duration, 0); /* No header */
     ASSERT(strstr(g_server.last_body, "\"target_lufs\":-16") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"remove_silence_ms\":0") != NULL);
 
     typecast_tts_response_free(r);
     typecast_client_destroy(c);
@@ -727,8 +729,10 @@ static void test_generate_to_file_infers_mp3_and_writes_file(void) {
     req.text = "hello file";
     req.voice_id = "tc_file";
 
-    TypecastErrorCode rc = typecast_generate_to_file(c, path, &req);
+    int ms = 1000;
+    TypecastErrorCode rc = typecast_generate_to_file_with_silence(c, path, &req, &ms);
     ASSERT_EQ(rc, TYPECAST_OK);
+    ASSERT(strstr(g_server.last_body, "\"remove_silence_ms\":1000") != NULL);
     ASSERT(strstr(g_server.last_body, "\"model\":\"ssfm-v30\"") != NULL);
     ASSERT(strstr(g_server.last_body, "\"audio_format\":\"mp3\"") != NULL);
 
@@ -1113,11 +1117,13 @@ static void test_tts_stream_with_output_mp3(void) {
 
     out.use_target_lufs = 1;
     out.target_lufs = -14.0f;
+    int ms = 0;
     mock_enqueue_text(200, NULL, "MP3DATA");
-    rc = typecast_text_to_speech_stream(c, &req, stream_sink_cb, &s);
+    rc = typecast_text_to_speech_stream_with_silence(c, &req, stream_sink_cb, &s, &ms);
     ASSERT_EQ(rc, TYPECAST_OK);
     ASSERT(strstr(g_server.last_body, "\"volume\"") == NULL);
     ASSERT(strstr(g_server.last_body, "\"target_lufs\":-14") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"remove_silence_ms\":0") != NULL);
 
     free(s.data);
     typecast_client_destroy(c);
@@ -1917,12 +1923,84 @@ static void test_subscription_missing_concurrency_limit(void) {
  * Main
  * ============================================ */
 
+static void test_remove_silence_payload_boundaries(void) {
+    TypecastClient* c = new_client();
+    int values[] = {0, 300, 1000};
+    for (size_t i = 0; i < 3; i++) {
+        char expected[64];
+        snprintf(expected, sizeof(expected), "\"remove_silence_ms\":%d}", values[i]);
+        TypecastTTSRequest req = {0};
+        req.voice_id = "voice"; req.text = "Hello";
+        mock_enqueue_text(200, NULL, "AUDIO");
+        TypecastTTSResponse* audio = typecast_text_to_speech_with_silence(c, &req, &values[i]);
+        ASSERT_NOT_NULL(audio);
+        ASSERT(strstr(g_server.last_body, expected) != NULL);
+        typecast_tts_response_free(audio);
+
+        TypecastTTSRequestStream stream = {0};
+        stream.voice_id = "voice"; stream.text = "Hello";
+        StreamSink sink = {0};
+        mock_enqueue_text(200, NULL, "AUDIO");
+        ASSERT_EQ(typecast_text_to_speech_stream_with_silence(c, &stream, stream_sink_cb, &sink, &values[i]), TYPECAST_OK);
+        ASSERT(strstr(g_server.last_body, expected) != NULL);
+        free(sink.data);
+
+        TypecastTTSRequestWithTimestamps req_ts = {0};
+        req_ts.voice_id = "voice"; req_ts.text = "Hello";
+        TypecastTTSWithTimestampsResponse* timestamps = NULL;
+        mock_enqueue_text(200, NULL, "{\"audio\":\"QVVESU8=\",\"audio_format\":\"wav\",\"audio_duration\":1}");
+        ASSERT_EQ(typecast_text_to_speech_with_timestamps_and_silence(c, &req_ts, &timestamps, &values[i]), TYPECAST_OK);
+        ASSERT(strstr(g_server.last_body, expected) != NULL);
+        typecast_tts_with_timestamps_response_free(timestamps);
+
+        mock_enqueue_text(200, NULL, "AUDIO");
+        audio = typecast_text_to_speech(c, &req);
+        ASSERT_NOT_NULL(audio);
+        ASSERT(strstr(g_server.last_body, "remove_silence_ms") == NULL);
+        typecast_tts_response_free(audio);
+    }
+    typecast_client_destroy(c);
+}
+
+static void test_remove_silence_invalid_before_network(void) {
+    TypecastClient* c = new_client();
+    int values[] = {-1, 1001};
+    for (size_t i = 0; i < 2; i++) {
+        TypecastOutput out = {0};
+        TypecastTTSRequest req = {0};
+        req.voice_id = "voice"; req.text = "Hello"; req.output = &out;
+        ASSERT_NULL(typecast_text_to_speech_with_silence(c, &req, &values[i]));
+        ASSERT_EQ(typecast_client_get_error(c)->code, TYPECAST_ERROR_INVALID_PARAM);
+        TypecastTTSRequestWithTimestamps timestamps = {0};
+        timestamps.voice_id = "voice"; timestamps.text = "Hello"; timestamps.output = &out;
+        TypecastTTSWithTimestampsResponse* result = NULL;
+        ASSERT_EQ(typecast_text_to_speech_with_timestamps_and_silence(c, &timestamps, &result, &values[i]), TYPECAST_ERROR_INVALID_PARAM);
+        TypecastOutputStream stream_out = {0};
+        TypecastTTSRequestStream stream = {0};
+        stream.voice_id = "voice"; stream.text = "Hello"; stream.output = &stream_out;
+        StreamSink sink = {0};
+        ASSERT_EQ(typecast_text_to_speech_stream_with_silence(c, &stream, stream_sink_cb, &sink, &values[i]), TYPECAST_ERROR_INVALID_PARAM);
+        TypecastSpeechComposer* composer = typecast_speech_composer_create(c);
+        TypecastComposerSettings settings = {0};
+        settings.voice_id = "voice";
+        settings.use_model = 1; settings.model = TYPECAST_MODEL_SSFM_V30;
+        settings.use_output = 1;
+        ASSERT_EQ(typecast_speech_composer_defaults_with_silence(composer, &settings, &values[i]), TYPECAST_ERROR_INVALID_PARAM);
+        ASSERT_EQ(typecast_speech_composer_say_with_silence(composer, "Hello", &settings, &values[i]), TYPECAST_ERROR_INVALID_PARAM);
+        ASSERT_EQ(typecast_client_get_error(c)->code, TYPECAST_ERROR_INVALID_PARAM);
+        typecast_speech_composer_destroy(composer);
+    }
+    typecast_client_destroy(c);
+}
+
 int main(void) {
+    RUN(remove_silence_invalid_before_network);
     printf("===========================================\n");
     printf("Typecast C SDK Mock Coverage Tests\n");
     printf("===========================================\n\n");
 
     mock_init();
+    RUN(remove_silence_payload_boundaries);
 
     /* Pure utilities */
     RUN(version_string);
