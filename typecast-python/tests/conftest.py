@@ -29,7 +29,6 @@ if sys.version_info < (3, 10):
     import typecast.client as client_module
 
     # The legacy mocks exercise the unchanged injected-session behavior. The
-    # HTTPX default used by 3.8/3.9 is covered separately in test_httpx_compat.
     async_client_module.aiohttp = aiohttp
     client_module.requests = requests
 

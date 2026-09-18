@@ -1,18 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator, BinaryIO, Optional, Union
+from typing import Any, AsyncIterator, BinaryIO, Optional, Union
 from urllib.parse import quote
 
-if sys.version_info >= (3, 10):  # pragma: no cover - version-specific import
-    import aiohttp
-else:  # pragma: no cover
-    aiohttp = None  # type: ignore[assignment]
+import aiohttp
 
 from . import conf
-from ._user_agent import aiohttp_user_agent, attribution_suffix, httpx_user_agent
+from ._user_agent import aiohttp_user_agent, attribution_suffix
 from ._voice_clone import (
     normalize_clone_model,
     validate_clone_inputs,
@@ -20,8 +16,6 @@ from ._voice_clone import (
     validate_voice_id,
 )
 
-if TYPE_CHECKING or sys.version_info < (3, 10):  # pragma: no cover
-    from ._httpx_compat import AiohttpCompatSession, ClientTimeout, FormData
 from .client import (
     _guess_audio_mime,
     _output_with_inferred_format,
@@ -120,21 +114,12 @@ class AsyncTypecast:
                     aiohttp_user_agent(
                         self.host, source=self.source, generated_by=self.generated_by
                     )
-                    if aiohttp
-                    else httpx_user_agent(
-                        self.host,
-                        "async",
-                        source=self.source,
-                        generated_by=self.generated_by,
-                    )
                 )
             }
             if self.api_key:
                 headers["X-API-KEY"] = self.api_key
             self.session = (
                 aiohttp.ClientSession(headers=headers)
-                if aiohttp
-                else AiohttpCompatSession(headers=headers)
             )
         return self
 
@@ -288,8 +273,6 @@ class AsyncTypecast:
         endpoint = "/v1/text-to-speech/stream"
         stream_timeout = (
             aiohttp.ClientTimeout(sock_connect=10, sock_read=300)
-            if aiohttp
-            else ClientTimeout(sock_connect=10, sock_read=300)
         )
         async with self.session.post(
             f"{self.host}{endpoint}",
@@ -377,7 +360,7 @@ class AsyncTypecast:
         audio_bytes, filename = validate_clone_inputs(audio, name)
         model_str = normalize_clone_model(model)
 
-        form: Any = aiohttp.FormData() if aiohttp else FormData()
+        form: Any = aiohttp.FormData()
         form.add_field("name", name)
         form.add_field("model", model_str)
         form.add_field(
@@ -388,8 +371,6 @@ class AsyncTypecast:
         )
         timeout = (
             aiohttp.ClientTimeout(total=300, connect=10)
-            if aiohttp
-            else ClientTimeout(total=300, connect=10)
         )
         async with self.session.post(
             f"{self.host}/v1/custom-voices/instant-clone",
@@ -418,8 +399,6 @@ class AsyncTypecast:
         validate_custom_voice_id(voice_id)
         timeout = (
             aiohttp.ClientTimeout(total=60, connect=10)
-            if aiohttp
-            else ClientTimeout(total=60, connect=10)
         )
         async with self.session.delete(
             f"{self.host}/v1/custom-voices/{quote(voice_id, safe='')}",
@@ -441,12 +420,12 @@ class AsyncTypecast:
         if self.session is None:
             raise TypecastError("Client session not initialized; use 'async with'.")
         audio_bytes, filename = validate_clone_inputs(audio, name)
-        form: Any = aiohttp.FormData() if aiohttp else FormData()
+        form: Any = aiohttp.FormData()
         form.add_field("name", name)
         form.add_field("language", str(language.value if hasattr(language, "value") else language))
         form.add_field("model", normalize_clone_model(model))
         form.add_field("files", audio_bytes, filename=filename, content_type=_guess_audio_mime(filename))
-        timeout = aiohttp.ClientTimeout(total=300, connect=10) if aiohttp else ClientTimeout(total=300, connect=10)
+        timeout = aiohttp.ClientTimeout(total=300, connect=10)
         async with self.session.post(
             f"{self.host}/v1/custom-voices/professional-clone",
             data=form, timeout=timeout, headers=self._request_headers(),

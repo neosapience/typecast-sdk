@@ -1,6 +1,6 @@
 version = 1
 revision = 3
-requires-python = ">=3.8, <3.15"
+requires-python = ">=3.10, <3.15"
 resolution-markers = [
     "python_full_version >= '3.10'",
 ]
@@ -1679,7 +1679,7 @@ wheels = [
 
 [[package]]
 name = "typecast-python"
-version = "0.3.15"
+version = "0.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -1716,11 +1716,10 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiohttp", marker = "python_full_version >= '3.10'", specifier = ">=3.14.1" },
+    { name = "aiohttp", specifier = ">=3.14.1" },
     { name = "aioresponses", marker = "extra == 'dev'", specifier = ">=0.7.6" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=26.3.1,<27.0.0" },
     { name = "flake8", marker = "extra == 'dev'", specifier = ">=5.0.0,<8.0.0" },
-    { name = "httpx", marker = "python_full_version < '3.10'", specifier = ">=0.28.1,<1" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28.1,<1.0.0" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0,<2.4.0" },
@@ -1729,7 +1728,7 @@ requires-dist = [
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.4.0,<2.0.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0.0,<8.0.0" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.14.0" },
-    { name = "requests", marker = "python_full_version >= '3.10'", specifier = ">=2.33.0" },
+    { name = "requests", specifier = ">=2.33.0" },
     { name = "typing-extensions", specifier = ">=4.0.0" },
 ]
 provides-extras = ["dev"]

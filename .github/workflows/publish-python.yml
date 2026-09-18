@@ -1,0 +1,61 @@
+name: Publish Python SDK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-python-sdk
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Check publishing credential
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -z "$PYPI_API_TOKEN" ]; then
+            echo "::error::Configure the typecast-python publishing token as PYPI_API_TOKEN."
+            exit 1
+          fi
+      - name: Verify version is not already published
+        working-directory: typecast-python
+        run: |
+          python - <<'PY'
+          import tomllib
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+          project = tomllib.loads(Path("pyproject.toml").read_text())["project"]
+          assert project["name"] == "typecast-python"
+          url = f'https://pypi.org/pypi/{project["name"]}/{project["version"]}/json'
+          try:
+              urllib.request.urlopen(url)
+          except urllib.error.HTTPError as error:
+              if error.code != 404:
+                  raise
+          else:
+              raise SystemExit("Version already exists on PyPI; refusing duplicate publication.")
+          PY
+      - name: Build and validate
+        working-directory: typecast-python
+        run: |
+          python -m pip install build twine
+          python -m build
+          python -m twine check dist/*
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: typecast-python/dist
+          password: ${{ secrets.PYPI_API_TOKEN }}
