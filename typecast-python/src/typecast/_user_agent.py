@@ -108,19 +108,3 @@ def aiohttp_user_agent(
         generated_by=generated_by,
     )
 
-
-def httpx_user_agent(
-    host: str,
-    mode: str,
-    transport: str = "rest",
-    source: Optional[str] = None,
-    generated_by: Optional[str] = None,
-) -> str:
-    return build_user_agent(
-        mode=mode,
-        http_library=f"httpx/{_package_version('httpx')}",
-        host=host,
-        transport=transport,
-        source=source,
-        generated_by=generated_by,
-    )
