@@ -1,0 +1,112 @@
+name: Python support
+on:
+  pull_request:
+    paths: ["typecast-python/**", ".github/workflows/python-support.yml"]
+  push:
+    branches: [main]
+    paths: ["typecast-python/**", ".github/workflows/python-support.yml"]
+permissions:
+  contents: read
+jobs:
+  supported:
+    name: Python ${{ matrix.python }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    defaults:
+      run:
+        working-directory: typecast-python
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Build and validate distribution
+        run: |
+          python -m pip install build twine pytest
+          python -m build
+          python -m twine check dist/*
+          python -m pip install --force-reinstall dist/*.whl
+          python -m pip check
+      - name: Test installed wheel API smoke
+        run: |
+          cd "${{ runner.temp }}"
+          python -c "from importlib.metadata import metadata; m=metadata('typecast-python'); assert m['Version']=='0.4.0'; assert m['Requires-Python']=='<3.15,>=3.10'"
+          python -c "from typecast import Typecast, AsyncTypecast; from unittest.mock import Mock; s=Mock(); s.get.return_value.status_code=200; s.get.return_value.json.return_value=[]; c=Typecast(api_key='test-key', session=s); assert c.voices_v3()==[]; assert s.get.call_args[0][0].endswith('/v3/voices')"
+  rejected:
+    name: Reject Python ${{ matrix.python }}
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        python: ["3.8", "3.9"]
+    defaults:
+      run:
+        working-directory: typecast-python
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build && python -m build
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Verify unsupported interpreter cannot install the wheel
+        run: |
+          if python -m pip install --no-deps dist/*.whl > rejection.log 2>&1; then
+            cat rejection.log
+            echo "EOL interpreter unexpectedly accepted the new wheel"
+            exit 1
+          fi
+          cat rejection.log
+          grep -E "requires a different Python|Requires-Python" rejection.log
+      - name: Verify last compatible published release remains installable
+        run: |
+          python -m pip install typecast-python==0.3.15
+          cd "${{ runner.temp }}"
+          python -c "from typecast import Typecast, AsyncTypecast; assert Typecast(api_key='test-key')"
+  audit:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Audit Python build and test tooling
+        run: |
+          python -m pip install --upgrade pip setuptools wheel build twine pytest pip-audit
+          python -m pip install ./typecast-python
+          python -m pip_audit
+      - name: Verify Python support metadata
+        run: |
+          python -c "import tomllib; p=tomllib.load(open('typecast-python/pyproject.toml','rb'))['project']; assert p['requires-python']=='>=3.10,<3.15'; assert not any(c.endswith((':: 3.8',':: 3.9')) for c in p['classifiers'])"
+  lock:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: typecast-python
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4
+      - run: |
+          uv lock
+          if ! git diff --exit-code -- uv.lock; then
+            echo LOCKFILE_BASE64_START
+            base64 -w0 uv.lock
+            echo
+            echo LOCKFILE_BASE64_END
+            exit 1
+          fi
+          uv lock --check

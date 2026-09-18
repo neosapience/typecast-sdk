@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     defaults:
       run:
         working-directory: typecast-python
@@ -47,20 +47,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: |
-          if [[ "${{ matrix.python-version }}" == "3.8" || "${{ matrix.python-version }}" == "3.9" ]]; then
-            uv pip install --system -e . 'pytest>=7,<9' 'pytest-cov>=5,<6' pytest-mock 'pytest-asyncio<1' 'aioresponses<0.7.9' python-dotenv requests aiohttp
-          else
-            uv sync --group dev
-          fi
+        run: uv sync --group dev
 
       - name: Run coverage (100% gate)
-        run: |
-          if [[ "${{ matrix.python-version }}" == "3.8" || "${{ matrix.python-version }}" == "3.9" ]]; then
-            python -m pytest tests/unit --cov=src/typecast --cov-report=term-missing --cov-report=xml
-          else
-            make coverage
-          fi
+        run: make coverage
 
   # ============================================
   # JavaScript/TypeScript SDK

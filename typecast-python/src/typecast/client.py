@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, BinaryIO, Iterator, Optional, Union
+from typing import Any, BinaryIO, Iterator, Optional, Union
 from urllib.parse import quote
 
-if sys.version_info >= (3, 10):  # pragma: no cover - version-specific import
-    import requests
-else:  # pragma: no cover
-    requests = None  # type: ignore[assignment]
+import requests
 
 from . import conf
-from ._user_agent import attribution_suffix, httpx_user_agent, requests_user_agent
+from ._user_agent import attribution_suffix, requests_user_agent
 from ._voice_clone import (
     normalize_clone_model,
     validate_clone_inputs,
@@ -19,8 +15,6 @@ from ._voice_clone import (
     validate_voice_id,
 )
 
-if TYPE_CHECKING or sys.version_info < (3, 10):  # pragma: no cover
-    from ._httpx_compat import RequestsCompatSession
 from .composer import SpeechComposer
 from .exceptions import (
     BadRequestError,
@@ -144,13 +138,11 @@ class Typecast:
         if session is not None:
             self.session = session
         else:
-            self.session = requests.Session() if requests else RequestsCompatSession()
+            self.session = requests.Session()
             headers = {
                 "Content-Type": "application/json",
                 "User-Agent": (
                     requests_user_agent(self.host, source=source, generated_by=generated_by)
-                    if requests
-                    else httpx_user_agent(self.host, "sync", source=source, generated_by=generated_by)
                 ),
             }
             if self.api_key:

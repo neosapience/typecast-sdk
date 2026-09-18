@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0]
+
+### Changed
+
+- Require Python 3.10 through 3.14. Python 3.8 and 3.9 are no longer supported because they are end-of-life; 0.3.15 is the last compatible published release.
+- Remove the Python 3.8/3.9 HTTPX transport compatibility layer. Supported runtimes continue to use requests and aiohttp without public API changes.
+- Upgrade Python and recreate the virtual environment before installing 0.4.0. A temporary pin to `typecast-python==0.3.15` does not restore security support for an EOL interpreter.
+
 ## [0.3.15] - 2026-09-16
 
 ### Added
