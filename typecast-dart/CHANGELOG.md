@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.14
+
+- Maintenance release rebuilt and verified with the current SDK CI toolchain.
+- Updated the SDK User-Agent version. Public APIs and runtime requirements are unchanged.
+
 ## 0.1.13
 
 - Added optional `removeSilenceMs` (integer 0–1000) for speech, streaming, timestamps, and Compose speech segments. The value is the detected silence duration to retain; 0 removes detected silence, while null leaves duration-based processing disabled. Explicit Compose pauses are preserved.
