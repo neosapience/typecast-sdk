@@ -36,8 +36,9 @@ jobs:
           python -m pip check
       - name: Test installed wheel API smoke
         run: |
+          export EXPECTED_VERSION=$(python -c "from pathlib import Path; print(next(Path('dist').glob('*.whl')).name.split('-')[1])")
           cd "${{ runner.temp }}"
-          python -c "from importlib.metadata import metadata; m=metadata('typecast-python'); assert m['Version']=='0.4.0'; assert m['Requires-Python']=='<3.15,>=3.10'"
+          python -c "import os; from importlib.metadata import metadata; m=metadata('typecast-python'); assert m['Version']==os.environ['EXPECTED_VERSION']; assert m['Requires-Python']=='<3.15,>=3.10'"
           python -c "from typecast import Typecast, AsyncTypecast; from unittest.mock import Mock; s=Mock(); s.get.return_value.status_code=200; s.get.return_value.json.return_value=[]; c=Typecast(api_key='test-key', session=s); assert c.voices_v3()==[]; assert s.get.call_args[0][0].endswith('/v3/voices')"
   rejected:
     name: Reject Python ${{ matrix.python }}
