@@ -1,5 +1,12 @@
 <div align="center">
 
+<a href="https://typecast.ai/?lang=en">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/typecast-dark.svg">
+    <img src="./docs/assets/typecast-light.svg" alt="Typecast" width="240">
+  </picture>
+</a>
+
 # Typecast SDK
 
 **Official SDKs for the Typecast Text-to-Speech API**
