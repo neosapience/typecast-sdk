@@ -171,6 +171,9 @@ jobs:
       - name: Run coverage (100% gate)
         run: make coverage
 
+      - name: Verify all package target frameworks
+        run: dotnet pack src/Typecast/Typecast.csproj -c Release --no-restore
+
   # ============================================
   # Rust SDK
   # ============================================

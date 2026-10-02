@@ -225,8 +225,8 @@ public class TypecastClient : IDisposable
             ? parsed
             : 0.0;
         var contentType = response.Content.Headers.ContentType?.MediaType;
-        var format = contentType?.Contains("mp3", StringComparison.OrdinalIgnoreCase) == true
-            || contentType?.Contains("mpeg", StringComparison.OrdinalIgnoreCase) == true
+        var format = contentType?.IndexOf("mp3", StringComparison.OrdinalIgnoreCase) >= 0
+            || contentType?.IndexOf("mpeg", StringComparison.OrdinalIgnoreCase) >= 0
             ? AudioFormat.Mp3
             : AudioFormat.Wav;
         return new TTSResponse(audioData, duration, format);
