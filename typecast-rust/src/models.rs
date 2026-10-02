@@ -479,6 +479,8 @@ impl GenerateToFileRequest {
         self
     }
 
+    /// Deprecated: the seed value is ignored and never sent to the API.
+    #[deprecated(note = "seed is ignored and is not sent to the API")]
     pub fn seed(mut self, seed: i32) -> Self {
         self.seed = Some(seed);
         self
@@ -529,7 +531,8 @@ impl TTSRequest {
         self
     }
 
-    /// Set the Deprecated: ignored and never sent to the API.
+    /// Deprecated: the seed value is ignored and never sent to the API.
+    #[deprecated(note = "seed is ignored and is not sent to the API")]
     pub fn seed(mut self, seed: i32) -> Self {
         self.seed = Some(seed);
         self
@@ -595,7 +598,8 @@ impl TTSRequestStream {
         self
     }
 
-    /// Set the Deprecated: ignored and never sent to the API.
+    /// Deprecated: the seed value is ignored and never sent to the API.
+    #[deprecated(note = "seed is ignored and is not sent to the API")]
     pub fn seed(mut self, seed: i32) -> Self {
         self.seed = Some(seed);
         self

@@ -100,6 +100,7 @@ impl TTSRequestWithTimestamps {
     }
 
     /// Deprecated: the seed value is ignored and never sent to the API.
+    #[deprecated(note = "seed is ignored and is not sent to the API")]
     pub fn seed(mut self, seed: u32) -> Self {
         self.seed = Some(seed);
         self
