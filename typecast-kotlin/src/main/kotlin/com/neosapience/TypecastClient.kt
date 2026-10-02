@@ -195,7 +195,7 @@ class TypecastClient private constructor(
      *
      * Use [SpeechComposer.defaults] for shared options, then chain
      * [SpeechComposer.say] and [SpeechComposer.pause]. Each `say` call may
-     * override voice, pitch, tempo, prompt, seed, and other TTS options for that
+     * override voice, pitch, tempo, prompt, and other TTS options for that
      * segment. Generation is performed by the Typecast Compose API in one request.
      */
     fun composeSpeech(): SpeechComposer = SpeechComposer(this)

@@ -62,7 +62,7 @@ public class SpeechComposer
 
     /// <summary>Add one speech segment. Overrides apply only to this segment.</summary>
     /// <param name="text">Text to synthesize for this segment.</param>
-    /// <param name="overrides">Optional per-segment settings such as voice, pitch, prompt, tempo, and seed.</param>
+    /// <param name="overrides">Optional per-segment settings such as voice, pitch, prompt, and tempo.</param>
     /// <returns>This composer so calls can be chained.</returns>
     public SpeechComposer Say(string text, ComposerSettings? overrides = null)
     {

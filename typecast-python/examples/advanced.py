@@ -32,7 +32,6 @@ response = cli.text_to_speech(
             audio_tempo=1.2,  # Range: 0.5x to 2.0x
             audio_format="mp3",  # Options: wav, mp3
         ),
-        seed=42,  # For reproducible results
     )
 )
 

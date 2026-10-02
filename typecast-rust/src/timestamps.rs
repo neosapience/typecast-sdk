@@ -99,7 +99,7 @@ impl TTSRequestWithTimestamps {
         self
     }
 
-    /// Set the random seed.
+    /// Deprecated: the seed value is ignored and never sent to the API.
     pub fn seed(mut self, seed: u32) -> Self {
         self.seed = Some(seed);
         self
