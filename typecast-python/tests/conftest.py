@@ -21,18 +21,6 @@ from aioresponses.core import RequestMatch, stream_reader_factory
 from multidict import CIMultiDict, CIMultiDictProxy
 from dotenv import load_dotenv
 
-if sys.version_info < (3, 10):
-    import aiohttp
-    import requests
-
-    import typecast.async_client as async_client_module
-    import typecast.client as client_module
-
-    # The legacy mocks exercise the unchanged injected-session behavior. The
-    async_client_module.aiohttp = aiohttp
-    client_module.requests = requests
-
-
 def pytest_configure(config):
     """Load .env file before running tests."""
     _patch_aioresponses_for_aiohttp_314()
