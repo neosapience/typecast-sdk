@@ -215,7 +215,7 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(decoded.text, "stream this")
         XCTAssertEqual(decoded.model, .ssfmV30)
         XCTAssertEqual(decoded.language, .korean)
-        XCTAssertEqual(decoded.seed, 99)
+        XCTAssertNil(decoded.seed)
         XCTAssertEqual(decoded.output?.audioPitch, -1)
         XCTAssertEqual(decoded.output?.audioTempo, 0.9)
         XCTAssertEqual(decoded.output?.audioFormat, .wav)
