@@ -186,7 +186,7 @@ type GenerateToFileRequest struct {
 	Prompt interface{}
 	// Output contains audio output settings (optional)
 	Output *Output
-	// Seed is the Deprecated: ignored and never sent to the API.
+	// Deprecated: Seed is ignored and is never sent to the API.
 	Seed *int
 }
 
