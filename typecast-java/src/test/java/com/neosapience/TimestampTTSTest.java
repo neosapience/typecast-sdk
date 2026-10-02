@@ -208,7 +208,7 @@ class TimestampTTSTest {
         assertTrue(body.contains("\"text\":\"Hello world\""));
         assertTrue(body.contains("\"model\":\"ssfm-v30\""));
         assertTrue(body.contains("\"language\":\"eng\""));
-        assertTrue(body.contains("\"seed\":99"));
+        assertFalse(body.contains("\"seed\":99"));
     }
 
     // -----------------------------------------------------------------------

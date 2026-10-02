@@ -259,7 +259,7 @@ public class TypecastClientTests : IDisposable
             capturedBody.Should().Contain("\"model\":\"ssfm-v30\"");
             capturedBody.Should().Contain("\"audio_format\":\"mp3\"");
             capturedBody.Should().Contain("\"language\":\"eng\"");
-            capturedBody.Should().Contain("\"seed\":7");
+            capturedBody.Should().NotContain("\"seed\":7");
         }
         finally
         {
@@ -1180,7 +1180,7 @@ public class TypecastClientTests : IDisposable
         capturedBody.Should().Contain("\"audio_tempo\":1.1");
         capturedBody.Should().Contain("\"audio_format\":\"wav\"");
         capturedBody.Should().Contain("\"target_lufs\":-14");
-        capturedBody.Should().Contain("\"seed\":7");
+        capturedBody.Should().NotContain("\"seed\":7");
         capturedBody.Should().NotContain("\"volume\"");
     }
 

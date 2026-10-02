@@ -33,7 +33,8 @@ type TTSRequestWithTimestamps struct {
 	Language string      `json:"language,omitempty"`
 	Prompt   interface{} `json:"prompt,omitempty"`
 	Output   *Output     `json:"output,omitempty"`
-	Seed     *int        `json:"seed,omitempty"`
+	// Deprecated: Seed is ignored and is never sent to the API.
+	Seed *int `json:"-"`
 }
 
 // Validate checks required fields.

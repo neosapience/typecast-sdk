@@ -406,8 +406,8 @@ pub struct TTSRequest {
     /// Audio output settings
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<Output>,
-    /// Random seed for reproducible results
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Deprecated: ignored and never sent to the API.
+    #[serde(skip_serializing)]
     pub seed: Option<i32>,
 }
 
@@ -432,8 +432,8 @@ pub struct GenerateToFileRequest {
     /// Audio output settings
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<Output>,
-    /// Random seed for reproducible results
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Deprecated: ignored and never sent to the API.
+    #[serde(skip_serializing)]
     pub seed: Option<i32>,
 }
 
@@ -479,6 +479,8 @@ impl GenerateToFileRequest {
         self
     }
 
+    /// Deprecated: the seed value is ignored and never sent to the API.
+    #[deprecated(note = "seed is ignored and is not sent to the API")]
     pub fn seed(mut self, seed: i32) -> Self {
         self.seed = Some(seed);
         self
@@ -529,7 +531,8 @@ impl TTSRequest {
         self
     }
 
-    /// Set the random seed for reproducible results
+    /// Deprecated: the seed value is ignored and never sent to the API.
+    #[deprecated(note = "seed is ignored and is not sent to the API")]
     pub fn seed(mut self, seed: i32) -> Self {
         self.seed = Some(seed);
         self
@@ -558,8 +561,8 @@ pub struct TTSRequestStream {
     /// Audio output settings (without volume)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<OutputStream>,
-    /// Random seed for reproducible results
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Deprecated: ignored and never sent to the API.
+    #[serde(skip_serializing)]
     pub seed: Option<i32>,
 }
 
@@ -595,7 +598,8 @@ impl TTSRequestStream {
         self
     }
 
-    /// Set the random seed for reproducible results
+    /// Deprecated: the seed value is ignored and never sent to the API.
+    #[deprecated(note = "seed is ignored and is not sent to the API")]
     pub fn seed(mut self, seed: i32) -> Self {
         self.seed = Some(seed);
         self

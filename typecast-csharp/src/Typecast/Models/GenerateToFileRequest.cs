@@ -37,7 +37,7 @@ public class GenerateToFileRequest
     public Output? Output { get; set; }
 
     /// <summary>
-    /// Optional random seed for reproducible synthesis.
+    /// Optional Deprecated: ignored and never sent to the API.
     /// </summary>
     public int? Seed { get; set; }
 

@@ -688,7 +688,7 @@ static void test_tts_with_output_volume_mp3(void) {
     ASSERT(strstr(g_server.last_body, "\"language\":\"eng\"") != NULL);
     ASSERT(strstr(g_server.last_body, "\"volume\":80") != NULL);
     ASSERT(strstr(g_server.last_body, "\"audio_format\":\"mp3\"") != NULL);
-    ASSERT(strstr(g_server.last_body, "\"seed\":42") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"seed\"") == NULL);
 
     typecast_tts_response_free(r);
     typecast_client_destroy(c);
@@ -1110,7 +1110,7 @@ static void test_tts_stream_with_output_mp3(void) {
     ASSERT(strstr(g_server.last_body, "\"language\":\"kor\"") != NULL);
     ASSERT(strstr(g_server.last_body, "\"audio_format\":\"mp3\"") != NULL);
     ASSERT(strstr(g_server.last_body, "\"audio_pitch\":4") != NULL);
-    ASSERT(strstr(g_server.last_body, "\"seed\":7") != NULL);
+    ASSERT(strstr(g_server.last_body, "\"seed\"") == NULL);
     /* Streaming endpoint must NOT receive volume, but accepts target_lufs. */
     ASSERT(strstr(g_server.last_body, "\"volume\"") == NULL);
     ASSERT(strstr(g_server.last_body, "\"target_lufs\"") == NULL);

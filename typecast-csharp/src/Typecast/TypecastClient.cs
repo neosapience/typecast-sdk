@@ -195,7 +195,7 @@ public class TypecastClient : IDisposable
     /// Creates a composed speech builder for multi-speaker audio and explicit pauses.
     /// Use <see cref="SpeechComposer.Defaults"/> for shared options, then chain
     /// <see cref="SpeechComposer.Say"/> and <see cref="SpeechComposer.Pause"/>.
-    /// Each <c>Say</c> call may override voice, pitch, tempo, prompt, seed, and other
+    /// Each <c>Say</c> call may override voice, pitch, tempo, prompt, and other
     /// TTS options for that segment. All speech and pause segments are sent to the
     /// Compose API in one request.
     /// </summary>
@@ -225,8 +225,8 @@ public class TypecastClient : IDisposable
             ? parsed
             : 0.0;
         var contentType = response.Content.Headers.ContentType?.MediaType;
-        var format = contentType?.Contains("mp3", StringComparison.OrdinalIgnoreCase) == true
-            || contentType?.Contains("mpeg", StringComparison.OrdinalIgnoreCase) == true
+        var format = contentType?.IndexOf("mp3", StringComparison.OrdinalIgnoreCase) >= 0
+            || contentType?.IndexOf("mpeg", StringComparison.OrdinalIgnoreCase) >= 0
             ? AudioFormat.Mp3
             : AudioFormat.Wav;
         return new TTSResponse(audioData, duration, format);
@@ -715,8 +715,6 @@ public class TypecastClient : IDisposable
                 dict["output"] = outputDict;
         }
 
-        if (request.Seed.HasValue)
-            dict["seed"] = request.Seed.Value;
 
         return JsonSerializer.Serialize(dict, JsonOptions);
     }
@@ -761,10 +759,6 @@ public class TypecastClient : IDisposable
                 dict["output"] = outputDict;
         }
 
-        if (request.Seed.HasValue)
-        {
-            dict["seed"] = request.Seed.Value;
-        }
 
         return JsonSerializer.Serialize(dict, JsonOptions);
     }
@@ -808,10 +802,6 @@ public class TypecastClient : IDisposable
                 dict["output"] = outputDict;
         }
 
-        if (request.Seed.HasValue)
-        {
-            dict["seed"] = request.Seed.Value;
-        }
 
         return JsonSerializer.Serialize(dict, JsonOptions);
     }

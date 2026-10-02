@@ -49,10 +49,9 @@ public class TTSRequestWithTimestamps
     public Output? Output { get; set; }
 
     /// <summary>
-    /// Random seed for reproducible synthesis (optional).
+    /// Deprecated: ignored and never sent to the API.
     /// </summary>
-    [JsonPropertyName("seed")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonIgnore]
     public int? Seed { get; set; }
 
     /// <summary>

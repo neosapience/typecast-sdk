@@ -16,6 +16,7 @@ pub struct ComposerSettings {
     pub language: Option<String>,
     pub prompt: Option<TTSPrompt>,
     pub output: Option<Output>,
+    /// Deprecated: ignored and never sent to the API.
     pub seed: Option<i32>,
 }
 
@@ -49,6 +50,8 @@ impl ComposerSettings {
         self
     }
 
+    /// Deprecated: the seed value is ignored and never sent to the API.
+    #[deprecated(note = "seed is ignored and is not sent to the API")]
     pub fn seed(mut self, seed: i32) -> Self {
         self.seed = Some(seed);
         self

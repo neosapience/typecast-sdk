@@ -138,7 +138,7 @@ class ModelsTest extends TestCase
         $this->assertSame('ssfm-v21', $arr['model']);
         $this->assertSame('eng', $arr['language']);
         $this->assertSame('happy', $arr['prompt']['emotion_preset']);
-        $this->assertSame(42, $arr['seed']);
+        $this->assertArrayNotHasKey('seed', $arr);
     }
 
     public function testTTSRequestToArrayMinimal(): void

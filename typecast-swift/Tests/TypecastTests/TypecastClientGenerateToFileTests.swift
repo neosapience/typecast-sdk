@@ -40,7 +40,7 @@ final class TypecastClientGenerateToFileTests: TypecastClientMockTestCase {
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
         XCTAssertEqual(json["model"] as? String, "ssfm-v30")
         XCTAssertEqual(json["language"] as? String, "eng")
-        XCTAssertEqual(json["seed"] as? Int, 7)
+        XCTAssertNil(json["seed"])
         let output = try XCTUnwrap(json["output"] as? [String: Any])
         XCTAssertEqual(output["audio_format"] as? String, "mp3")
     }

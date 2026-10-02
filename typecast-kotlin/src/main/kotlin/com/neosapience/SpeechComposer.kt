@@ -28,7 +28,7 @@ data class ComposerSettings(
     val prompt: TTSPrompt? = null,
     /** Optional output controls such as pitch, tempo, volume, target LUFS, and requested format. */
     val output: Output? = null,
-    /** Optional deterministic generation seed passed through to the Typecast API. */
+    /** Deprecated: ignored and never sent to the API. */
     val seed: Int? = null,
 )
 

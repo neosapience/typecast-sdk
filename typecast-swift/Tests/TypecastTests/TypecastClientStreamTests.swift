@@ -64,7 +64,7 @@ final class TypecastClientStreamTests: TypecastClientMockTestCase {
         XCTAssertEqual(json?["voice_id"] as? String, "tc_1")
         XCTAssertEqual(json?["text"] as? String, "stream me")
         XCTAssertEqual(json?["model"] as? String, "ssfm-v30")
-        XCTAssertEqual(json?["seed"] as? Int, 42)
+        XCTAssertNil(json?["seed"])
         let output = json?["output"] as? [String: Any]
         XCTAssertEqual(output?["audio_format"] as? String, "wav")
         XCTAssertNil(output?["volume"])

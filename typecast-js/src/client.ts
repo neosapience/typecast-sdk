@@ -23,7 +23,7 @@ import {
 } from './types/QuickCloning';
 import { SpeechComposer, type ComposeSegment } from './composer';
 
-const SDK_VERSION = '0.4.14';
+const SDK_VERSION = '0.4.15';
 const DEFAULT_BASE_HOST = 'https://api.typecast.ai';
 type QueryParam = string | number | boolean | null | undefined;
 
@@ -150,7 +150,7 @@ export class TypecastClient {
     const response = await fetch(this.buildUrl('/v1/text-to-speech'), {
       method: 'POST',
       headers: this.headers,
-      body: JSON.stringify(request),
+      body: JSON.stringify({ ...request, seed: undefined }),
     });
 
     if (!response.ok) {
@@ -196,7 +196,9 @@ export class TypecastClient {
     const response = await fetch(this.buildUrl('/v1/text-to-speech/compose'), {
       method: 'POST',
       headers: this.headers,
-      body: JSON.stringify({ segments }),
+      body: JSON.stringify({ segments }, (key, value: unknown) =>
+        key === 'seed' ? undefined : value,
+      ),
     });
     if (!response.ok) return this.handleResponse<TTSResponse>(response);
     const contentType = response.headers.get('content-type') || 'audio/wav';
@@ -258,7 +260,7 @@ export class TypecastClient {
     const response = await fetch(this.buildUrl('/v1/text-to-speech/stream'), {
       method: 'POST',
       headers: this.headers,
-      body: JSON.stringify(request),
+      body: JSON.stringify({ ...request, seed: undefined }),
     });
 
     if (!response.ok) {
@@ -302,7 +304,7 @@ export class TypecastClient {
     const response = await fetch(url, {
       method: 'POST',
       headers: this.headers,
-      body: JSON.stringify(request),
+      body: JSON.stringify({ ...request, seed: undefined }),
     });
     const data = await this.handleResponse<TTSWithTimestampsResponse>(response);
     return new WithTimestampsResult(data);

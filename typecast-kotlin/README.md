@@ -247,14 +247,13 @@ Constraints enforced client-side before the request is sent:
 
 </details>
 
-### Using with Seed for Reproducibility
+### Generating Speech
 
 ```kotlin
 val request = TTSRequest.builder()
     .voiceId("tc_60e5426de8b95f1d3000d7b5")
     .text("This will always sound the same.")
     .model(TTSModel.SSFM_V30)
-    .seed(42)  // Same seed = same output
     .build()
 ```
 

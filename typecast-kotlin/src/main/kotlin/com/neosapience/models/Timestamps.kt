@@ -45,7 +45,7 @@ data class AlignmentSegmentCharacter(
  * @property language Language code (ISO 639-3). If not provided, will be auto-detected
  * @property prompt   Emotion and style settings for the generated speech
  * @property output   Audio output settings
- * @property seed     Random seed for reproducible results
+ * @property seed     Deprecated: ignored and never sent to the API.
  */
 @Serializable
 data class TTSRequestWithTimestamps(
@@ -55,7 +55,7 @@ data class TTSRequestWithTimestamps(
     val language: LanguageCode? = null,
     val prompt: TTSPromptSerializer? = null,
     val output: Output? = null,
-    val seed: Int? = null,
+    @kotlinx.serialization.Transient val seed: Int? = null,
 )
 
 /**

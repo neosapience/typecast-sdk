@@ -180,7 +180,7 @@ class TTSRequest(BaseModel):
     )
     prompt: Optional[TTSPrompt] = None
     output: Optional[Output] = None
-    seed: Optional[int] = None
+    seed: Optional[int] = Field(default=None, exclude=True, deprecated="Ignored; seed is no longer supported")
 
 
 class TTSResponse(BaseModel):
@@ -241,7 +241,7 @@ class TTSRequestStream(BaseModel):
     )
     prompt: Optional[TTSPrompt] = None
     output: Optional[OutputStream] = None
-    seed: Optional[int] = None
+    seed: Optional[int] = Field(default=None, exclude=True, deprecated="Ignored; seed is no longer supported")
 
 
 class AlignmentSegmentWord(BaseModel):
@@ -296,7 +296,7 @@ class TTSRequestWithTimestamps(BaseModel):
     )
     prompt: Optional[TTSPrompt] = None
     output: Optional[Output] = None
-    seed: Optional[int] = None
+    seed: Optional[int] = Field(default=None, exclude=True, deprecated="Ignored; seed is no longer supported")
 
 
 # --- timestamp captioning helpers (module-level, shared by SRT/VTT) ---

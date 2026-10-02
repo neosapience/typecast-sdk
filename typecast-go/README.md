@@ -140,7 +140,6 @@ audio, err := client.TextToSpeech(ctx, &typecast.TTSRequest{
         AudioTempo:  &tempo,        // 0.5x to 2.0x
         AudioFormat: typecast.AudioFormatMP3,  // WAV or MP3
     },
-    Seed: intPtr(42),  // for reproducible results
 })
 ```
 

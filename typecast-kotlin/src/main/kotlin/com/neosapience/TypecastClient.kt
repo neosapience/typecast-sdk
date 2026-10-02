@@ -73,7 +73,7 @@ class TypecastClient private constructor(
 
     companion object {
         private const val DEFAULT_BASE_URL = "https://api.typecast.ai"
-        private const val SDK_VERSION = "1.2.14"
+        private const val SDK_VERSION = "1.2.15"
         private const val API_KEY_HEADER = "X-API-KEY"
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 
@@ -195,7 +195,7 @@ class TypecastClient private constructor(
      *
      * Use [SpeechComposer.defaults] for shared options, then chain
      * [SpeechComposer.say] and [SpeechComposer.pause]. Each `say` call may
-     * override voice, pitch, tempo, prompt, seed, and other TTS options for that
+     * override voice, pitch, tempo, prompt, and other TTS options for that
      * segment. Generation is performed by the Typecast Compose API in one request.
      */
     fun composeSpeech(): SpeechComposer = SpeechComposer(this)

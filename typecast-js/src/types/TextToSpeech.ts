@@ -173,7 +173,7 @@ export interface TTSRequest {
   prompt?: TTSPrompt;
   /** Audio output settings */
   output?: Output;
-  /** Random seed for reproducible results (same seed + same parameters = same output) */
+  /** @deprecated Ignored; never sent to the API. */
   seed?: number;
 }
 

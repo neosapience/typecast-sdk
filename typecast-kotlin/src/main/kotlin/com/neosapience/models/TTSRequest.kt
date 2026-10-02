@@ -13,7 +13,7 @@ import kotlinx.serialization.Serializable
  * @property language Language code (ISO 639-3). If not provided, will be auto-detected
  * @property prompt Emotion and style settings for the generated speech
  * @property output Audio output settings
- * @property seed Random seed for reproducible results
+ * @property seed Deprecated: ignored and never sent to the API.
  */
 @Serializable
 data class TTSRequest(
@@ -35,7 +35,7 @@ data class TTSRequest(
     @SerialName("output")
     val output: Output? = null,
     
-    @SerialName("seed")
+    @kotlinx.serialization.Transient
     val seed: Int? = null
 ) {
     init {

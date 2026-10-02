@@ -87,8 +87,7 @@ let request = TTSRequest::new(
     .volume(120)
     .audio_pitch(2)
     .audio_tempo(1.2)
-    .audio_format(AudioFormat::Mp3))
-.seed(42);
+    .audio_format(AudioFormat::Mp3));
 ```
 
 ### Emotion Control

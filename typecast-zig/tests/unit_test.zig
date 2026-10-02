@@ -289,7 +289,7 @@ test "serializeTtsRequest with all optional fields" {
     const obj = parsed.value.object;
 
     try testing.expectEqualStrings("en", obj.get("language").?.string);
-    try testing.expectEqual(@as(i64, 42), obj.get("seed").?.integer);
+    try testing.expect(obj.get("seed") == null);
     try testing.expect(obj.get("prompt") != null);
     try testing.expect(obj.get("output") != null);
 }

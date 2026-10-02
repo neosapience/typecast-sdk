@@ -106,6 +106,7 @@ module Typecast
     class TTSRequest
       attr_reader :voice_id, :text, :model, :language, :prompt, :output, :seed
 
+      # The legacy seed argument is ignored and never sent to the API.
       # Browse available API voices at https://typecast.ai/developers/api/voices.
       def initialize(voice_id:, text:, model:, language: nil, prompt: nil, output: nil, seed: nil)
         @voice_id = voice_id
@@ -124,8 +125,7 @@ module Typecast
           model: model,
           language: language,
           prompt: Models.value_to_h(prompt),
-          output: Models.value_to_h(output),
-          seed: seed
+          output: Models.value_to_h(output)
         )
       end
     end

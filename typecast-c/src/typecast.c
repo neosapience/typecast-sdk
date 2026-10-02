@@ -470,10 +470,6 @@ static cJSON* build_tts_request_json(const TypecastTTSRequest* request) {
         }
     }
 
-    /* Optional: seed */
-    if (request->seed != 0) {
-        cJSON_AddNumberToObject(root, "seed", request->seed);
-    }
     
     return root;
 }
@@ -1568,9 +1564,6 @@ static cJSON* build_tts_stream_request_json(const TypecastTTSRequestStream* requ
         }
     }
 
-    if (request->seed != 0) {
-        cJSON_AddNumberToObject(root, "seed", request->seed);
-    }
 
     return root;
 }

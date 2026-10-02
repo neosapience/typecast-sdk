@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.15
+
+- Stop sending the unsupported seed parameter. Existing seed arguments remain accepted but are ignored.
+
 ## 0.1.14
 
 - Maintenance release rebuilt and verified with the current SDK CI toolchain.

@@ -289,7 +289,7 @@ class CoverageTest {
         RecordedRequest rr = mockServer.takeRequest();
         String body = rr.getBody().readUtf8();
         assertTrue(body.contains("\"language\":\"eng\""));
-        assertTrue(body.contains("\"seed\":42"));
+        assertFalse(body.contains("\"seed\":42"));
         assertTrue(body.contains("\"emotion_preset\":\"happy\""));
         assertTrue(body.contains("\"emotion_intensity\":1.5"));
         assertTrue(body.contains("\"target_lufs\":-14.0"));
@@ -1240,7 +1240,7 @@ class CoverageTest {
         RecordedRequest rr = mockServer.takeRequest();
         String body = rr.getBody().readUtf8();
         assertTrue(body.contains("\"language\":\"eng\""));
-        assertTrue(body.contains("\"seed\":42"));
+        assertFalse(body.contains("\"seed\":42"));
         assertTrue(body.contains("\"emotion_type\":\"preset\""));
         assertTrue(body.contains("\"emotion_preset\":\"happy\""));
         assertTrue(body.contains("\"emotion_intensity\":1.5"));

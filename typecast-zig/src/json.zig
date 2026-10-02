@@ -25,11 +25,6 @@ pub fn serializeTtsRequest(allocator: std.mem.Allocator, req: models.TtsRequest)
         try ws.write(lang);
     }
 
-    if (req.seed) |seed| {
-        try ws.objectField("seed");
-        try ws.write(seed);
-    }
-
     if (req.prompt) |prompt| {
         try ws.objectField("prompt");
         try writePrompt(&ws, prompt);
@@ -66,11 +61,6 @@ pub fn serializeTtsRequestStream(allocator: std.mem.Allocator, req: models.TtsRe
     if (req.language) |lang| {
         try ws.objectField("language");
         try ws.write(lang);
-    }
-
-    if (req.seed) |seed| {
-        try ws.objectField("seed");
-        try ws.write(seed);
     }
 
     if (req.prompt) |prompt| {

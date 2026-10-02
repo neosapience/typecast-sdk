@@ -437,9 +437,6 @@ public class TypecastClient {
             json.addProperty("language", request.getLanguage().getValue());
         }
 
-        if (request.getSeed() != null) {
-            json.addProperty("seed", request.getSeed());
-        }
 
         if (request.getPrompt() != null) {
             Object prompt = request.getPrompt();
@@ -565,9 +562,6 @@ public class TypecastClient {
             json.addProperty("language", request.getLanguage().getValue());
         }
 
-        if (request.getSeed() != null) {
-            json.addProperty("seed", request.getSeed());
-        }
 
         if (request.getPrompt() != null) {
             Object prompt = request.getPrompt();
@@ -641,9 +635,6 @@ public class TypecastClient {
             json.addProperty("language", request.getLanguage().getValue());
         }
 
-        if (request.getSeed() != null) {
-            json.addProperty("seed", request.getSeed());
-        }
 
         if (request.getPrompt() != null) {
             Object prompt = request.getPrompt();
