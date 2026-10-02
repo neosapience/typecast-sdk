@@ -85,7 +85,7 @@ public struct TTSRequestStream: Codable, Sendable {
     public var prompt: TTSPrompt?
     /// Streaming-specific audio output settings
     public var output: OutputStream?
-    /// Random seed for reproducible results
+    /// Deprecated: ignored and never sent to the API.
     public var seed: Int?
 
     enum CodingKeys: String, CodingKey {
@@ -95,7 +95,6 @@ public struct TTSRequestStream: Codable, Sendable {
         case language
         case prompt
         case output
-        case seed
     }
 
     public init(

@@ -20,6 +20,7 @@ export interface TTSRequestWithTimestamps {
   language?: string;
   prompt?: unknown;
   output?: unknown;
+  /** @deprecated Ignored; never sent to the API. */
   seed?: number;
 }
 

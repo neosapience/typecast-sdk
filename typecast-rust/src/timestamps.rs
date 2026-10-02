@@ -58,8 +58,8 @@ pub struct TTSRequestWithTimestamps {
     /// API's `output` field — use [`crate::models::Output`] serialized to JSON).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output: Option<serde_json::Value>,
-    /// Random seed for reproducible results.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Deprecated: ignored and never sent to the API.
+    #[serde(skip_serializing)]
     pub seed: Option<u32>,
 }
 

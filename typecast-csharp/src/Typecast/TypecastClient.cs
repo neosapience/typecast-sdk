@@ -715,8 +715,6 @@ public class TypecastClient : IDisposable
                 dict["output"] = outputDict;
         }
 
-        if (request.Seed.HasValue)
-            dict["seed"] = request.Seed.Value;
 
         return JsonSerializer.Serialize(dict, JsonOptions);
     }
@@ -761,10 +759,6 @@ public class TypecastClient : IDisposable
                 dict["output"] = outputDict;
         }
 
-        if (request.Seed.HasValue)
-        {
-            dict["seed"] = request.Seed.Value;
-        }
 
         return JsonSerializer.Serialize(dict, JsonOptions);
     }
@@ -808,10 +802,6 @@ public class TypecastClient : IDisposable
                 dict["output"] = outputDict;
         }
 
-        if (request.Seed.HasValue)
-        {
-            dict["seed"] = request.Seed.Value;
-        }
 
         return JsonSerializer.Serialize(dict, JsonOptions);
     }

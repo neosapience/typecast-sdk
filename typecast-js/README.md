@@ -163,7 +163,6 @@ const audio = await client.textToSpeech({
     audio_tempo: 1.2,   // 0.5x to 2.0x
     audio_format: "mp3" // "wav" or "mp3"
   },
-  seed: 42  // for reproducible results
 });
 ```
 

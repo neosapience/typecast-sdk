@@ -166,8 +166,8 @@ type TTSRequest struct {
 	Prompt interface{} `json:"prompt,omitempty"`
 	// Output contains audio output settings (optional)
 	Output *Output `json:"output,omitempty"`
-	// Seed is the random seed for reproducible results (optional)
-	Seed *int `json:"seed,omitempty"`
+	// Deprecated: Seed is ignored and is never sent to the API.
+	Seed *int `json:"-"`
 }
 
 // GenerateToFileRequest represents a convenience request for generating audio
@@ -186,7 +186,7 @@ type GenerateToFileRequest struct {
 	Prompt interface{}
 	// Output contains audio output settings (optional)
 	Output *Output
-	// Seed is the random seed for reproducible results (optional)
+	// Seed is the Deprecated: ignored and never sent to the API.
 	Seed *int
 }
 
@@ -276,8 +276,8 @@ type TTSRequestStream struct {
 	Prompt interface{} `json:"prompt,omitempty"`
 	// Output contains streaming audio output settings (optional)
 	Output *OutputStream `json:"output,omitempty"`
-	// Seed is the random seed for reproducible results (optional)
-	Seed *int `json:"seed,omitempty"`
+	// Deprecated: Seed is ignored and is never sent to the API.
+	Seed *int `json:"-"`
 }
 
 // Validate checks the TTSRequestStream fields for invalid values.

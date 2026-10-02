@@ -362,8 +362,7 @@ let audio = try await client.textToSpeech(TTSRequest(
         audioPitch: 2,      // -12 to +12 semitones
         audioTempo: 1.2,    // 0.5x to 2.0x
         audioFormat: .mp3   // .wav or .mp3
-    ),
-    seed: 42  // for reproducible results
+    )
 ))
 ```
 

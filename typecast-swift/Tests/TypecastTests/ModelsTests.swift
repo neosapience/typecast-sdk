@@ -252,7 +252,7 @@ final class ModelsTests: XCTestCase {
         XCTAssertEqual(decoded.text, "hello")
         XCTAssertEqual(decoded.model, .ssfmV30)
         XCTAssertEqual(decoded.language, .english)
-        XCTAssertEqual(decoded.seed, 7)
+        XCTAssertNil(decoded.seed)
         XCTAssertEqual(decoded.output?.volume, 90)
     }
 

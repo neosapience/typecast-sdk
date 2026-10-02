@@ -307,6 +307,7 @@ fn request_builder_sets_all_fields() {
     assert!(req.prompt.is_some());
     assert!(req.output.is_some());
     assert_eq!(req.seed, Some(42));
+    assert!(serde_json::to_value(&req).unwrap().get("seed").is_none());
 
     // Cover Debug + Clone
     let _ = format!("{req:?}");

@@ -288,6 +288,7 @@ fn tts_request_builder_sets_all_fields() {
     assert!(req.prompt.is_some());
     assert!(req.output.is_some());
     assert_eq!(req.seed, Some(7));
+    assert!(serde_json::to_value(&req).unwrap().get("seed").is_none());
 }
 
 #[test]
@@ -343,6 +344,7 @@ fn tts_request_stream_builder_sets_all_fields() {
     assert!(req.prompt.is_some());
     assert!(req.output.is_some());
     assert_eq!(req.seed, Some(7));
+    assert!(serde_json::to_value(&req).unwrap().get("seed").is_none());
 
     // Cover Debug + Clone
     let _ = format!("{req:?}");
@@ -678,7 +680,6 @@ async fn generate_to_file_infers_mp3_default_model_and_writes_file() {
             mockito::Matcher::Regex(r#""model":"ssfm-v30""#.into()),
             mockito::Matcher::Regex(r#""audio_format":"mp3""#.into()),
             mockito::Matcher::Regex(r#""language":"eng""#.into()),
-            mockito::Matcher::Regex(r#""seed":7"#.into()),
         ]))
         .with_status(200)
         .with_header("content-type", "audio/mp3")
@@ -875,7 +876,6 @@ async fn compose_speech_composes_wav_and_merges_overrides() {
             ),
             mockito::Matcher::Regex(r#"\"voice_id\":\"voice-b\""#.to_string()),
             mockito::Matcher::Regex(r#"\"emotion_preset\":\"sad\""#.to_string()),
-            mockito::Matcher::Regex(r#"\"seed\":123"#.to_string()),
             mockito::Matcher::Regex(r#"\"audio_format\":\"mp3\""#.to_string()),
         ]))
         .with_status(200)

@@ -57,6 +57,6 @@ export interface TTSRequestStream {
   prompt?: TTSPrompt;
   /** Audio output settings (no volume in streaming mode) */
   output?: OutputStream;
-  /** Random seed for reproducible results (same seed + same parameters = same output) */
+  /** @deprecated Ignored; never sent to the API. */
   seed?: number;
 }

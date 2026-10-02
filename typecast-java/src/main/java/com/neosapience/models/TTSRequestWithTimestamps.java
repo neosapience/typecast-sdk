@@ -4,7 +4,7 @@ package com.neosapience.models;
  * Request object for Text-to-Speech synthesis with word/character-level timestamps.
  *
  * <p>Required fields: voiceId, text, model</p>
- * <p>Optional fields: language, prompt, output, seed</p>
+ * <p>Optional fields: language, prompt, output</p>
  * <p>Browse available API voices at https://typecast.ai/developers/api/voices.</p>
  *
  * <p>The {@code granularity} query parameter is passed as a method argument to
@@ -133,15 +133,15 @@ public class TTSRequestWithTimestamps {
         return this;
     }
 
-    /** Returns the random seed, or null. */
+    /** Returns the ignored legacy seed, or null. */
     public Integer getSeed() {
         return seed;
     }
 
     /**
-     * Sets the random seed for reproducibility.
+     * Sets the Deprecated: ignored and never sent to the API.
      *
-     * @param seed the random seed
+     * @param seed ignored legacy value
      * @return this for chaining
      */
     public TTSRequestWithTimestamps setSeed(Integer seed) {
@@ -216,7 +216,7 @@ public class TTSRequestWithTimestamps {
             return this;
         }
 
-        /** Sets the random seed. */
+        /** Sets the ignored legacy seed. */
         public Builder seed(Integer seed) {
             this.seed = seed;
             return this;

@@ -75,7 +75,7 @@ extern "C" {
 #define TYPECAST_VERSION_MAJOR 1
 #define TYPECAST_VERSION_MINOR 2
 #define TYPECAST_VERSION_PATCH 14
-#define TYPECAST_VERSION "1.2.14"
+#define TYPECAST_VERSION "1.2.15"
 
 /*
  * DLL Export/Import macros for Windows
@@ -225,7 +225,7 @@ typedef struct {
     const char* language;    /* Optional: ISO 639-3 code (e.g., "eng", "kor") */
     TypecastPrompt* prompt;  /* Optional: Emotion settings */
     TypecastOutput* output;  /* Optional: Audio output settings */
-    int seed;                /* Optional: Random seed (0 = not set) */
+    int seed;                /* Deprecated: ignored; retained for ABI compatibility */
 } TypecastTTSRequest;
 
 /**
@@ -240,7 +240,7 @@ typedef struct {
     const char* language;    /* Optional: ISO 639-3 code */
     TypecastPrompt* prompt;  /* Optional: Emotion settings */
     TypecastOutput* output;  /* Optional: Audio output settings */
-    int seed;                /* Optional: Random seed (0 = not set) */
+    int seed;                /* Deprecated: ignored; retained for ABI compatibility */
 } TypecastGenerateToFileRequest;
 
 /* ============================================
@@ -268,7 +268,7 @@ typedef struct {
     const char* language;    /* Optional: ISO 639-3 code */
     TypecastPrompt* prompt;  /* Optional: Emotion settings */
     TypecastOutput* output;  /* Optional: Audio output settings */
-    int seed;                /* Optional: Random seed (0 = not set) */
+    int seed;                /* Deprecated: ignored; retained for ABI compatibility */
     const char* granularity; /* Optional: "word", "char", or NULL (both) */
 } TypecastTTSRequestWithTimestamps;
 
@@ -313,7 +313,7 @@ typedef struct {
     const char* language;            /* Optional: ISO 639-3 code */
     TypecastPrompt* prompt;          /* Optional: Emotion settings */
     TypecastOutputStream* output;    /* Optional: Audio output settings (no volume) */
-    int seed;                        /* Optional: Random seed (0 = not set) */
+    int seed;                        /* Deprecated: ignored; retained for ABI compatibility */
 } TypecastTTSRequestStream;
 
 /* ============================================

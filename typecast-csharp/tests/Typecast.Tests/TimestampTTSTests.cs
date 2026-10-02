@@ -351,6 +351,6 @@ public class TimestampTTSTests : IDisposable
         capturedBody.Should().NotBeNull();
         capturedBody!.Should().Contain("\"text\":\"Hello world\"");
         capturedBody.Should().Contain("\"voice_id\":\"voice_123\"");
-        capturedBody.Should().Contain("\"seed\":42");
+        capturedBody.Should().NotContain("\"seed\":42");
     }
 }

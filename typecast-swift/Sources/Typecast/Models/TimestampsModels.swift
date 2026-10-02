@@ -50,7 +50,7 @@ public struct TTSRequestWithTimestamps: Codable, Sendable {
     public var prompt: TTSPrompt?
     /// Audio output settings.
     public var output: OutputSettings?
-    /// Random seed for reproducible results.
+    /// Deprecated: ignored and never sent to the API.
     public var seed: Int?
 
     enum CodingKeys: String, CodingKey {
@@ -60,7 +60,6 @@ public struct TTSRequestWithTimestamps: Codable, Sendable {
         case language
         case prompt
         case output
-        case seed
     }
 
     public init(

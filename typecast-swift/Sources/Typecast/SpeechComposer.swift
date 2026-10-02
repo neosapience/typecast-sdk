@@ -11,6 +11,7 @@ public struct ComposerSettings: Sendable {
   public var language: LanguageCode?
   public var prompt: TTSPrompt?
   public var output: OutputSettings?
+  /// Deprecated: ignored and never sent to the API.
   public var seed: Int?
 
   public init(
@@ -47,7 +48,7 @@ struct ComposeSegment: Encodable {
   var durationSeconds: Double?
 
   enum CodingKeys: String, CodingKey {
-    case type, text, model, language, prompt, output, seed
+    case type, text, model, language, prompt, output
     case voiceId = "voice_id"
     case durationSeconds = "duration_seconds"
   }

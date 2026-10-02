@@ -201,6 +201,7 @@ class TtsRequest {
   final LanguageCode? language;
   final Object? prompt;
   final Output? output;
+  /// Deprecated: ignored and never sent to the API.
   final int? seed;
 
   Map<String, Object?> toJson() => _withoutNulls({
@@ -210,7 +211,6 @@ class TtsRequest {
         'language': language?.value,
         'prompt': _promptToJson(prompt),
         'output': output?.toJson(),
-        'seed': seed,
       });
 }
 
@@ -234,6 +234,7 @@ class GenerateToFileRequest {
   final LanguageCode? language;
   final Object? prompt;
   final Output? output;
+  /// Deprecated: ignored and never sent to the API.
   final int? seed;
 
   TtsRequest toTtsRequest(String path) => TtsRequest(
@@ -278,6 +279,7 @@ class TtsRequestStream {
   final LanguageCode? language;
   final Object? prompt;
   final OutputStream? output;
+  /// Deprecated: ignored and never sent to the API.
   final int? seed;
 
   Map<String, Object?> toJson() => _withoutNulls({
@@ -287,7 +289,6 @@ class TtsRequestStream {
         'language': language?.value,
         'prompt': _promptToJson(prompt),
         'output': output?.toJson(),
-        'seed': seed,
       });
 }
 

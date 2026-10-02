@@ -285,7 +285,7 @@ class TypecastClientTest {
             assertTrue(body.contains("\"model\":\"ssfm-v30\""))
             assertTrue(body.contains("\"audio_format\":\"mp3\""))
             assertTrue(body.contains("\"language\":\"eng\""))
-            assertTrue(body.contains("\"seed\":7"))
+            assertFalse(body.contains("\"seed\":7"))
         } finally {
             Files.deleteIfExists(output)
         }

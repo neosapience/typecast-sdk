@@ -19,6 +19,7 @@ class TTSRequestStream
         public ?string $language = null,
         public Prompt|PresetPrompt|SmartPrompt|null $prompt = null,
         public ?OutputStream $output = null,
+        /** @deprecated Ignored and never sent to the API. */
         public ?int $seed = null,
     ) {
         if (trim($this->voiceId) === '') {
@@ -57,9 +58,6 @@ class TTSRequestStream
         }
         if ($this->output !== null) {
             $data['output'] = $this->output->toArray();
-        }
-        if ($this->seed !== null) {
-            $data['seed'] = $this->seed;
         }
 
         return $data;

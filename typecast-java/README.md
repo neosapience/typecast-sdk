@@ -518,7 +518,6 @@ mvn clean install
 | `language` | `LanguageCode`                            |          | ISO 639-3 code (auto-detected if omitted) |
 | `prompt`   | `Prompt` / `PresetPrompt` / `SmartPrompt` |          | Emotion settings                          |
 | `output`   | `Output`                                  |          | Audio output settings                     |
-| `seed`     | `Integer`                                 |          | Random seed for reproducibility           |
 
 ### TTSResponse
 

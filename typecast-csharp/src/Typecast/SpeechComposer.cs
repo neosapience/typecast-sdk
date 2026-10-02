@@ -22,7 +22,7 @@ public class ComposerSettings
     /// <summary>Optional output controls such as pitch, tempo, volume, target LUFS, and requested format.</summary>
     public Output? Output { get; set; }
 
-    /// <summary>Optional deterministic generation seed passed through to the Typecast API.</summary>
+    /// <summary>Deprecated: ignored and never sent to the API.</summary>
     public int? Seed { get; set; }
 }
 

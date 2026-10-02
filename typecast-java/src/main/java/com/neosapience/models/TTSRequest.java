@@ -4,7 +4,7 @@ package com.neosapience.models;
  * Request object for Text-to-Speech synthesis.
  * 
  * <p>Required fields: voiceId, text, model</p>
- * <p>Optional fields: language, prompt, output, seed</p>
+ * <p>Optional fields: language, prompt, output</p>
  * <p>Browse available API voices at https://typecast.ai/developers/api/voices.</p>
  */
 public class TTSRequest {
@@ -155,7 +155,7 @@ public class TTSRequest {
     }
 
     /**
-     * Gets the random seed.
+     * Gets the ignored legacy seed.
      * 
      * @return the seed, or null
      */
@@ -164,9 +164,9 @@ public class TTSRequest {
     }
 
     /**
-     * Sets the random seed for reproducibility.
+     * Sets the Deprecated: ignored and never sent to the API.
      * 
-     * @param seed the random seed
+     * @param seed ignored legacy value
      * @return this TTSRequest for chaining
      */
     public TTSRequest setSeed(Integer seed) {
@@ -284,9 +284,9 @@ public class TTSRequest {
         }
 
         /**
-         * Sets the random seed.
+         * Sets the ignored legacy seed.
          * 
-         * @param seed the seed
+         * @param seed ignored legacy value
          * @return this Builder for chaining
          */
         public Builder seed(Integer seed) {
