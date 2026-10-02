@@ -9,7 +9,7 @@ This directory contains canned API responses captured against `POST /v1/text-to-
 - `char_only.json` — `granularity=char`, English same text, words=null.
 - `jpn_char.json` — `granularity=char`, Japanese `"こんにちは。お元気ですか?"`, multi-character segments (13).
 
-All fixtures use voice `tc_60e5426de8b95f1d3000d7b5` ("Jack"), model `ssfm-v30`, prompt `{"emotion_type":"preset","emotion_preset":"normal","emotion_intensity":1.0}`, seed `42`.
+The original fixtures were collected with voice `tc_60e5426de8b95f1d3000d7b5` ("Jack"), model `ssfm-v30`, prompt `{"emotion_type":"preset","emotion_preset":"normal","emotion_intensity":1.0}`, and the former seed parameter set to `42`. Seed is no longer supported and must not be sent when regenerating fixtures.
 
 ## Expected outputs
 
@@ -47,4 +47,4 @@ Removing or renaming a field is a breaking change requiring SDK version coordina
 
 ## Re-capture
 
-Re-running the requests with the same voice + model + seed produces equivalent timing within rounding noise. If audio bytes differ but timing/text fields don't, the fixtures stay valid. If timing changes meaningfully, regenerate `expected/*.srt` and `expected/*.vtt` from the new fixtures (Python SDK's `to_srt()` / `to_vtt()` are the source of truth for those expected files).
+Re-running the requests may produce different audio or timing. If audio bytes differ but timing/text fields don't, the fixtures stay valid. If timing changes meaningfully, regenerate `expected/*.srt` and `expected/*.vtt` from the new fixtures (Python SDK's `to_srt()` / `to_vtt()` are the source of truth for those expected files).
