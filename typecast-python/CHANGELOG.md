@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0]
+
+### Changed
+
+- Require Python 3.11 through 3.14. Python 3.10 is no longer supported because it is end-of-life; 0.4.1 is the last compatible published release for Python 3.10.
+- Require urllib3 2.8.0 or later to include published security fixes.
+- Upgrade Python and recreate the virtual environment before installing 0.5.0. Existing releases remain available, but an older version pin does not restore security support for an EOL interpreter.
+
 ## [0.4.0]
 
 ### Changed
