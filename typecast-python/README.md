@@ -37,7 +37,7 @@ Convert text to lifelike speech using AI-powered voices
 
 ## Installation
 
-Python 3.11 through 3.14 is required. Python 3.8, 3.9, and 3.10 are no longer supported because they are end-of-life. The last compatible published releases are 0.3.15 for Python 3.8/3.9 and 0.4.1 for Python 3.10. Upgrade Python and recreate your virtual environment before installing 0.5.1. Temporarily pinning an older release does not restore security support for an EOL runtime.
+Python 3.11 through 3.14 is required. Python 3.8, 3.9, and 3.10 are no longer supported because they are end-of-life. The last compatible published releases are 0.3.15 for Python 3.8/3.9 and 0.4.1 for Python 3.10. Upgrade Python and recreate your virtual environment before installing 0.5.2. Temporarily pinning an older release does not restore security support for an EOL runtime.
 
 ```bash
 pip install typecast-python
