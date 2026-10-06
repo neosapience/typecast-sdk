@@ -350,7 +350,7 @@ def _group_into_cues(
     Returns List[(text, start, end)] tuples.
     """
     cues = []
-    cur_text_parts = []
+    cur_text_parts: list[str] = []
     cur_start = None
     last_end = None
 
