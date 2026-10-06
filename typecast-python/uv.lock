@@ -1437,7 +1437,7 @@ wheels = [
 
 [[package]]
 name = "typecast-python"
-version = "0.5.1"
+version = "0.5.2"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
