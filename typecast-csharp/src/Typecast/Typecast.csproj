@@ -21,7 +21,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageTags>typecast;tts;text-to-speech;speech;synthesis;ai;voice;audio;unity;blazor</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>Update System.Text.Json, Microsoft.Bcl.AsyncInterfaces, and System.Net.Http.Json dependencies to 10.0.13. Public APIs and target frameworks are unchanged.</PackageReleaseNotes>
+    <PackageReleaseNotes>Release 0.3.17. Public APIs and target frameworks are unchanged.</PackageReleaseNotes>
     <Copyright>Copyright (c) 2026 Neosapience &lt;help@typecast.ai&gt;</Copyright>
     
     <!-- Enable source link for debugging -->
