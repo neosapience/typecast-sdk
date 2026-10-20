@@ -11,7 +11,7 @@
     
     <!-- NuGet Package Configuration -->
     <PackageId>typecast-csharp</PackageId>
-    <Version>0.3.16</Version>
+    <Version>0.3.17</Version>
     <Authors>Neosapience</Authors>
     <Company>Neosapience</Company>
     <Description>Official C# SDK for Typecast Text-to-Speech API. Supports .NET Standard 2.0+, .NET 6+, Unity (via NuGetForUnity), and Blazor.</Description>
@@ -21,6 +21,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageTags>typecast;tts;text-to-speech;speech;synthesis;ai;voice;audio;unity;blazor</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>Release 0.3.17. Public APIs and target frameworks are unchanged.</PackageReleaseNotes>
     <Copyright>Copyright (c) 2026 Neosapience &lt;help@typecast.ai&gt;</Copyright>
     
     <!-- Enable source link for debugging -->
