@@ -11,8 +11,8 @@ Text-to-Speech API client library for [Typecast AI](https://typecast.ai/?lang=en
 - **Embedded Ready**: Cross-compilation support for ARM, optimized for minimal footprint
 - **Unreal Engine Ready**: Designed for easy integration with Unreal Engine
 - **Full API Coverage**: TTS generation, voice listing, emotion control
-- **Multiple Models**: ssfm-v21 and ssfm-v30 support
-- **Smart Emotion**: Context-aware emotion inference (ssfm-v30)
+- **Multiple Models**: ssfm-v21, ssfm-v30, and ssfm-v31 support; check the selected voice's supported models and emotions
+- **Smart Emotion**: Context-aware emotion inference (ssfm-v30/ssfm-v31; check voice support)
 - **MIT License**: Free for commercial and personal use
 
 ## Supported Platforms (E2E Tested)
@@ -310,7 +310,7 @@ Check the selected voice's `models` entry for supported emotions.
 
 ## Emotion Control
 
-### Preset Emotion (ssfm-v21 & ssfm-v30)
+### Preset Emotion (ssfm-v21, ssfm-v30, ssfm-v31)
 
 ```c
 TypecastPrompt prompt = TYPECAST_PROMPT_DEFAULT();

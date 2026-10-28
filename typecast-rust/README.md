@@ -10,11 +10,14 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-typecast-rust = "0.1.0"
+typecast-rust = "0.4"
 tokio = { version = "1", features = ["full"] }
 ```
 
 ## Quick Start
+
+Version 0.4 adds `TTSModel::SsfmV31`. When upgrading from 0.3, add a
+`TTSModel::SsfmV31` arm to exhaustive matches on `TTSModel`.
 
 ```rust
 use typecast_rust::{TypecastClient, TTSRequest, TTSModel};

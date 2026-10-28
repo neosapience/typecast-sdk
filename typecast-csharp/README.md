@@ -10,7 +10,7 @@ Official C# SDK for the [Typecast](https://typecast.ai/?lang=en) Text-to-Speech 
 
 - Full support for Typecast TTS API v1 and v2
 - Both synchronous and asynchronous methods
-- Multiple TTS models (ssfm-v21, ssfm-v30)
+- Multiple TTS models (ssfm-v21, ssfm-v30, ssfm-v31); check voice support
 - Emotion control (preset and smart modes)
 - Audio customization (volume, pitch, tempo, format)
 - **Timestamp TTS**: word and character alignment for SRT/WebVTT subtitle generation
