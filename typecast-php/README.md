@@ -7,13 +7,6 @@
 
 Official PHP SDK for the [Typecast](https://typecast.ai) Text-to-Speech API.
 
-## SSFM 3.1 model selection
-
-Select `ssfm-v31` explicitly for SSFM 3.1. First choose a compatible voice using
-`GET /v3/voices?model=ssfm-v31` and check its `models` and supported emotions.
-Existing model choices and SDK defaults are unchanged. Do not infer SSFM 3.1
-language or cloning support from another model's capabilities.
-
 ## Requirements
 
 - PHP 8.1 or higher
@@ -59,6 +52,10 @@ echo "Duration: {$response->duration}s\n";
 ## API Methods
 
 ### Text-to-Speech
+
+Choose `ssfm-v21`, `ssfm-v30`, or `ssfm-v31` through the request's model setting.
+For SSFM 3.1, use `'ssfm-v31'` and a compatible voice from `GET /v3/voices?model=ssfm-v31`.
+The voice's `models` entry lists its supported emotions.
 
 ```php
 use Neosapience\Typecast\Models\TTSRequest;

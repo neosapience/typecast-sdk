@@ -18,13 +18,6 @@ Convert text to lifelike speech using AI-powered voices
 
 ---
 
-## SSFM 3.1 model selection
-
-Select `ssfm-v31` explicitly for SSFM 3.1. First choose a compatible voice using
-`GET /v3/voices?model=ssfm-v31` and check its `models` and supported emotions.
-Existing model choices and SDK defaults are unchanged. Do not infer SSFM 3.1
-language or cloning support from another model's capabilities.
-
 ## Table of Contents
 
 - [Requirements](#requirements)
@@ -161,6 +154,10 @@ let client = TypecastClient(configuration: config)
 ```
 
 ### Text to Speech
+
+Choose `ssfm-v21`, `ssfm-v30`, or `ssfm-v31` through the request's model setting.
+For SSFM 3.1, use `.ssfmV31` and a compatible voice from `GET /v3/voices?model=ssfm-v31`.
+The voice's `models` entry lists its supported emotions.
 
 #### Basic Usage
 

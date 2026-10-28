@@ -4,13 +4,6 @@
 
 Text-to-Speech API client library for [Typecast AI](https://typecast.ai/?lang=en).
 
-## SSFM 3.1 model selection
-
-Select `ssfm-v31` explicitly for SSFM 3.1. First choose a compatible voice using
-`GET /v3/voices?model=ssfm-v31` and check its `models` and supported emotions.
-Existing model choices and SDK defaults are unchanged. Do not infer SSFM 3.1
-language or cloning support from another model's capabilities.
-
 ## Features
 
 - **C and C++ Support**: Pure C API with optional C++ wrapper
@@ -306,8 +299,12 @@ See `examples/quick_cloning.c` for a full end-to-end example.
 
 ## Models
 
+Choose a model and a compatible voice using `GET /v3/voices?model=ssfm-v31` for SSFM 3.1.
+Check the selected voice's `models` entry for supported emotions.
+
 | Model                     | Description                        | Emotions                                             |
 | ------------------------- | ---------------------------------- | ---------------------------------------------------- |
+| `TYPECAST_MODEL_SSFM_V31` | SSFM 3.1 | Check the selected voice's emotions |
 | `TYPECAST_MODEL_SSFM_V21` | Stable production model            | normal, happy, sad, angry                            |
 | `TYPECAST_MODEL_SSFM_V30` | SSFM 3.0 with improved prosody | normal, happy, sad, angry, whisper, toneup, tonedown |
 

@@ -6,13 +6,6 @@ Official C# SDK for the [Typecast](https://typecast.ai/?lang=en) Text-to-Speech 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](../.github/workflows/coverage-csharp.yml)
 
-## SSFM 3.1 model selection
-
-Select `ssfm-v31` explicitly for SSFM 3.1. First choose a compatible voice using
-`GET /v3/voices?model=ssfm-v31` and check its `models` and supported emotions.
-Existing model choices and SDK defaults are unchanged. Do not infer SSFM 3.1
-language or cloning support from another model's capabilities.
-
 ## Features
 
 - Full support for Typecast TTS API v1 and v2
@@ -148,6 +141,10 @@ Install-Package typecast-csharp
 ## Quick Start
 
 ### Basic Usage
+
+Choose `ssfm-v21`, `ssfm-v30`, or `ssfm-v31` through the request's model setting.
+For SSFM 3.1, use `TTSModel.SsfmV31` and a compatible voice from `GET /v3/voices?model=ssfm-v31`.
+The voice's `models` entry lists its supported emotions.
 
 ```csharp
 using Typecast;
@@ -732,7 +729,7 @@ The SDK supports 37 languages with ISO 639-3 codes:
 
 ### Enums
 
-- `TTSModel` - TTS model versions (SsfmV21, SsfmV30)
+- `TTSModel` - TTS model versions (SsfmV21, SsfmV30, SsfmV31)
 - `LanguageCode` - Supported languages
 - `EmotionPreset` - Emotion presets
 - `AudioFormat` - Output formats (Wav, Mp3)
