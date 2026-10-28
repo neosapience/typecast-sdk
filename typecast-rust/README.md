@@ -4,6 +4,13 @@
 
 Official Rust SDK for the [Typecast](https://typecast.ai/?lang=en) Text-to-Speech API.
 
+## SSFM 3.1 model selection
+
+Select `ssfm-v31` explicitly for SSFM 3.1. First choose a compatible voice using
+`GET /v3/voices?model=ssfm-v31` and check its `models` and supported emotions.
+Existing model choices and SDK defaults are unchanged. Do not infer SSFM 3.1
+language or cloning support from another model's capabilities.
+
 ## Installation
 
 Add this to your `Cargo.toml`:
@@ -108,9 +115,9 @@ Available presets:
 - `Happy` - Bright, cheerful expression
 - `Sad` - Melancholic, subdued tone
 - `Angry` - Strong, intense delivery
-- `Whisper` - Soft, quiet speech (ssfm-v30 only)
-- `ToneUp` - Higher tonal emphasis (ssfm-v30 only)
-- `ToneDown` - Lower tonal emphasis (ssfm-v30 only)
+- `Whisper` - Soft, quiet speech (ssfm-v30/ssfm-v31; check voice support)
+- `ToneUp` - Higher tonal emphasis (ssfm-v30/ssfm-v31; check voice support)
+- `ToneDown` - Lower tonal emphasis (ssfm-v30/ssfm-v31; check voice support)
 
 #### Smart Context-Aware Emotion (ssfm-v30)
 

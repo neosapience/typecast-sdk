@@ -19,6 +19,14 @@ use PHPUnit\Framework\TestCase;
 
 class ModelsTest extends TestCase
 {
+    public function testSSFMV31UsesExistingStringModel(): void
+    {
+        $request = new TTSRequest(voiceId: 'tc_test', text: 'hello', model: 'ssfm-v31');
+        $this->assertSame('ssfm-v31', $request->toArray()['model']);
+        $filter = new VoicesV2Filter(model: 'ssfm-v31');
+        $this->assertSame('ssfm-v31', $filter->toQueryParams()['model']);
+    }
+
     public function testPromptToArray(): void
     {
         $prompt = new Prompt(emotionPreset: 'happy', emotionIntensity: 1.5);

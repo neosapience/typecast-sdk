@@ -18,7 +18,10 @@ public enum TTSModel {
      * SSFM v3.0 model - 37 languages, 7 emotion presets 
      * (normal, happy, sad, angry, whisper, toneup, tonedown)
      */
-    SSFM_V30("ssfm-v30");
+    SSFM_V30("ssfm-v30"),
+
+    /** SSFM 3.1. Select a compatible voice from the V3 voice list. */
+    SSFM_V31("ssfm-v31");
 
     private final String value;
 

@@ -1,4 +1,4 @@
-export type TTSModel = 'ssfm-v21' | 'ssfm-v30';
+export type TTSModel = 'ssfm-v21' | 'ssfm-v30' | 'ssfm-v31';
 
 /**
  * Language code following ISO 639-3 standard

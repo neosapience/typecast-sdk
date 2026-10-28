@@ -122,7 +122,8 @@ typedef enum {
 
 typedef enum {
     TYPECAST_MODEL_SSFM_V21,
-    TYPECAST_MODEL_SSFM_V30
+    TYPECAST_MODEL_SSFM_V30,
+    TYPECAST_MODEL_SSFM_V31
 } TypecastModel;
 
 /* ============================================
@@ -1098,7 +1099,8 @@ namespace typecast {
 
 enum class Model {
     SSFM_V21 = TYPECAST_MODEL_SSFM_V21,
-    SSFM_V30 = TYPECAST_MODEL_SSFM_V30
+    SSFM_V30 = TYPECAST_MODEL_SSFM_V30,
+    SSFM_V31 = TYPECAST_MODEL_SSFM_V31
 };
 
 enum class EmotionPreset {

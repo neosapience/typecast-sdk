@@ -2,6 +2,7 @@ module Typecast
   module Models
     TTS_MODEL_V21 = "ssfm-v21"
     TTS_MODEL_V30 = "ssfm-v30"
+    TTS_MODEL_V31 = "ssfm-v31"
     AUDIO_WAV = "wav"
     AUDIO_MP3 = "mp3"
     CLONING_MAX_FILE_SIZE = 25 * 1024 * 1024

@@ -97,12 +97,16 @@ TEST(version) {
  * ============================================ */
 
 TEST(model_to_string) {
+    ASSERT_EQ(TYPECAST_MODEL_SSFM_V21, 0);
+    ASSERT_EQ(TYPECAST_MODEL_SSFM_V30, 1);
+    ASSERT_STREQ(typecast_model_to_string(TYPECAST_MODEL_SSFM_V31), "ssfm-v31");
     ASSERT_STREQ(typecast_model_to_string(TYPECAST_MODEL_SSFM_V21), "ssfm-v21");
     ASSERT_STREQ(typecast_model_to_string(TYPECAST_MODEL_SSFM_V30), "ssfm-v30");
     TEST_PASS();
 }
 
 TEST(model_from_string) {
+    ASSERT_EQ(typecast_model_from_string("ssfm-v31"), TYPECAST_MODEL_SSFM_V31);
     ASSERT_EQ(typecast_model_from_string("ssfm-v21"), TYPECAST_MODEL_SSFM_V21);
     ASSERT_EQ(typecast_model_from_string("ssfm-v30"), TYPECAST_MODEL_SSFM_V30);
     ASSERT_EQ(typecast_model_from_string("invalid"), -1);

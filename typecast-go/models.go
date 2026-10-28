@@ -11,7 +11,9 @@ import (
 type TTSModel string
 
 const (
-	// ModelSSFMV30 is the latest model with improved prosody and additional emotion presets
+	// ModelSSFMV31 selects SSFM 3.1. Check the voice's supported models and emotions.
+	ModelSSFMV31 TTSModel = "ssfm-v31"
+	// ModelSSFMV30 selects SSFM 3.0 with improved prosody and additional emotion presets.
 	ModelSSFMV30 TTSModel = "ssfm-v30"
 	// ModelSSFMV21 is the stable production model with proven reliability
 	ModelSSFMV21 TTSModel = "ssfm-v21"

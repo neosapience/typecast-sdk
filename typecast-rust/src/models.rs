@@ -14,12 +14,15 @@ fn serialize_silence<S: serde::Serializer>(value: &Option<u16>, serializer: S) -
 /// TTS model version to use for speech synthesis
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TTSModel {
-    /// Latest model with improved prosody and additional emotion presets (recommended)
+    /// SSFM 3.0 with improved prosody and additional emotion presets.
     #[serde(rename = "ssfm-v30")]
     SsfmV30,
     /// Stable production model with proven reliability and consistent quality
     #[serde(rename = "ssfm-v21")]
     SsfmV21,
+    /// SSFM 3.1; select a compatible voice from the V3 voice list.
+    #[serde(rename = "ssfm-v31")]
+    SsfmV31,
 }
 
 impl Default for TTSModel {

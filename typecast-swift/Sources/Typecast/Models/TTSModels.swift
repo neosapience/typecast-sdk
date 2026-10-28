@@ -4,8 +4,10 @@ import Foundation
 
 /// TTS model version to use for speech synthesis
 public enum TTSModel: String, Codable, Sendable {
-  /// Latest model with improved prosody and additional emotion presets (recommended)
+  /// SSFM 3.0 with improved prosody and additional emotion presets.
   case ssfmV30 = "ssfm-v30"
+  /// SSFM 3.1. Select a compatible voice from the V3 voice list.
+  case ssfmV31 = "ssfm-v31"
   /// Stable production model with proven reliability
   case ssfmV21 = "ssfm-v21"
 }

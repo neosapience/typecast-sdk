@@ -27,6 +27,7 @@ fn model_query_value(model: TTSModel) -> &'static str {
     match model {
         TTSModel::SsfmV30 => "ssfm-v30",
         TTSModel::SsfmV21 => "ssfm-v21",
+        TTSModel::SsfmV31 => "ssfm-v31",
     }
 }
 
