@@ -71,7 +71,7 @@ print(f"Saved: output.wav ({response.duration}s)")
 
 | Feature | Description |
 |---------|-------------|
-| **Multiple Models** | Support for `ssfm-v21` and `ssfm-v30` AI voice models |
+| **Multiple Models** | `ssfm-v21`, `ssfm-v30`, and `ssfm-v31`; check voice support |
 | **37 Languages** | English, Korean, Japanese, Chinese, Spanish, and 32 more |
 | **Emotion Control** | Preset emotions or smart context-aware inference |
 | **Audio Customization** | Volume, pitch, tempo, and format (WAV/MP3) |
@@ -100,6 +100,10 @@ client = Typecast(
 ```
 
 ### Text to Speech
+
+Choose `ssfm-v21`, `ssfm-v30`, or `ssfm-v31` through the request's model setting.
+For SSFM 3.1, use `TTSModel.SSFM_V31` and a compatible voice from `GET /v3/voices?model=ssfm-v31`.
+The voice's `models` entry lists its supported emotions.
 
 #### Basic Usage
 

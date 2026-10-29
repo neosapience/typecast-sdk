@@ -53,6 +53,10 @@ echo "Duration: {$response->duration}s\n";
 
 ### Text-to-Speech
 
+Choose `ssfm-v21`, `ssfm-v30`, or `ssfm-v31` through the request's model setting.
+For SSFM 3.1, use `'ssfm-v31'` and a compatible voice from `GET /v3/voices?model=ssfm-v31`.
+The voice's `models` entry lists its supported emotions.
+
 ```php
 use Neosapience\Typecast\Models\TTSRequest;
 use Neosapience\Typecast\Models\Output;

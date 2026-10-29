@@ -18,7 +18,11 @@ public enum TTSModel
     /// SSFM version 3.0 - supports advanced emotion control including smart mode.
     /// </summary>
     [JsonPropertyName("ssfm-v30")]
-    SsfmV30
+    SsfmV30,
+
+    /// <summary>SSFM version 3.1. Select a compatible voice from the V3 voice list.</summary>
+    [JsonPropertyName("ssfm-v31")]
+    SsfmV31
 }
 
 /// <summary>
@@ -33,6 +37,7 @@ public static class TTSModelExtensions
     {
         TTSModel.SsfmV21 => "ssfm-v21",
         TTSModel.SsfmV30 => "ssfm-v30",
+        TTSModel.SsfmV31 => "ssfm-v31",
         _ => throw new ArgumentOutOfRangeException(nameof(model))
     };
 
@@ -43,6 +48,7 @@ public static class TTSModelExtensions
     {
         "ssfm-v21" => TTSModel.SsfmV21,
         "ssfm-v30" => TTSModel.SsfmV30,
+        "ssfm-v31" => TTSModel.SsfmV31,
         _ => throw new ArgumentException($"Unknown TTS model: {value}", nameof(value))
     };
 }

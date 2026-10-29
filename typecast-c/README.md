@@ -11,8 +11,8 @@ Text-to-Speech API client library for [Typecast AI](https://typecast.ai/?lang=en
 - **Embedded Ready**: Cross-compilation support for ARM, optimized for minimal footprint
 - **Unreal Engine Ready**: Designed for easy integration with Unreal Engine
 - **Full API Coverage**: TTS generation, voice listing, emotion control
-- **Multiple Models**: ssfm-v21 and ssfm-v30 support
-- **Smart Emotion**: Context-aware emotion inference (ssfm-v30)
+- **Multiple Models**: ssfm-v21, ssfm-v30, and ssfm-v31 support; check the selected voice's supported models and emotions
+- **Smart Emotion**: Context-aware emotion inference (ssfm-v30/ssfm-v31; check voice support)
 - **MIT License**: Free for commercial and personal use
 
 ## Supported Platforms (E2E Tested)
@@ -299,14 +299,18 @@ See `examples/quick_cloning.c` for a full end-to-end example.
 
 ## Models
 
+Choose a model and a compatible voice using `GET /v3/voices?model=ssfm-v31` for SSFM 3.1.
+Check the selected voice's `models` entry for supported emotions.
+
 | Model                     | Description                        | Emotions                                             |
 | ------------------------- | ---------------------------------- | ---------------------------------------------------- |
+| `TYPECAST_MODEL_SSFM_V31` | SSFM 3.1 | Check the selected voice's emotions |
 | `TYPECAST_MODEL_SSFM_V21` | Stable production model            | normal, happy, sad, angry                            |
-| `TYPECAST_MODEL_SSFM_V30` | Latest model with improved prosody | normal, happy, sad, angry, whisper, toneup, tonedown |
+| `TYPECAST_MODEL_SSFM_V30` | SSFM 3.0 with improved prosody | normal, happy, sad, angry, whisper, toneup, tonedown |
 
 ## Emotion Control
 
-### Preset Emotion (ssfm-v21 & ssfm-v30)
+### Preset Emotion (ssfm-v21, ssfm-v30, ssfm-v31)
 
 ```c
 TypecastPrompt prompt = TYPECAST_PROMPT_DEFAULT();
@@ -316,7 +320,7 @@ prompt.emotion_intensity = 1.5f;  // 0.0 - 2.0
 request.prompt = &prompt;
 ```
 
-### Smart Emotion (ssfm-v30 only)
+### Smart Emotion (ssfm-v30/ssfm-v31; check voice support)
 
 ```c
 TypecastPrompt prompt = {0};

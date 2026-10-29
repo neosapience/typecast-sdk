@@ -8,6 +8,8 @@ final class ModelsTests: XCTestCase {
     // MARK: - Enums
 
     func testTTSModelAllRawValues() {
+        XCTAssertEqual(TTSModel.ssfmV31.rawValue, "ssfm-v31")
+        XCTAssertEqual(TTSModel(rawValue: "ssfm-v31"), .ssfmV31)
         XCTAssertEqual(TTSModel.ssfmV30.rawValue, "ssfm-v30")
         XCTAssertEqual(TTSModel.ssfmV21.rawValue, "ssfm-v21")
         XCTAssertEqual(TTSModel(rawValue: "ssfm-v30"), .ssfmV30)

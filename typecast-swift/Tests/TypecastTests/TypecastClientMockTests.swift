@@ -3,6 +3,19 @@ import XCTest
 
 final class TypecastClientMockTests: TypecastClientMockTestCase {
 
+    func testSpeakV31PreservesPresetPrompt() async throws {
+        MockURLProtocol.requestHandler = { req in
+            (self.httpResponse(url: req.url!, status: 200, headers: ["Content-Type": "audio/wav"]), Data([0x00]))
+        }
+        _ = try await client.speak("Hello", voiceId: "tc_test", model: .ssfmV31, emotion: .happy)
+        let body = try XCTUnwrap(MockURLProtocol.lastBody)
+        let json = try JSONSerialization.jsonObject(with: body) as? [String: Any]
+        XCTAssertEqual(json?["model"] as? String, "ssfm-v31")
+        let prompt = json?["prompt"] as? [String: Any]
+        XCTAssertEqual(prompt?["emotion_type"] as? String, "preset")
+        XCTAssertEqual(prompt?["emotion_preset"] as? String, "happy")
+    }
+
     // MARK: - textToSpeech
 
     func testTextToSpeechWavSuccess() async throws {

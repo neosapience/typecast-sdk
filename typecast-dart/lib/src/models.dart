@@ -3,7 +3,8 @@ import 'dart:typed_data';
 
 enum TtsModel {
   ssfmV21('ssfm-v21'),
-  ssfmV30('ssfm-v30');
+  ssfmV30('ssfm-v30'),
+  ssfmV31('ssfm-v31');
 
   const TtsModel(this.value);
   final String value;

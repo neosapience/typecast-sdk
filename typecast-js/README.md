@@ -107,9 +107,12 @@ main();
 
 ## Features
 
+Version 0.5 adds `'ssfm-v31'` to `TTSModel`. When upgrading from 0.4, add it
+to exhaustive model switches and `Record<TTSModel, ...>` mappings.
+
 | Feature | Description |
 |---------|-------------|
-| **Multiple Models** | Support for `ssfm-v21` and `ssfm-v30` AI voice models |
+| **Multiple Models** | `ssfm-v21`, `ssfm-v30`, and `ssfm-v31`; check voice support |
 | **37 Languages** | English, Korean, Japanese, Chinese, Spanish, and 32 more |
 | **Emotion Control** | Preset emotions or smart context-aware inference |
 | **Audio Customization** | Volume, pitch, tempo, and format (WAV/MP3) |
@@ -138,6 +141,10 @@ const client = new TypecastClient({
 ```
 
 ### Text to Speech
+
+Choose `ssfm-v21`, `ssfm-v30`, or `ssfm-v31` through the request's model setting.
+For SSFM 3.1, use `'ssfm-v31'` and a compatible voice from `GET /v3/voices?model=ssfm-v31`.
+The voice's `models` entry lists its supported emotions.
 
 #### Basic Usage
 

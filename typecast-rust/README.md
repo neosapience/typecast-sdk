@@ -10,11 +10,14 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-typecast-rust = "0.1.0"
+typecast-rust = "0.4"
 tokio = { version = "1", features = ["full"] }
 ```
 
 ## Quick Start
+
+Version 0.4 adds `TTSModel::SsfmV31`. When upgrading from 0.3, add a
+`TTSModel::SsfmV31` arm to exhaustive matches on `TTSModel`.
 
 ```rust
 use typecast_rust::{TypecastClient, TTSRequest, TTSModel};
@@ -66,6 +69,10 @@ let client = TypecastClient::new(config)?;
 
 ### Text-to-Speech
 
+Choose `ssfm-v21`, `ssfm-v30`, or `ssfm-v31` through the request's model setting.
+For SSFM 3.1, use `TTSModel::SsfmV31` and a compatible voice from `GET /v3/voices?model=ssfm-v31`.
+The voice's `models` entry lists its supported emotions.
+
 ```rust
 use typecast_rust::{TTSRequest, TTSModel, Output, AudioFormat};
 
@@ -108,9 +115,9 @@ Available presets:
 - `Happy` - Bright, cheerful expression
 - `Sad` - Melancholic, subdued tone
 - `Angry` - Strong, intense delivery
-- `Whisper` - Soft, quiet speech (ssfm-v30 only)
-- `ToneUp` - Higher tonal emphasis (ssfm-v30 only)
-- `ToneDown` - Lower tonal emphasis (ssfm-v30 only)
+- `Whisper` - Soft, quiet speech (ssfm-v30/ssfm-v31; check voice support)
+- `ToneUp` - Higher tonal emphasis (ssfm-v30/ssfm-v31; check voice support)
+- `ToneDown` - Lower tonal emphasis (ssfm-v30/ssfm-v31; check voice support)
 
 #### Smart Context-Aware Emotion (ssfm-v30)
 

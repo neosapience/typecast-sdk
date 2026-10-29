@@ -101,7 +101,7 @@ pub fn main() !void {
 
 | Feature | Description |
 |---------|-------------|
-| **Multiple Models** | Support for `ssfm-v21` and `ssfm-v30` AI voice models |
+| **Multiple Models** | `ssfm-v21`, `ssfm-v30`, and `ssfm-v31`; check voice support |
 | **37 Languages** | English, Korean, Japanese, Chinese, Spanish, and 32 more |
 | **Emotion Control** | Preset emotions or smart context-aware inference |
 | **Audio Customization** | Volume, pitch, tempo, and format (WAV/MP3) |
@@ -460,9 +460,13 @@ const response = client.textToSpeech(request) catch |err| switch (err) {
 
 ### Models
 
+Choose a model and a compatible voice using `GET /v3/voices?model=ssfm-v31` for SSFM 3.1.
+Check the selected voice's `models` entry for supported emotions.
+
 | Enum Value | API Value | Description |
 |------------|-----------|-------------|
-| `.ssfm_v30` | `ssfm-v30` | Latest model with improved prosody |
+| `.ssfm_v31` | `ssfm-v31` | SSFM 3.1 |
+| `.ssfm_v30` | `ssfm-v30` | SSFM 3.0 with improved prosody |
 | `.ssfm_v21` | `ssfm-v21` | Stable production model |
 
 ### Emotion Presets

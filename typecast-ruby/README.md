@@ -16,6 +16,10 @@ gem "typecast-ruby", path: "../typecast-ruby"
 
 ## Quick Start
 
+Choose `ssfm-v21`, `ssfm-v30`, or `ssfm-v31` through the request's model setting.
+For SSFM 3.1, use `Typecast::Models::TTS_MODEL_V31` and a compatible voice from `GET /v3/voices?model=ssfm-v31`.
+The voice's `models` entry lists its supported emotions.
+
 ```ruby
 require "typecast"
 

@@ -5,6 +5,7 @@ const std = @import("std");
 pub const TtsModel = enum {
     ssfm_v21,
     ssfm_v30,
+    ssfm_v31,
 
     const Self = @This();
 
@@ -12,12 +13,14 @@ pub const TtsModel = enum {
         return switch (self) {
             .ssfm_v21 => "ssfm-v21",
             .ssfm_v30 => "ssfm-v30",
+            .ssfm_v31 => "ssfm-v31",
         };
     }
 
     pub fn fromString(s: []const u8) ?Self {
         if (std.mem.eql(u8, s, "ssfm-v21")) return .ssfm_v21;
         if (std.mem.eql(u8, s, "ssfm-v30")) return .ssfm_v30;
+        if (std.mem.eql(u8, s, "ssfm-v31")) return .ssfm_v31;
         return null;
     }
 };
@@ -314,3 +317,10 @@ pub const CustomVoice = struct {
 };
 
 pub const CustomVoiceSample = struct { filename: []const u8, audio: []const u8 };
+
+test "SSFM 3.1 model round trip preserves existing values" {
+    try std.testing.expectEqualStrings("ssfm-v31", TtsModel.ssfm_v31.toString());
+    try std.testing.expectEqual(TtsModel.ssfm_v31, TtsModel.fromString("ssfm-v31").?);
+    try std.testing.expectEqual(@as(usize, 0), @intFromEnum(TtsModel.ssfm_v21));
+    try std.testing.expectEqual(@as(usize, 1), @intFromEnum(TtsModel.ssfm_v30));
+}

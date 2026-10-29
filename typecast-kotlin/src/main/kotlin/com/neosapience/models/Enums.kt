@@ -12,7 +12,10 @@ enum class TTSModel(val value: String) {
     SSFM_V30("ssfm-v30"),
     
     @SerialName("ssfm-v21")
-    SSFM_V21("ssfm-v21");
+    SSFM_V21("ssfm-v21"),
+
+    @SerialName("ssfm-v31")
+    SSFM_V31("ssfm-v31");
     
     override fun toString(): String = value
 }

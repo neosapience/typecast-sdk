@@ -104,6 +104,10 @@ println("Supported emotions: ${voice.models.flatMap { it.emotions }}")
 
 ### Text-to-Speech with Preset Emotion
 
+Choose `ssfm-v21`, `ssfm-v30`, or `ssfm-v31` through the request's model setting.
+For SSFM 3.1, use `TTSModel.SSFM_V31` and a compatible voice from `GET /v3/voices?model=ssfm-v31`.
+The voice's `models` entry lists its supported emotions.
+
 ```kotlin
 val request = TTSRequest.builder()
     .voiceId("tc_60e5426de8b95f1d3000d7b5")

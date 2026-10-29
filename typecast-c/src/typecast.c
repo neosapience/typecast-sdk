@@ -86,7 +86,8 @@ static const char* DEFAULT_HOST = "https://api.typecast.ai";
 
 static const char* MODEL_STRINGS[] = {
     "ssfm-v21",
-    "ssfm-v30"
+    "ssfm-v30",
+    "ssfm-v31"
 };
 
 static const char* EMOTION_STRINGS[] = {
@@ -2237,7 +2238,7 @@ TYPECAST_API const char* typecast_version(void) {
 }
 
 TYPECAST_API const char* typecast_model_to_string(TypecastModel model) {
-    if (model < 0 || model > TYPECAST_MODEL_SSFM_V30) {
+    if (model < 0 || model > TYPECAST_MODEL_SSFM_V31) {
         return "unknown";
     }
     return MODEL_STRINGS[model];
@@ -2247,6 +2248,7 @@ TYPECAST_API int typecast_model_from_string(const char* str) {
     if (!str) return -1;
     if (strcmp(str, "ssfm-v21") == 0) return TYPECAST_MODEL_SSFM_V21;
     if (strcmp(str, "ssfm-v30") == 0) return TYPECAST_MODEL_SSFM_V30;
+    if (strcmp(str, "ssfm-v31") == 0) return TYPECAST_MODEL_SSFM_V31;
     return -1;
 }
 

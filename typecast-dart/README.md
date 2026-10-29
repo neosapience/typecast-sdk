@@ -19,6 +19,10 @@ dependencies:
 
 ## Quick Start
 
+Choose `ssfm-v21`, `ssfm-v30`, or `ssfm-v31` through the request's model setting.
+For SSFM 3.1, use `TtsModel.ssfmV31` and a compatible voice from `GET /v3/voices?model=ssfm-v31`.
+The voice's `models` entry lists its supported emotions.
+
 ```dart
 import 'dart:io';
 import 'package:typecast_dart/typecast_dart.dart';

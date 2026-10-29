@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class TTSModel(str, Enum):
     SSFM_V21 = "ssfm-v21"
     SSFM_V30 = "ssfm-v30"
+    SSFM_V31 = "ssfm-v31"
 
 
 class LanguageCode(str, Enum):

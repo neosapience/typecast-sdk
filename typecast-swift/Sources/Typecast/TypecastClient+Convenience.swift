@@ -34,7 +34,7 @@ extension TypecastClient {
     intensity: Double = 1.0
   ) async throws -> TTSResponse {
     let prompt: TTSPrompt
-    if model == .ssfmV30 {
+    if model == .ssfmV30 || model == .ssfmV31 {
       prompt = .preset(PresetPrompt(emotionPreset: emotion, emotionIntensity: intensity))
     } else {
       prompt = .basic(Prompt(emotionPreset: emotion, emotionIntensity: intensity))
