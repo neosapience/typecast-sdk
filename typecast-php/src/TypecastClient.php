@@ -37,7 +37,7 @@ use Neosapience\Typecast\Models\VoicesV2Filter;
 class TypecastClient
 {
     private const DEFAULT_BASE_URL = 'https://api.typecast.ai';
-    private const SDK_VERSION = '0.1.15';
+    private const SDK_VERSION = '1.3.0';
 
     private ClientInterface $httpClient;
 
