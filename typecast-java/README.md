@@ -46,7 +46,7 @@ Add the following dependency to your `pom.xml`:
 <dependency>
     <groupId>com.neosapience</groupId>
     <artifactId>typecast-java</artifactId>
-    <version>1.0.0</version>
+    <version>1.3.1</version>
 </dependency>
 ```
 
@@ -58,7 +58,7 @@ Add the following dependency to your `pom.xml`:
 Add to your `build.gradle`:
 
 ```groovy
-implementation 'com.neosapience:typecast-java:1.0.0'
+implementation 'com.neosapience:typecast-java:1.3.1'
 ```
 
 </details>
@@ -444,7 +444,7 @@ Check the selected voice's `models` entry for supported emotions.
    <dependency>
        <groupId>com.neosapience</groupId>
        <artifactId>typecast-java</artifactId>
-       <version>1.0.0</version>
+       <version>1.3.1</version>
    </dependency>
    ```
 
