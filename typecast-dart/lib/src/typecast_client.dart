@@ -309,11 +309,12 @@ class TypecastClient {
     if ((source != 'llms' &&
             source != 'skill' &&
             source != 'api-page' &&
-            source != 'api-docs') ||
+            source != 'api-docs' &&
+            source != 'chatgpt-plugin') ||
         generatedBy == null ||
         !RegExp(r'^[a-z0-9][a-z0-9._-]{0,31}$').hasMatch(generatedBy!)) {
       throw ArgumentError(
-        'source (llms, skill, api-page, or api-docs) and generatedBy must be valid and provided together',
+        'source (llms, skill, api-page, api-docs, or chatgpt-plugin) and generatedBy must be valid and provided together',
       );
     }
     return ' typecast-integration/1 (source=$source; generated_by=$generatedBy)';

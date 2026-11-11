@@ -197,11 +197,11 @@ public class TypecastClient {
             return "";
         }
         if (!("llms".equals(source) || "skill".equals(source)
-                || "api-page".equals(source) || "api-docs".equals(source))
+                || "api-page".equals(source) || "api-docs".equals(source) || "chatgpt-plugin".equals(source))
                 || generatedBy == null
                 || !generatedBy.matches("[a-z0-9][a-z0-9._-]{0,31}")) {
             throw new IllegalArgumentException(
-                    "source (llms, skill, api-page, or api-docs) and generatedBy must be valid and provided together");
+                    "source (llms, skill, api-page, api-docs, or chatgpt-plugin) and generatedBy must be valid and provided together");
         }
         return " typecast-integration/1 (source=" + source + "; generated_by=" + generatedBy + ")";
     }

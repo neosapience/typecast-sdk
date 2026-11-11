@@ -120,7 +120,7 @@ class Typecast:
                 the client will not create a new session nor close it; auth headers
                 (`X-API-KEY`, `User-Agent`) are attached per-request via
                 `_request_headers()`.
-            source: Integration source: 'llms', 'skill', 'api-page', or 'api-docs'.
+            source: Integration source: 'llms', 'skill', 'api-page', 'api-docs', or 'chatgpt-plugin'.
             generated_by: Lowercase token identifying the coding agent.
 
         Raises:
