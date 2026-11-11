@@ -762,7 +762,7 @@ describe('User-Agent attribution', () => {
     expect(attributed.headers['User-Agent']).toMatch(
       / typecast-integration\/1 \(source=skill; generated_by=codex\)$/,
     );
-    for (const source of ['api-page', 'api-docs'] as const) {
+    for (const source of ['api-page', 'api-docs', 'chatgpt-plugin'] as const) {
       const onboardingClient = new TypecastClient({
         baseHost: 'https://dummy-api.ai',
         source,

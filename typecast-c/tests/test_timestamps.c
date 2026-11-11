@@ -1010,6 +1010,7 @@ static void test_http_with_timestamps_happy(void) {
     ASSERT(typecast_client_set_attribution(client, "api-page", "codex") == TYPECAST_OK);
     ASSERT(typecast_client_set_attribution(client, "api-docs", "codex") == TYPECAST_OK);
     ASSERT(typecast_client_set_attribution(client, "skill", "codex") == TYPECAST_OK);
+    ASSERT(typecast_client_set_attribution(client, "chatgpt-plugin", "chatgpt_plugin") == TYPECAST_OK);
 
     mini_mock_enqueue_json(200, build_word_only_response_json());
 
@@ -1028,7 +1029,7 @@ static void test_http_with_timestamps_happy(void) {
     ASSERT(strstr(g_mock.last_headers, "User-Agent: typecast-c/") != NULL);
     ASSERT(strstr(g_mock.last_headers, "sdk_env=c") != NULL);
     ASSERT(strstr(g_mock.last_headers,
-        " typecast-integration/1 (source=skill; generated_by=codex)") != NULL);
+        " typecast-integration/1 (source=chatgpt-plugin; generated_by=chatgpt_plugin)") != NULL);
     ASSERT(strstr(g_mock.last_headers, "X-API-KEY: test_api_key") != NULL);
 
     /* Verify SRT output */

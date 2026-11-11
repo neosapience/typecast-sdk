@@ -12,7 +12,7 @@ const USER_AGENT_CUSTOM = "typecast-zig/" ++ SDK_VERSION ++ " Zig/unknown std-ht
 fn validAttribution(source: []const u8, generated_by: []const u8) bool {
     if (source.len == 0 and generated_by.len == 0) return true;
     if (!(std.mem.eql(u8, source, "llms") or std.mem.eql(u8, source, "skill") or
-        std.mem.eql(u8, source, "api-page") or std.mem.eql(u8, source, "api-docs"))) return false;
+        std.mem.eql(u8, source, "api-page") or std.mem.eql(u8, source, "api-docs") or std.mem.eql(u8, source, "chatgpt-plugin"))) return false;
     if (generated_by.len == 0 or generated_by.len > 32) return false;
     for (generated_by, 0..) |char, index| {
         if (std.ascii.isLower(char) or std.ascii.isDigit(char) or
@@ -814,7 +814,7 @@ test "user agent includes sdk metadata" {
         attributed_ua,
         " typecast-integration/1 (source=skill; generated_by=codex)",
     ));
-    for ([_][]const u8{ "api-page", "api-docs" }) |source| {
+    for ([_][]const u8{ "api-page", "api-docs", "chatgpt-plugin" }) |source| {
         try std.testing.expect(validAttribution(source, "codex"));
     }
 }

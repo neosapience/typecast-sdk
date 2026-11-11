@@ -43,7 +43,7 @@ public class TypecastClientConfig
     /// </summary>
     public HttpClient? HttpClient { get; set; }
 
-    /// <summary>Integration source: "llms", "skill", "api-page", or "api-docs".</summary>
+    /// <summary>Integration source: "llms", "skill", "api-page", "api-docs", or "chatgpt-plugin".</summary>
     public string? Source { get; set; }
 
     /// <summary>Lowercase token identifying the coding agent.</summary>
