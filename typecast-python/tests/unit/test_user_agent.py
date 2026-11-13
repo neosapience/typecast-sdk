@@ -52,7 +52,7 @@ def test_user_agent_appends_valid_attribution():
     assert user_agent.endswith(
         " typecast-integration/1 (source=skill; generated_by=codex)"
     )
-    for source in ("api-page", "api-docs"):
+    for source in ("api-page", "api-docs", "chatgpt-plugin"):
         assert f"source={source}" in _user_agent.requests_user_agent(
             "https://proxy.example", source=source, generated_by="codex"
         )

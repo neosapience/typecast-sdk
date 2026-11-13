@@ -924,7 +924,7 @@ class TypecastClientTest {
             TypecastClient.builder().apiKey("key").attribution("skill", "Codex").build()
         }
         TypecastClient.builder().apiKey("key").attribution("llms", "codex").build().close()
-        for (source in listOf("api-page", "api-docs")) {
+        for (source in listOf("api-page", "api-docs", "chatgpt-plugin")) {
             TypecastClient.builder().apiKey("key").attribution(source, "codex").build().close()
         }
 

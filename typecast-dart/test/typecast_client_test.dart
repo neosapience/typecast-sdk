@@ -64,7 +64,7 @@ void main() {
     });
 
     test('accepts onboarding attribution sources', () {
-      for (final source in ['api-page', 'api-docs']) {
+      for (final source in ['api-page', 'api-docs', 'chatgpt-plugin']) {
         TypecastClient(apiKey: 'key', source: source, generatedBy: 'codex')
             .close();
       }

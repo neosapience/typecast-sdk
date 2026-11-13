@@ -134,7 +134,7 @@ func attributionSuffix(source, generatedBy string) string {
 	if source == "" && generatedBy == "" {
 		return ""
 	}
-	if source != "llms" && source != "skill" && source != "api-page" && source != "api-docs" || !validGeneratedBy(generatedBy) {
+	if source != "llms" && source != "skill" && source != "api-page" && source != "api-docs" && source != "chatgpt-plugin" || !validGeneratedBy(generatedBy) {
 		return ""
 	}
 	return fmt.Sprintf(" typecast-integration/1 (source=%s; generated_by=%s)", source, generatedBy)
