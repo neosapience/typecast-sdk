@@ -492,7 +492,7 @@ TYPECAST_API TypecastClient* typecast_client_create_with_host(
 
 /**
  * Append coding-agent attribution to this client's User-Agent.
- * Source must be "llms", "skill", "api-page", or "api-docs".
+ * Source must be "llms", "skill", "api-page", "api-docs", or "chatgpt-plugin".
  * Pass NULL for both values to clear attribution.
  */
 TYPECAST_API TypecastErrorCode typecast_client_set_attribution(

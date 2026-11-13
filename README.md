@@ -101,6 +101,8 @@ const audio = await client.tts.speak({
 
 For detailed API documentation and guides, visit **[typecast.ai/docs](https://typecast.ai/docs)**
 
+Optional User-Agent attribution accepts `api-page`, `api-docs`, legacy `llms`/`skill`, and `chatgpt-plugin` for ChatGPT plugin calls. Provide `source` and `generated_by` (`generatedBy` in some SDKs) together. Existing client identity and attribution-free requests remain unchanged.
+
 <br/>
 
 ## License

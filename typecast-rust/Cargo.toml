@@ -37,3 +37,8 @@ base64 = "0.23"
 tokio-test = "0.4"
 dotenvy = "0.15"
 mockito = "1.5"
+
+# Keep HTTP failure cases in the existing integration-test binary.
+[[test]]
+name = "unit_test"
+path = "tests/unit_suite.rs"
