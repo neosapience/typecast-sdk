@@ -139,7 +139,7 @@ func TestSetUserAgent_Attribution(t *testing.T) {
 	if !strings.HasSuffix(headers.Get("User-Agent"), " typecast-integration/1 (source=skill; generated_by=codex)") {
 		t.Fatalf("unexpected attribution: %q", headers.Get("User-Agent"))
 	}
-	for _, source := range []string{"api-page", "api-docs"} {
+	for _, source := range []string{"api-page", "api-docs", "chatgpt-plugin"} {
 		if got := NewClientWithAttribution(&ClientConfig{APIKey: "k"}, source, "codex").attribution; got == "" {
 			t.Fatalf("expected %s attribution", source)
 		}

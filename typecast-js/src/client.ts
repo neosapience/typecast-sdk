@@ -69,7 +69,7 @@ export class TypecastClient {
 
   private static buildUserAgent(
     baseHost: string,
-    source?: 'llms' | 'skill' | 'api-page' | 'api-docs',
+    source?: 'llms' | 'skill' | 'api-page' | 'api-docs' | 'chatgpt-plugin',
     generatedBy?: string,
   ): string {
     const nodeVersion = process.versions.node.split('.').slice(0, 2).join('.');
@@ -82,12 +82,12 @@ export class TypecastClient {
   private static attributionSuffix(source?: string, generatedBy?: string): string {
     if (source === undefined && generatedBy === undefined) return '';
     if (
-      !['llms', 'skill', 'api-page', 'api-docs'].includes(source || '') ||
+      !['llms', 'skill', 'api-page', 'api-docs', 'chatgpt-plugin'].includes(source || '') ||
       typeof generatedBy !== 'string' ||
       !generatedBy
     ) {
       throw new Error(
-        'source (llms, skill, api-page, or api-docs) and generatedBy must be provided together',
+        'source (llms, skill, api-page, api-docs, or chatgpt-plugin) and generatedBy must be provided together',
       );
     }
     if (!/^[a-z0-9][a-z0-9._-]{0,31}$/.test(generatedBy)) {

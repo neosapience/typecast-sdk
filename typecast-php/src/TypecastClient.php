@@ -615,11 +615,11 @@ class TypecastClient
         if ($this->source === null && $this->generatedBy === null) {
             return '';
         }
-        if (!in_array($this->source, ['llms', 'skill', 'api-page', 'api-docs'], true)
+        if (!in_array($this->source, ['llms', 'skill', 'api-page', 'api-docs', 'chatgpt-plugin'], true)
             || $this->generatedBy === null
             || preg_match('/^[a-z0-9][a-z0-9._-]{0,31}$/D', $this->generatedBy) !== 1) {
             throw new \InvalidArgumentException(
-                'source (llms, skill, api-page, or api-docs) and generatedBy must be valid and provided together'
+                'source (llms, skill, api-page, api-docs, or chatgpt-plugin) and generatedBy must be valid and provided together'
             );
         }
         return sprintf(

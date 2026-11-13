@@ -152,7 +152,7 @@ final class TypecastClientTests: XCTestCase {
 
         XCTAssertTrue(client.buildUserAgent().hasSuffix(
             " typecast-integration/1 (source=skill; generated_by=codex)"))
-        for source in ["api-page", "api-docs"] {
+        for source in ["api-page", "api-docs", "chatgpt-plugin"] {
             let onboardingClient = TypecastClient(configuration: TypecastConfiguration(
                 apiKey: "test-key", source: source, generatedBy: "codex"))
             XCTAssertTrue(onboardingClient.buildUserAgent().contains("source=\(source)"))
