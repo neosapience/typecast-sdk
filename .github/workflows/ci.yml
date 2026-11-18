@@ -128,6 +128,8 @@ jobs:
   test-kotlin:
     name: Kotlin SDK
     runs-on: ubuntu-latest
+    env:
+      JAVA_TOOL_OPTIONS: -XX:-UseBASE64Intrinsics
     defaults:
       run:
         working-directory: typecast-kotlin
